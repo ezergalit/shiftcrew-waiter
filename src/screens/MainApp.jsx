@@ -236,6 +236,21 @@ const MENU_BY_ID = Object.fromEntries(MENU.map((m) => [m.id, m]));
 const SPECIALS = ["m6", "m10"];                              // מנת היום (manager)
 const DAILY_IDS = ["m6", "m10", "m9", "m2", "m13", "m7"];    // today's AI set
 
+// Obstacles (מכשולים) — guest-PREFERENCE hurdles, NOT medical allergens. Things
+// some guests simply don't enjoy (spicy, bitter, raw, caffeine) that a good waiter
+// flags proactively. Allergens answer "who can't eat this"; obstacles answer "who
+// might not WANT this". Keyed by dish id; a dish absent here has no obstacles.
+const OBSTACLES = {
+  m1: ["מוגש נא"],
+  m2: ["חריף קל", "מרקם ימי"],
+  m5: ["רוטב פלפלת חריף-קל"],
+  m9: ["חריף"],
+  m13: ["מריר", "אלכוהול חזק"],
+  m14: ["מכיל קפאין", "אלכוהול"],
+};
+// The obstacles for a card: explicit list on the card wins, else the curated map.
+function cardObstacles(it) { return it.obstacles ?? OBSTACLES[it.id] ?? []; }
+
 // Convert an owner-published menu row (shiftcrew_waiter.published_menu) into the
 // rich flashcard shape the LearnTab uses. Published rows carry fewer fields than
 // the local demo MENU, so we synthesize sensible defaults for owner-added dishes.
@@ -249,6 +264,9 @@ function pubToCard(p) {
     cat, name: p.name, price: Number(p.price) || 0,
     groups, allergens: Array.isArray(p.allergens) ? p.allergens : [],
     modifications: [], kosher: true, tags: p.is_special ? ["מנת היום"] : [],
+    // The restaurant's published menu doesn't carry obstacles yet, so flag it as
+    // unknown — the card then prompts the waiter to check with the manager.
+    obstacles: [], obstaclesUnknown: true,
     pitfall: p.is_special ? "מנת היום — להמליץ לאורחים" : "",
     serving: "מנה אישית",
   };
@@ -353,7 +371,7 @@ export default function MainApp({ waiter, onSignOut }) {
 
       {settingsOpen && (
         <div className="absolute inset-0 z-50 bg-[#0c0d10] flex flex-col">
-          <SettingsScreen onBack={() => setSettingsOpen(false)} onSignOut={onSignOut} restaurantName={waiter?.restaurantName} />
+          <SettingsScreen onBack={() => setSettingsOpen(false)} onSignOut={onSignOut} waiter={waiter} restaurantName={waiter?.restaurantName} />
         </div>
       )}
     </div>
@@ -1024,9 +1042,10 @@ function frontCues(it) {
 function frontQuestions(it) {
   const q = [];
   if (it.allergens.length) q.push("למי המנה לא מתאימה?");
+  if (cardObstacles(it).length || it.obstaclesUnknown) q.push("אילו מכשולים יש במנה?");
   if (it.modifications.length) q.push("אילו שינויים אפשריים?");
   q.push("האם המנה כשרה?");
-  if (it.pitfall) q.push("מה המוקש במנה?");
+  if (it.pitfall) q.push("מה הטיפ למלצר?");
   if (it.serving) q.push("איך מגישים?");
   return q;
 }
@@ -1105,8 +1124,24 @@ function Flashcards({ items, onKnown, onDone }) {
               )}
 
               <div className="bg-[#3a1d22] border border-[#3a1d22] rounded-2xl p-3 mt-3">
-                <p className="text-[11px] font-black text-[#e0315a] mb-1 flex items-center gap-1"><AlertTriangle size={12} /> המנה לא מתאימה ל:</p>
+                <p className="text-[11px] font-black text-[#e0315a] mb-1 flex items-center gap-1"><AlertTriangle size={12} /> אלרגנים — המנה לא מתאימה ל:</p>
                 <p className="text-sm font-bold text-[#e0315a]">{it.allergens.length ? it.allergens.join(" · ") : "ללא אלרגנים ידועים"}</p>
+              </div>
+
+              {/* Obstacles (מכשולים) — guest-preference hurdles, NOT allergies. */}
+              <div className="bg-[#33290f] border border-[#5a4a1e] rounded-2xl p-3 mt-3">
+                <p className="text-[11px] font-black text-[#f3c14b] mb-1 flex items-center gap-1">🌶️ מכשולים — דברים שאורחים לרוב פחות אוהבים</p>
+                {it.obstaclesUnknown ? (
+                  <p className="text-sm font-bold text-[#f3c14b]">המסעדה לא ציינה מכשולים — כדאי לברר עם המנהל/ת אם יש (חריפות, מרירות, מוגש נא וכו׳).</p>
+                ) : cardObstacles(it).length ? (
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {cardObstacles(it).map((o) => (
+                      <span key={o} className="text-xs font-bold text-[#f3c14b] bg-[#16181c] px-2.5 py-1 rounded-lg">{o}</span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm font-bold text-[#cbb59a]">אין מכשולים מיוחדים — מנה שמתאימה כמעט לכולם.</p>
+                )}
               </div>
 
               <div className="flex items-center gap-2 mt-3">
@@ -1116,9 +1151,9 @@ function Flashcards({ items, onKnown, onDone }) {
               </div>
 
               {it.pitfall && (
-                <div className="bg-[#33290f] border border-[#33290f] rounded-2xl p-3 mt-3">
-                  <p className="text-[11px] font-black text-[#f3c14b] mb-0.5">⚠️ המוקש</p>
-                  <p className="text-sm font-bold text-[#f3c14b]">{it.pitfall}</p>
+                <div className="bg-[#241f3a] border border-[#2e2748] rounded-2xl p-3 mt-3">
+                  <p className="text-[11px] font-black text-[#9b7bff] mb-0.5">💡 טיפ למלצר</p>
+                  <p className="text-sm font-bold text-[#c9b6ff]">{it.pitfall}</p>
                 </div>
               )}
 
@@ -1503,15 +1538,118 @@ function DoneScreen({ title, lines, onAgain, onDone }) {
   );
 }
 
-function SettingsScreen({ onBack, onSignOut, restaurantName }) {
+// Empty / informational state for a settings detail panel.
+function SettingsEmpty({ icon: Icon, title, subtitle }) {
+  return (
+    <div className="flex flex-col items-center justify-center text-center py-14 px-6">
+      <div className="w-16 h-16 rounded-2xl bg-[#1c1e22] border border-[#22252b] flex items-center justify-center mb-4">
+        <Icon size={26} className="text-[#6d5efc]" />
+      </div>
+      <p className="text-base font-black text-[#eef0f6] mb-1">{title}</p>
+      <p className="text-sm font-semibold text-[#8a8aa0] leading-relaxed max-w-[18rem]">{subtitle}</p>
+    </div>
+  );
+}
+
+// One labelled value row used inside the profile / settings panels.
+function InfoRow({ label, value }) {
+  return (
+    <div className="flex items-center justify-between px-4 py-3.5 border-b border-[#1c1e22] last:border-b-0">
+      <span className="text-sm font-bold text-[#eef0f6]">{value}</span>
+      <span className="text-xs font-semibold text-[#8a8aa0]">{label}</span>
+    </div>
+  );
+}
+
+function SettingsScreen({ onBack, onSignOut, waiter, restaurantName }) {
+  // null = the account list; otherwise the open item's id (its detail panel).
+  const [open, setOpen] = useState(null);
+  const phone = waiter?.phone || "";
+
   const MENU_ITEMS = [
-    { icon: User, label: "הפרופיל שלי" },
-    { icon: FileText, label: "תלושי שכר" },
-    { icon: ArrowLeftRight, label: "בקשות החלפה" },
-    { icon: Bell, label: "התראות" },
-    { icon: Settings, label: "הגדרות" },
-    { icon: HelpCircle, label: "עזרה ותמיכה" },
+    { id: "profile", icon: User, label: "הפרופיל שלי" },
+    { id: "payslips", icon: FileText, label: "תלושי שכר" },
+    { id: "swaps", icon: ArrowLeftRight, label: "בקשות החלפה" },
+    { id: "notifs", icon: Bell, label: "התראות" },
+    { id: "prefs", icon: Settings, label: "הגדרות" },
+    { id: "help", icon: HelpCircle, label: "עזרה ותמיכה" },
   ];
+  const current = MENU_ITEMS.find((m) => m.id === open);
+
+  // Detail panel content per item — real data where we have it, an honest empty
+  // state otherwise (so e.g. "תלושי שכר" still opens and explains there's none yet).
+  const renderDetail = () => {
+    switch (open) {
+      case "profile":
+        return (
+          <div className="px-5 py-4">
+            <div className={`${C.card} p-5 mb-4 flex items-center gap-3`}>
+              <div className="w-14 h-14 rounded-full bg-[#6d5efc] text-white font-black text-lg flex items-center justify-center shadow-[0_4px_12px_rgba(109,94,252,0.35)]">
+                {ME.name.split(" ").map((w) => w[0]).join("")}
+              </div>
+              <div>
+                <p className="text-base font-black text-[#eef0f6]">{ME.name}</p>
+                <p className="text-xs text-[#8a8aa0] font-semibold">{ME.role}</p>
+              </div>
+            </div>
+            <div className={`${C.card} overflow-hidden mb-3`}>
+              <InfoRow label="שם" value={ME.name} />
+              <InfoRow label="תפקיד" value={ME.role} />
+              {phone && <InfoRow label="טלפון" value={phone} />}
+              <InfoRow label="מסעדה" value={restaurantName || "—"} />
+            </div>
+            <p className="text-xs font-semibold text-[#8a8aa0] text-center px-4">לעדכון פרטים אישיים פנה/י למנהל/ת המסעדה.</p>
+          </div>
+        );
+      case "payslips":
+        return <SettingsEmpty icon={FileText} title="אין תלושי שכר עדיין" subtitle="כשהמנהל/ת תפיק תלוש שכר, הוא יופיע כאן וניתן יהיה להוריד אותו." />;
+      case "swaps":
+        return <SettingsEmpty icon={ArrowLeftRight} title="אין בקשות החלפה" subtitle="בקשות להחלפת משמרת שתשלח/י או שתקבל/י מחברי הצוות יופיעו כאן." />;
+      case "notifs":
+        return <SettingsEmpty icon={Bell} title="אין התראות חדשות" subtitle="עדכונים על פרסום סידור, שינויים במשמרות ומשימות חדשות יופיעו כאן." />;
+      case "prefs":
+        return (
+          <div className="px-5 py-4">
+            <div className={`${C.card} overflow-hidden`}>
+              <InfoRow label="שפה" value="עברית" />
+              <InfoRow label="גרסה" value="1.0" />
+              <InfoRow label="מסעדה" value={restaurantName || "—"} />
+            </div>
+          </div>
+        );
+      case "help":
+        return (
+          <div className="px-5 py-4">
+            <div className={`${C.card} p-5`}>
+              <p className="text-sm font-black text-[#eef0f6] mb-2">צריך/ה עזרה?</p>
+              <p className="text-sm font-semibold text-[#8a8aa0] leading-relaxed">
+                לשאלות על משמרות, זמינות או התפריט — פנה/י ישירות למנהל/ת המסעדה.
+                לבעיה טכנית באפליקציה, צרו קשר עם התמיכה של ShiftCrew.
+              </p>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  // Detail view (an item is open).
+  if (current) {
+    return (
+      <>
+        <div className="bg-[#0c0d10] px-4 pt-6 pb-3 flex items-center gap-3">
+          <button onClick={() => setOpen(null)} className="w-9 h-9 rounded-xl bg-[#16181c] border border-[#22252b] flex items-center justify-center text-[#8a8aa0] active:bg-[#1c1e22] shadow-sm">
+            <ChevronRight size={18} />
+          </button>
+          <span className="text-lg font-black text-[#eef0f6]">{current.label}</span>
+        </div>
+        <div className="flex-1 overflow-y-auto">{renderDetail()}</div>
+      </>
+    );
+  }
+
+  // Account list view.
   return (
     <>
       <div className="bg-[#0c0d10] px-4 pt-6 pb-3 flex items-center gap-3">
@@ -1532,7 +1670,7 @@ function SettingsScreen({ onBack, onSignOut, restaurantName }) {
         </div>
         <div className="bg-[#16181c] rounded-3xl border border-[#22252b] shadow-sm overflow-hidden mb-4">
           {MENU_ITEMS.map((m, idx) => (
-            <button key={m.label} className={`w-full flex items-center gap-3 px-4 py-3.5 text-right active:bg-[#0c0d10] ${idx < MENU_ITEMS.length - 1 ? "border-b border-[#1c1e22]" : ""}`}>
+            <button key={m.id} onClick={() => setOpen(m.id)} className={`w-full flex items-center gap-3 px-4 py-3.5 text-right active:bg-[#0c0d10] ${idx < MENU_ITEMS.length - 1 ? "border-b border-[#1c1e22]" : ""}`}>
               <div className="w-9 h-9 rounded-xl bg-[#1c1e22] flex items-center justify-center flex-shrink-0">
                 <m.icon size={17} className="text-[#6d5efc]" />
               </div>
