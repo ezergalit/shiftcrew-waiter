@@ -7,7 +7,36 @@ import {
   User, Settings, LogOut, HelpCircle, ArrowLeftRight, AlertTriangle,
   Leaf, Pencil, ScrollText, Upload, Camera, ClipboardPaste, ScanLine,
 } from "lucide-react";
-import { scWaiter, ME_NAME } from "../lib/shiftcrew";
+import { scWaiter, scOwnerPublic, ME_NAME } from "../lib/shiftcrew";
+
+// The week the owner schedules/collects availability for. Both apps MUST agree on
+// this key for the round-trip to line up (owner anchors on Sun 7.6.2026).
+const WEEK_START = new Date(2026, 5, 7);
+function isoDate(d) {
+  const z = new Date(d);
+  z.setMinutes(z.getMinutes() - z.getTimezoneOffset());
+  return z.toISOString().slice(0, 10);
+}
+const WEEK_ISO = isoDate(WEEK_START);
+
+// Hours between two "HH:MM" times, wrapping past midnight (22:00→02:00 = 4).
+function spanHours(from, to) {
+  if (!from || !to) return 0;
+  const [fh, fm] = String(from).split(":").map(Number);
+  const [th, tm] = String(to).split(":").map(Number);
+  let mins = (th * 60 + tm) - (fh * 60 + fm);
+  if (mins <= 0) mins += 24 * 60;
+  return Math.round((mins / 60) * 10) / 10;
+}
+
+// Which bucket a start time falls into — matches the owner's morning/evening/night
+// split so the icon on a published shift reflects how the owner staffed it.
+function bucketOf(from) {
+  const h = parseInt(String(from || "0").split(":")[0], 10) || 0;
+  if (h < 16) return "morning";
+  if (h < 22) return "evening";
+  return "night";
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MainApp — the ShiftCrew WAITER app. The waiter reached here by entering a phone
@@ -30,13 +59,11 @@ const SHIFTS = {
 };
 const DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
-const MY_SHIFTS = [
-  { day: 0, shift: "morning", date: "14.6", rel: "מחר",      coworkers: ["עומר טל", "רוני שמש"] },
-  { day: 1, shift: "evening", date: "15.6", rel: "יום שני",  coworkers: ["שירה אבני"] },
-  { day: 3, shift: "evening", date: "17.6", rel: "יום רביעי", coworkers: ["מאיה ברק", "יותם פרץ"] },
-  { day: 4, shift: "evening", date: "18.6", rel: "יום חמישי", coworkers: ["איתי כהן", "דניאל מור"] },
-  { day: 5, shift: "evening", date: "19.6", rel: "יום שישי",  coworkers: ["איתי כהן", "מאיה ברק", "יותם פרץ"] },
-];
+// Date for a weekday index within the scheduled week (e.g. "7.6").
+function shiftDateLabel(dayIdx) {
+  const d = new Date(WEEK_START); d.setDate(d.getDate() + dayIdx);
+  return `${d.getDate()}.${d.getMonth() + 1}`;
+}
 
 // ── The restaurant's FULL menu — the rich card model the "AI" extracts ────────
 const CATS = {
@@ -265,17 +292,60 @@ export default function MainApp({ waiter, onSignOut }) {
   const [mastered, setMastered] = useState(() => new Set());
   const learnItem = (id) => setMastered((p) => new Set(p).add(id));
 
-  const totals = useMemo(() => {
-    const hours = MY_SHIFTS.reduce((s, x) => s + SHIFTS[x.shift].hours, 0);
-    return { count: MY_SHIFTS.length, hours, pay: hours * ME.rate };
+  // The published schedule the OWNER pushed (shiftcrew_waiter.published_assignments).
+  // null = loading, [] = nothing published yet.
+  const myName = waiter?.name || ME.name;
+  const [schedRows, setSchedRows] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data, error } = await scWaiter
+        .from("published_assignments")
+        .select("day_of_week, shift_label, waiter_name, from_time, to_time, position_name, color")
+        .eq("week_start", WEEK_ISO)
+        .order("day_of_week", { ascending: true });
+      if (!alive) return;
+      if (error) { console.error("[shiftcrew] schedule load failed:", error); setSchedRows([]); return; }
+      setSchedRows(data || []);
+    })();
+    return () => { alive = false; };
   }, []);
+
+  // My shifts for the week + who else works each of those days (coworkers).
+  const myShifts = useMemo(() => {
+    if (!Array.isArray(schedRows)) return [];
+    return schedRows
+      .filter((r) => r.waiter_name === myName)
+      .map((r) => ({
+        day: r.day_of_week,
+        date: shiftDateLabel(r.day_of_week),
+        position: r.position_name,
+        from: r.from_time, to: r.to_time,
+        hours: spanHours(r.from_time, r.to_time),
+        bucket: bucketOf(r.from_time),
+        color: r.color,
+        coworkers: [...new Set(schedRows
+          .filter((c) => c.day_of_week === r.day_of_week && c.waiter_name !== myName)
+          .map((c) => c.waiter_name))],
+      }))
+      .sort((a, b) => a.day - b.day || a.from.localeCompare(b.from));
+  }, [schedRows, myName]);
+
+  const totals = useMemo(() => {
+    const hours = myShifts.reduce((s, x) => s + x.hours, 0);
+    return { count: myShifts.length, hours: Math.round(hours) };
+  }, [myShifts]);
+
+  const published = Array.isArray(schedRows) && schedRows.length > 0;
+  const loadingSched = schedRows === null;
 
   return (
     <div className="h-full flex flex-col max-w-md mx-auto bg-[#f4f4f9] text-[#1b1b2e] relative" dir="rtl">
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {tab === "home"     && <HomeTab totals={totals} go={setTab} mastered={mastered} onAvatar={() => setSettingsOpen(true)} />}
-        {tab === "schedule" && <ScheduleTab totals={totals} onAvatar={() => setSettingsOpen(true)} />}
-        {tab === "avail"    && <AvailTab onAvatar={() => setSettingsOpen(true)} />}
+        {tab === "home"     && <HomeTab totals={totals} myShifts={myShifts} loading={loadingSched} go={setTab} mastered={mastered} onAvatar={() => setSettingsOpen(true)} />}
+        {tab === "schedule" && <ScheduleTab totals={totals} myShifts={myShifts} published={published} loading={loadingSched} onAvatar={() => setSettingsOpen(true)} />}
+        {tab === "avail"    && <AvailTab waiter={waiter} onAvatar={() => setSettingsOpen(true)} />}
         {tab === "tasks"    && <TasksTab go={setTab} onAvatar={() => setSettingsOpen(true)} />}
         {tab === "learn"    && <LearnTab mastered={mastered} learnItem={learnItem} onAvatar={() => setSettingsOpen(true)} />}
       </div>
@@ -306,32 +376,39 @@ function TopBar({ title, subtitle, onAvatar }) {
 }
 
 // ── 1. Home ─────────────────────────────────────────────────────────────────
-function HomeTab({ totals, go, mastered, onAvatar }) {
-  const next = MY_SHIFTS[0];
-  const s = SHIFTS[next.shift];
+function HomeTab({ totals, myShifts, loading, go, mastered, onAvatar }) {
+  const next = myShifts[0];
+  const s = next ? (SHIFTS[next.bucket] || SHIFTS.evening) : null;
   return (
     <>
       <TopBar title={`שלום, ${ME.name.split(" ")[0]} 👋`} subtitle={ME.role} onAvatar={onAvatar} />
       <div className="px-5 pb-4 space-y-5">
         <div>
           <p className="text-xs font-bold text-[#8a8aa0] mb-2">המשמרת הבאה</p>
-          <div className="rounded-3xl p-5 text-white shadow-[0_10px_30px_rgba(109,94,252,0.35)]" style={{ background: "linear-gradient(135deg,#6d5efc,#9b7bff)" }}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold bg-white/20 px-2.5 py-1 rounded-lg">{next.rel}</span>
-              <span className="text-xs font-bold flex items-center gap-1"><s.icon size={14} /> {s.label}</span>
+          {next ? (
+            <div className="rounded-3xl p-5 text-white shadow-[0_10px_30px_rgba(109,94,252,0.35)]" style={{ background: "linear-gradient(135deg,#6d5efc,#9b7bff)" }}>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold bg-white/20 px-2.5 py-1 rounded-lg">{next.position}</span>
+                <span className="text-xs font-bold flex items-center gap-1"><s.icon size={14} /> {s.label}</span>
+              </div>
+              <p className="text-2xl font-black">{DAYS[next.day]} · {next.date}</p>
+              <p className="text-sm font-semibold text-white/85 mt-1 flex items-center gap-1.5" dir="ltr"><Clock size={14} /> {next.from}–{next.to} · {next.hours} ש׳</p>
+              <p className="text-sm font-semibold text-white/85 mt-1 flex items-center gap-1.5"><MapPin size={14} /> {PLACE}</p>
             </div>
-            <p className="text-2xl font-black">{DAYS[next.day]} · {next.date}</p>
-            <p className="text-sm font-semibold text-white/85 mt-1 flex items-center gap-1.5"><Clock size={14} /> {s.time}</p>
-            <p className="text-sm font-semibold text-white/85 mt-1 flex items-center gap-1.5"><MapPin size={14} /> {PLACE}</p>
-          </div>
+          ) : (
+            <div className={`${C.card} p-5 text-center`}>
+              <CalendarDays size={28} className="mx-auto text-[#c4c4d4] mb-2" />
+              <p className="text-sm font-bold text-[#3a3a52]">{loading ? "טוען את הסידור…" : "הסידור עדיין לא פורסם"}</p>
+              {!loading && <p className="text-xs text-[#8a8aa0] font-semibold mt-1">ברגע שהמנהל/ת יפרסם — המשמרות שלך יופיעו כאן</p>}
+            </div>
+          )}
         </div>
 
         <div>
           <p className="text-xs font-bold text-[#8a8aa0] mb-2">השבוע במספרים</p>
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-2 gap-2.5">
             <Stat value={totals.count} label="משמרות" />
             <Stat value={totals.hours} label="שעות" />
-            <Stat value={`₪${totals.pay.toLocaleString()}`} label="צפי שכר" />
           </div>
         </div>
 
@@ -365,68 +442,114 @@ function HomeTab({ totals, go, mastered, onAvatar }) {
 }
 
 // ── 2. Work schedule ──────────────────────────────────────────────────────────
-function ScheduleTab({ totals, onAvatar }) {
+function ScheduleTab({ totals, myShifts, published, loading, onAvatar }) {
+  const weekEnd = new Date(WEEK_START); weekEnd.setDate(weekEnd.getDate() + 6);
+  const range = `${WEEK_START.getDate()}.${WEEK_START.getMonth() + 1} – ${weekEnd.getDate()}.${weekEnd.getMonth() + 1}`;
   return (
     <>
       <TopBar title="סידור עבודה" subtitle="המשמרות שלי לשבוע זה" onAvatar={onAvatar} />
       <div className="px-5 pb-4">
         <div className="flex items-center justify-between mb-3">
           <button className="w-8 h-8 rounded-xl bg-white border border-[#ecebf3] flex items-center justify-center text-[#8a8aa0] shadow-sm"><ChevronRight size={18} /></button>
-          <p className="text-sm font-black">14.6 – 20.6</p>
+          <p className="text-sm font-black">{range}</p>
           <button className="w-8 h-8 rounded-xl bg-white border border-[#ecebf3] flex items-center justify-center text-[#8a8aa0] shadow-sm"><ChevronLeft size={18} /></button>
         </div>
 
-        <div className="flex items-center gap-2 bg-[#e7f7f0] text-[#0c9b6e] rounded-2xl px-3 py-2.5 mb-4 text-xs font-bold">
-          <CheckCircle2 size={15} /> הסידור פורסם
-        </div>
+        {published ? (
+          <>
+            <div className="flex items-center gap-2 bg-[#e7f7f0] text-[#0c9b6e] rounded-2xl px-3 py-2.5 mb-4 text-xs font-bold">
+              <CheckCircle2 size={15} /> הסידור פורסם
+            </div>
 
-        <div className="grid grid-cols-3 gap-2.5 mb-4">
-          <Stat value={totals.count} label="משמרות" />
-          <Stat value={totals.hours} label="שעות" />
-          <Stat value={`₪${totals.pay.toLocaleString()}`} label="צפי שכר" />
-        </div>
+            <div className="grid grid-cols-2 gap-2.5 mb-4">
+              <Stat value={totals.count} label="משמרות" />
+              <Stat value={totals.hours} label="שעות" />
+            </div>
 
-        <div className="space-y-2.5">
-          {MY_SHIFTS.map((x) => {
-            const s = SHIFTS[x.shift];
-            return (
-              <div key={`${x.day}-${x.shift}`} className={`${C.card} p-4`}>
-                <div className="flex items-start gap-3">
-                  <div className="w-11 h-11 rounded-2xl bg-[#f1f1f7] flex items-center justify-center flex-shrink-0">
-                    <s.icon size={18} className="text-[#6d5efc]" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-black">{DAYS[x.day]} · {x.date}</p>
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-[#efedff] text-[#6d5efc]">{s.label}</span>
-                    </div>
-                    <p className="text-xs text-[#8a8aa0] font-semibold flex items-center gap-1 mt-1"><Clock size={12} /> {s.time} · {s.hours} שעות</p>
-                    <p className="text-xs text-[#a0a0b4] font-semibold flex items-center gap-1 mt-0.5"><Users size={12} /> איתך: {x.coworkers.join(", ")}</p>
-                  </div>
-                </div>
-                <button className="w-full mt-3 flex items-center justify-center gap-1.5 text-xs font-bold text-[#6d5efc] bg-[#f4f4f9] rounded-xl py-2 active:bg-[#ecebf3]">
-                  <Repeat size={13} /> בקשת החלפת משמרת
-                </button>
+            {myShifts.length === 0 ? (
+              <div className={`${C.card} p-6 text-center`}>
+                <p className="text-sm font-bold text-[#3a3a52]">לא שובצת למשמרות השבוע</p>
+                <p className="text-xs text-[#8a8aa0] font-semibold mt-1">דבר/י עם המנהל/ת אם זו טעות</p>
               </div>
-            );
-          })}
-        </div>
+            ) : (
+              <div className="space-y-2.5">
+                {myShifts.map((x, i) => {
+                  const s = SHIFTS[x.bucket] || SHIFTS.evening;
+                  return (
+                    <div key={`${x.day}-${x.from}-${i}`} className={`${C.card} p-4`}>
+                      <div className="flex items-start gap-3">
+                        <div className="w-11 h-11 rounded-2xl bg-[#f1f1f7] flex items-center justify-center flex-shrink-0">
+                          <s.icon size={18} className="text-[#6d5efc]" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-black">{DAYS[x.day]} · {x.date}</p>
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-[#efedff] text-[#6d5efc]">{x.position}</span>
+                          </div>
+                          <p className="text-xs text-[#8a8aa0] font-semibold flex items-center gap-1 mt-1" dir="ltr"><Clock size={12} /> {x.from}–{x.to} · {x.hours} שעות</p>
+                          {x.coworkers.length > 0 && (
+                            <p className="text-xs text-[#a0a0b4] font-semibold flex items-center gap-1 mt-0.5"><Users size={12} /> איתך: {x.coworkers.join(", ")}</p>
+                          )}
+                        </div>
+                      </div>
+                      <button className="w-full mt-3 flex items-center justify-center gap-1.5 text-xs font-bold text-[#6d5efc] bg-[#f4f4f9] rounded-xl py-2 active:bg-[#ecebf3]">
+                        <Repeat size={13} /> בקשת החלפת משמרת
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className={`${C.card} p-8 text-center`}>
+            <CalendarDays size={32} className="mx-auto text-[#c4c4d4] mb-3" />
+            <p className="text-sm font-black text-[#3a3a52]">{loading ? "טוען את הסידור…" : "הסידור עדיין לא פורסם"}</p>
+            {!loading && <p className="text-xs text-[#8a8aa0] font-semibold mt-1">ברגע שהמנהל/ת יפרסם את הסידור — המשמרות שלך יופיעו כאן</p>}
+          </div>
+        )}
       </div>
     </>
   );
 }
 
 // ── 3. Availability ───────────────────────────────────────────────────────────
-const AVAIL_WEEK_START = new Date(2026, 5, 14);
+// The waiter submits for the SAME week the owner schedules (WEEK_START), so the
+// owner's auto-fill reads it back from shiftcrew_owner.availability.
+const AVAIL_WEEK_START = WEEK_START;
 const DAY_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const MONTHS_HE = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
 
-function AvailTab({ onAvatar }) {
+function AvailTab({ waiter, onAvatar }) {
   const [mode, setMode] = useState("weekly");
   const [weekly, setWeekly] = useState({});
   const [deflt, setDeflt] = useState({});
   const [note, setNote] = useState("");
   const [sent, setSent] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const staffId = waiter?.staff_id || null;
+  const restId = waiter?.restaurant_id || null;
+
+  // Pull back what this waiter already submitted for the week so the grid opens
+  // pre-filled (and re-submitting feels like an edit, not a fresh start).
+  useEffect(() => {
+    if (!staffId) return;
+    let alive = true;
+    (async () => {
+      const { data, error } = await scOwnerPublic
+        .from("availability")
+        .select("day_of_week, bucket, pref")
+        .eq("staff_id", staffId).eq("week_start", WEEK_ISO);
+      if (!alive || error || !data) return;
+      const next = {};
+      data.forEach((r) => { next[`${r.day_of_week}-${r.bucket}`] = true; });
+      setWeekly(next);
+      if (Object.keys(next).length) setSent(true);
+    })();
+    return () => { alive = false; };
+  }, [staffId]);
 
   const sel = mode === "weekly" ? weekly : deflt;
   const setSel = mode === "weekly" ? setWeekly : setDeflt;
@@ -443,6 +566,36 @@ function AvailTab({ onAvatar }) {
     });
   };
   const count = Object.values(sel).filter(Boolean).length;
+
+  // Persist the weekly grid to shiftcrew_owner.availability: clear this waiter's
+  // rows for the week, then insert one row per selected cell (pref "want").
+  const submit = async () => {
+    if (mode !== "weekly" || !staffId || !restId) { setSent(true); return; }
+    setSaving(true); setErr("");
+    try {
+      await scOwnerPublic.from("availability").delete()
+        .eq("staff_id", staffId).eq("week_start", WEEK_ISO);
+      const rows = Object.entries(weekly)
+        .filter(([, on]) => on)
+        .map(([k]) => {
+          const [di, bucket] = k.split("-");
+          return {
+            restaurant_id: restId, staff_id: staffId, week_start: WEEK_ISO,
+            day_of_week: Number(di), bucket, pref: "want",
+          };
+        });
+      if (rows.length) {
+        const { error } = await scOwnerPublic.from("availability").insert(rows);
+        if (error) throw error;
+      }
+      setSent(true);
+    } catch (e) {
+      console.error("[shiftcrew] availability submit failed:", e);
+      setErr("השליחה נכשלה — נסה/י שוב");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const weekEnd = new Date(AVAIL_WEEK_START); weekEnd.setDate(weekEnd.getDate() + 6);
   const rangeLabel = `${AVAIL_WEEK_START.getDate()} ב${MONTHS_HE[AVAIL_WEEK_START.getMonth()]} - ${weekEnd.getDate()} ב${MONTHS_HE[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`;
@@ -523,13 +676,15 @@ function AvailTab({ onAvatar }) {
           placeholder="השאר הערה למנהל"
           className="w-full mt-6 bg-white border border-[#ecebf3] rounded-2xl px-4 py-3 text-sm text-[#1b1b2e] text-right placeholder:text-[#b4b4c4] resize-none focus:outline-none focus:border-[#6d5efc] shadow-sm" />
 
-        <button onClick={() => setSent(true)} disabled={sent || count === 0}
+        {err && <p className="text-xs font-bold text-[#e0315a] text-center mt-3">{err}</p>}
+
+        <button onClick={submit} disabled={sent || saving || count === 0}
           className={`w-full mt-4 flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm transition-colors ${
             sent ? "bg-[#e7f7f0] text-[#0c9b6e]"
-            : count === 0 ? "bg-[#ecebf3] text-[#b4b4c4]"
+            : count === 0 || saving ? "bg-[#ecebf3] text-[#b4b4c4]"
             : "bg-[#6d5efc] text-white active:bg-[#5b4ef0] shadow-[0_6px_18px_rgba(109,94,252,0.35)]"
           }`}>
-          {sent ? <><Check size={17} /> נשלח למנהל/ת</> : <><Send size={16} /> שלח ({count})</>}
+          {saving ? <>שולח…</> : sent ? <><Check size={17} /> נשלח למנהל/ת</> : <><Send size={16} /> שלח ({count})</>}
         </button>
       </div>
     </>
