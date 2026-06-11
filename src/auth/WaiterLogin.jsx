@@ -49,7 +49,7 @@ export default function WaiterLogin({ onGranted }) {
   };
 
   return (
-    <div className="h-full max-w-md mx-auto flex flex-col bg-[#f4f4f9] text-[#1b1b2e]" dir="rtl">
+    <div className="h-full max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       {/* Brand hero */}
       <div className="px-7 pt-[max(3.5rem,env(safe-area-inset-top))] pb-2 text-center">
         <div className="w-16 h-16 rounded-3xl text-white flex items-center justify-center mx-auto mb-4 shadow-[0_10px_30px_rgba(109,94,252,0.35)]"
@@ -63,21 +63,21 @@ export default function WaiterLogin({ onGranted }) {
       </div>
 
       <form onSubmit={submit} className="flex-1 px-6 pt-4 flex flex-col">
-        <div className="bg-white border border-[#ecebf3] rounded-3xl shadow-[0_2px_14px_rgba(30,25,70,0.05)] p-5 space-y-4">
-          <div className="flex items-center gap-2 text-[13px] font-bold text-[#0c9b6e] bg-[#e7f7f0] rounded-2xl px-3.5 py-2.5">
+        <div className="bg-[#16181c] border border-[#22252b] rounded-3xl shadow-[0_2px_14px_rgba(30,25,70,0.05)] p-5 space-y-4">
+          <div className="flex items-center gap-2 text-[13px] font-bold text-[#22c08c] bg-[#15302b] rounded-2xl px-3.5 py-2.5">
             <ShieldCheck size={15} />
             כניסה עם מספר הטלפון — בלי סיסמה
           </div>
 
           <div>
             <p className="text-[12px] font-bold text-[#8a8aa0] mb-1.5 px-1">מספר הטלפון שלך</p>
-            <div className="flex items-center gap-2 bg-[#f4f4f9] border border-[#ecebf3] rounded-2xl px-3.5 focus-within:border-[#6d5efc]">
+            <div className="flex items-center gap-2 bg-[#0c0d10] border border-[#22252b] rounded-2xl px-3.5 focus-within:border-[#6d5efc]">
               <Phone size={17} className="text-[#8a8aa0] flex-shrink-0" />
               <input
                 type="tel" inputMode="tel" value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="050-1234567" dir="ltr" autoComplete="tel"
-                className="w-full bg-transparent py-3.5 text-base font-bold text-[#1b1b2e] text-left placeholder:text-[#b4b4c4] focus:outline-none"
+                className="w-full bg-transparent py-3.5 text-base font-bold text-[#eef0f6] text-left placeholder:text-[#b4b4c4] focus:outline-none"
               />
             </div>
           </div>
@@ -90,7 +90,7 @@ export default function WaiterLogin({ onGranted }) {
 
           <button type="submit" disabled={!canSubmit}
             className={`w-full rounded-2xl py-4 font-black text-base flex items-center justify-center gap-2 transition-colors ${
-              canSubmit ? "bg-[#6d5efc] text-white active:bg-[#5b4ef0] shadow-[0_6px_18px_rgba(109,94,252,0.35)]" : "bg-[#ecebf3] text-[#b4b4c4] cursor-not-allowed"}`}>
+              canSubmit ? "bg-[#6d5efc] text-white active:bg-[#5b4ef0] shadow-[0_6px_18px_rgba(109,94,252,0.35)]" : "bg-[#22252b] text-[#b4b4c4] cursor-not-allowed"}`}>
             {busy ? <><Loader2 size={18} className="animate-spin" /> בודק…</> : <>כניסה <ArrowLeft size={18} /></>}
           </button>
         </div>

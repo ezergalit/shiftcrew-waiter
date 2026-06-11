@@ -69,7 +69,7 @@ export default function App() {
 
 function Splash() {
   return (
-    <div className="h-full max-w-md mx-auto flex flex-col items-center justify-center gap-4 bg-[#f4f4f9]" dir="rtl">
+    <div className="h-full max-w-md mx-auto flex flex-col items-center justify-center gap-4 bg-[#0c0d10]" dir="rtl">
       <div className="w-16 h-16 rounded-3xl text-white flex items-center justify-center shadow-[0_10px_30px_rgba(109,94,252,0.35)]"
         style={{ background: "linear-gradient(135deg,#6d5efc,#9b7bff)" }}>
         <Utensils size={32} />

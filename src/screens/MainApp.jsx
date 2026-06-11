@@ -257,7 +257,7 @@ function pubToCard(p) {
 // Weekly team learning competition. ME's points climb as you master dishes
 // (see TeamLeaderboard) so the demo reacts to studying. Colors match avatars.
 const TEAM_LEARN = [
-  { name: "עומר טל",   color: "#0c9b6e", pts: 2110, streak: 9, today: 18 },
+  { name: "עומר טל",   color: "#22c08c", pts: 2110, streak: 9, today: 18 },
   { name: "שירה אבני", color: "#ff7a59", pts: 1620, streak: 2, today: 6 },
   { name: "מאיה ברק",  color: "#e0315a", pts: 1290, streak: 0, today: 0 },
   { name: "איתי כהן",  color: "#f3a712", pts: 980,  streak: 1, today: 4 },
@@ -277,7 +277,7 @@ const TABS = [
 // Theme tokens
 const C = {
   primary: "#6d5efc",
-  card: "bg-white border border-[#ecebf3] rounded-3xl shadow-[0_2px_14px_rgba(30,25,70,0.05)]",
+  card: "bg-[#16181c] border border-[#22252b] rounded-3xl shadow-[0_2px_14px_rgba(30,25,70,0.05)]",
 };
 
 export default function MainApp({ waiter, onSignOut }) {
@@ -341,7 +341,7 @@ export default function MainApp({ waiter, onSignOut }) {
   const loadingSched = schedRows === null;
 
   return (
-    <div className="h-full flex flex-col max-w-md mx-auto bg-[#f4f4f9] text-[#1b1b2e] relative" dir="rtl">
+    <div className="h-full flex flex-col max-w-md mx-auto bg-[#0c0d10] text-[#eef0f6] relative" dir="rtl">
       <div className="flex-1 min-h-0 overflow-y-auto">
         {tab === "home"     && <HomeTab totals={totals} myShifts={myShifts} loading={loadingSched} go={setTab} mastered={mastered} onAvatar={() => setSettingsOpen(true)} />}
         {tab === "schedule" && <ScheduleTab totals={totals} myShifts={myShifts} published={published} loading={loadingSched} onAvatar={() => setSettingsOpen(true)} />}
@@ -352,7 +352,7 @@ export default function MainApp({ waiter, onSignOut }) {
       <BottomNav tab={tab} setTab={setTab} />
 
       {settingsOpen && (
-        <div className="absolute inset-0 z-50 bg-[#f4f4f9] flex flex-col">
+        <div className="absolute inset-0 z-50 bg-[#0c0d10] flex flex-col">
           <SettingsScreen onBack={() => setSettingsOpen(false)} onSignOut={onSignOut} restaurantName={waiter?.restaurantName} />
         </div>
       )}
@@ -363,9 +363,9 @@ export default function MainApp({ waiter, onSignOut }) {
 // ── Top bar ───────────────────────────────────────────────────────────────────
 function TopBar({ title, subtitle, onAvatar }) {
   return (
-    <div className="bg-[#f4f4f9]/90 backdrop-blur px-5 pt-6 pb-4 flex items-center justify-between sticky top-0 z-10">
+    <div className="bg-[#0c0d10]/90 backdrop-blur px-5 pt-6 pb-4 flex items-center justify-between sticky top-0 z-10">
       <div>
-        <h1 className="text-xl font-black text-[#1b1b2e] leading-tight">{title}</h1>
+        <h1 className="text-xl font-black text-[#eef0f6] leading-tight">{title}</h1>
         {subtitle && <p className="text-xs text-[#8a8aa0] font-semibold mt-0.5">{subtitle}</p>}
       </div>
       <button onClick={onAvatar} className="w-10 h-10 rounded-full bg-[#6d5efc] text-white font-black flex items-center justify-center shadow-[0_4px_12px_rgba(109,94,252,0.35)] active:scale-95 transition-transform">
@@ -398,7 +398,7 @@ function HomeTab({ totals, myShifts, loading, go, mastered, onAvatar }) {
           ) : (
             <div className={`${C.card} p-5 text-center`}>
               <CalendarDays size={28} className="mx-auto text-[#c4c4d4] mb-2" />
-              <p className="text-sm font-bold text-[#3a3a52]">{loading ? "טוען את הסידור…" : "הסידור עדיין לא פורסם"}</p>
+              <p className="text-sm font-bold text-[#c4c4d4]">{loading ? "טוען את הסידור…" : "הסידור עדיין לא פורסם"}</p>
               {!loading && <p className="text-xs text-[#8a8aa0] font-semibold mt-1">ברגע שהמנהל/ת יפרסם — המשמרות שלך יופיעו כאן</p>}
             </div>
           )}
@@ -415,23 +415,23 @@ function HomeTab({ totals, myShifts, loading, go, mastered, onAvatar }) {
         {/* Menu-learning shortcut (the side feature) */}
         <button onClick={() => go("learn")}
           className={`w-full flex items-center gap-3 ${C.card} p-4 text-right active:scale-[0.99] transition-transform`}>
-          <div className="w-11 h-11 rounded-2xl bg-[#efedff] flex items-center justify-center flex-shrink-0">
+          <div className="w-11 h-11 rounded-2xl bg-[#241f3a] flex items-center justify-center flex-shrink-0">
             <GraduationCap size={20} className="text-[#6d5efc]" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-black text-[#1b1b2e]">לימוד התפריט</p>
+            <p className="text-sm font-black text-[#eef0f6]">לימוד התפריט</p>
             <p className="text-xs text-[#8a8aa0] font-semibold mt-0.5">{mastered.size}/{MENU.length} פריטים נלמדו · תרגול יומי מחכה</p>
           </div>
-          <span className="flex items-center gap-1 text-[11px] font-black text-[#ff7a59] bg-[#fff1ec] px-2 py-1 rounded-lg flex-shrink-0"><Flame size={12} /> 4</span>
+          <span className="flex items-center gap-1 text-[11px] font-black text-[#ff7a59] bg-[#33290f] px-2 py-1 rounded-lg flex-shrink-0"><Flame size={12} /> 4</span>
         </button>
 
         <button onClick={() => go("avail")}
           className={`w-full flex items-center gap-3 ${C.card} p-4 text-right active:scale-[0.99] transition-transform`}>
-          <div className="w-11 h-11 rounded-2xl bg-[#f1f1f7] flex items-center justify-center flex-shrink-0">
+          <div className="w-11 h-11 rounded-2xl bg-[#1c1e22] flex items-center justify-center flex-shrink-0">
             <CalendarPlus size={19} className="text-[#8a8aa0]" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-black text-[#1b1b2e]">הגשת זמינות לשבוע הבא</p>
+            <p className="text-sm font-black text-[#eef0f6]">הגשת זמינות לשבוע הבא</p>
             <p className="text-xs text-[#8a8aa0] font-semibold mt-0.5">נסגר ביום חמישי 12:00 · טרם הוגש</p>
           </div>
           <ChevronLeft size={18} className="text-[#c4c4d4]" />
@@ -450,14 +450,14 @@ function ScheduleTab({ totals, myShifts, published, loading, onAvatar }) {
       <TopBar title="סידור עבודה" subtitle="המשמרות שלי לשבוע זה" onAvatar={onAvatar} />
       <div className="px-5 pb-4">
         <div className="flex items-center justify-between mb-3">
-          <button className="w-8 h-8 rounded-xl bg-white border border-[#ecebf3] flex items-center justify-center text-[#8a8aa0] shadow-sm"><ChevronRight size={18} /></button>
+          <button className="w-8 h-8 rounded-xl bg-[#16181c] border border-[#22252b] flex items-center justify-center text-[#8a8aa0] shadow-sm"><ChevronRight size={18} /></button>
           <p className="text-sm font-black">{range}</p>
-          <button className="w-8 h-8 rounded-xl bg-white border border-[#ecebf3] flex items-center justify-center text-[#8a8aa0] shadow-sm"><ChevronLeft size={18} /></button>
+          <button className="w-8 h-8 rounded-xl bg-[#16181c] border border-[#22252b] flex items-center justify-center text-[#8a8aa0] shadow-sm"><ChevronLeft size={18} /></button>
         </div>
 
         {published ? (
           <>
-            <div className="flex items-center gap-2 bg-[#e7f7f0] text-[#0c9b6e] rounded-2xl px-3 py-2.5 mb-4 text-xs font-bold">
+            <div className="flex items-center gap-2 bg-[#15302b] text-[#22c08c] rounded-2xl px-3 py-2.5 mb-4 text-xs font-bold">
               <CheckCircle2 size={15} /> הסידור פורסם
             </div>
 
@@ -468,7 +468,7 @@ function ScheduleTab({ totals, myShifts, published, loading, onAvatar }) {
 
             {myShifts.length === 0 ? (
               <div className={`${C.card} p-6 text-center`}>
-                <p className="text-sm font-bold text-[#3a3a52]">לא שובצת למשמרות השבוע</p>
+                <p className="text-sm font-bold text-[#c4c4d4]">לא שובצת למשמרות השבוע</p>
                 <p className="text-xs text-[#8a8aa0] font-semibold mt-1">דבר/י עם המנהל/ת אם זו טעות</p>
               </div>
             ) : (
@@ -478,13 +478,13 @@ function ScheduleTab({ totals, myShifts, published, loading, onAvatar }) {
                   return (
                     <div key={`${x.day}-${x.from}-${i}`} className={`${C.card} p-4`}>
                       <div className="flex items-start gap-3">
-                        <div className="w-11 h-11 rounded-2xl bg-[#f1f1f7] flex items-center justify-center flex-shrink-0">
+                        <div className="w-11 h-11 rounded-2xl bg-[#1c1e22] flex items-center justify-center flex-shrink-0">
                           <s.icon size={18} className="text-[#6d5efc]" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
                             <p className="text-sm font-black">{DAYS[x.day]} · {x.date}</p>
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-[#efedff] text-[#6d5efc]">{x.position}</span>
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-[#241f3a] text-[#6d5efc]">{x.position}</span>
                           </div>
                           <p className="text-xs text-[#8a8aa0] font-semibold flex items-center gap-1 mt-1" dir="ltr"><Clock size={12} /> {x.from}–{x.to} · {x.hours} שעות</p>
                           {x.coworkers.length > 0 && (
@@ -492,7 +492,7 @@ function ScheduleTab({ totals, myShifts, published, loading, onAvatar }) {
                           )}
                         </div>
                       </div>
-                      <button className="w-full mt-3 flex items-center justify-center gap-1.5 text-xs font-bold text-[#6d5efc] bg-[#f4f4f9] rounded-xl py-2 active:bg-[#ecebf3]">
+                      <button className="w-full mt-3 flex items-center justify-center gap-1.5 text-xs font-bold text-[#6d5efc] bg-[#0c0d10] rounded-xl py-2 active:bg-[#22252b]">
                         <Repeat size={13} /> בקשת החלפת משמרת
                       </button>
                     </div>
@@ -504,7 +504,7 @@ function ScheduleTab({ totals, myShifts, published, loading, onAvatar }) {
         ) : (
           <div className={`${C.card} p-8 text-center`}>
             <CalendarDays size={32} className="mx-auto text-[#c4c4d4] mb-3" />
-            <p className="text-sm font-black text-[#3a3a52]">{loading ? "טוען את הסידור…" : "הסידור עדיין לא פורסם"}</p>
+            <p className="text-sm font-black text-[#c4c4d4]">{loading ? "טוען את הסידור…" : "הסידור עדיין לא פורסם"}</p>
             {!loading && <p className="text-xs text-[#8a8aa0] font-semibold mt-1">ברגע שהמנהל/ת יפרסם את הסידור — המשמרות שלך יופיעו כאן</p>}
           </div>
         )}
@@ -604,7 +604,7 @@ function AvailTab({ waiter, onAvatar }) {
     <>
       <TopBar title="זמינות" subtitle="הגשה עד חמישי 12:00" onAvatar={onAvatar} />
 
-      <div className="flex gap-1 bg-white border border-[#ecebf3] rounded-2xl p-1 mx-5 mb-4 shadow-sm">
+      <div className="flex gap-1 bg-[#16181c] border border-[#22252b] rounded-2xl p-1 mx-5 mb-4 shadow-sm">
         {[["weekly", "שבועי"], ["default", "ברירת מחדל"]].map(([k, label]) => {
           const active = mode === k;
           return (
@@ -632,7 +632,7 @@ function AvailTab({ waiter, onAvatar }) {
             <div key={di} className="text-center">
               <p className="text-[11px] font-bold text-[#8a8aa0]">{DAY_SHORT[di]}</p>
               {mode === "weekly" && (
-                <p className="text-base font-black text-[#1b1b2e] mt-0.5">{AVAIL_WEEK_START.getDate() + di}</p>
+                <p className="text-base font-black text-[#eef0f6] mt-0.5">{AVAIL_WEEK_START.getDate() + di}</p>
               )}
             </div>
           ))}
@@ -660,7 +660,7 @@ function AvailTab({ waiter, onAvatar }) {
                     return (
                       <button key={k} onClick={() => toggle(k)}
                         className={`aspect-square rounded-xl flex items-center justify-center border transition-colors ${
-                          on ? "bg-[#6d5efc] border-[#6d5efc] text-white" : "bg-white border-[#ecebf3] text-[#c4c4d4] active:bg-[#f4f4f9]"
+                          on ? "bg-[#6d5efc] border-[#6d5efc] text-white" : "bg-[#16181c] border-[#22252b] text-[#c4c4d4] active:bg-[#0c0d10]"
                         }`}>
                         {on ? <Check size={18} /> : <CalendarDays size={17} />}
                       </button>
@@ -674,14 +674,14 @@ function AvailTab({ waiter, onAvatar }) {
 
         <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3}
           placeholder="השאר הערה למנהל"
-          className="w-full mt-6 bg-white border border-[#ecebf3] rounded-2xl px-4 py-3 text-sm text-[#1b1b2e] text-right placeholder:text-[#b4b4c4] resize-none focus:outline-none focus:border-[#6d5efc] shadow-sm" />
+          className="w-full mt-6 bg-[#16181c] border border-[#22252b] rounded-2xl px-4 py-3 text-sm text-[#eef0f6] text-right placeholder:text-[#b4b4c4] resize-none focus:outline-none focus:border-[#6d5efc] shadow-sm" />
 
         {err && <p className="text-xs font-bold text-[#e0315a] text-center mt-3">{err}</p>}
 
         <button onClick={submit} disabled={sent || saving || count === 0}
           className={`w-full mt-4 flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm transition-colors ${
-            sent ? "bg-[#e7f7f0] text-[#0c9b6e]"
-            : count === 0 || saving ? "bg-[#ecebf3] text-[#b4b4c4]"
+            sent ? "bg-[#15302b] text-[#22c08c]"
+            : count === 0 || saving ? "bg-[#22252b] text-[#b4b4c4]"
             : "bg-[#6d5efc] text-white active:bg-[#5b4ef0] shadow-[0_6px_18px_rgba(109,94,252,0.35)]"
           }`}>
           {saving ? <>שולח…</> : sent ? <><Check size={17} /> נשלח למנהל/ת</> : <><Send size={16} /> שלח ({count})</>}
@@ -713,13 +713,13 @@ function TasksTab({ go, onAvatar }) {
           <p className="text-xs font-bold text-[#8a8aa0] mb-2">המשימה היומית</p>
           <button onClick={() => go("learn")}
             className="w-full text-right rounded-3xl p-4 shadow-[0_8px_24px_rgba(109,94,252,0.18)] active:scale-[0.99] transition-transform"
-            style={{ background: "linear-gradient(135deg,#efedff,#ffffff)", border: "1px solid #ddd8ff" }}>
+            style={{ background: "linear-gradient(135deg,#241f3a,#16181c)", border: "1px solid #2e2748" }}>
             <div className="flex items-center gap-2 mb-2">
-              <span className="flex items-center gap-1 text-[11px] font-black text-[#6d5efc] bg-white px-2 py-1 rounded-lg shadow-sm">
+              <span className="flex items-center gap-1 text-[11px] font-black text-[#6d5efc] bg-[#16181c] px-2 py-1 rounded-lg shadow-sm">
                 <Sparkles size={12} /> תדריך התפריט היומי
               </span>
             </div>
-            <p className="text-sm font-black text-[#1b1b2e]">מנת היום: {MENU_BY_ID[SPECIALS[0]].name} · {MENU_BY_ID[SPECIALS[1]].name}</p>
+            <p className="text-sm font-black text-[#eef0f6]">מנת היום: {MENU_BY_ID[SPECIALS[0]].name} · {MENU_BY_ID[SPECIALS[1]].name}</p>
             <p className="text-xs text-[#6b6b85] font-semibold mt-1">ה-AI הכין לך תרגול קצר על 6 פריטים מהתפריט להיום</p>
             <div className="mt-3 flex items-center justify-between">
               <span className="text-xs font-bold text-[#6d5efc] flex items-center gap-1">פתח/י לימוד <ChevronLeft size={14} /></span>
@@ -734,7 +734,7 @@ function TasksTab({ go, onAvatar }) {
               <span className="text-xs font-bold text-[#8a8aa0]">התקדמות משימות</span>
               <span className="text-xs font-black text-[#6d5efc]">{pct}%</span>
             </div>
-            <div className="h-2 bg-[#ecebf3] rounded-full overflow-hidden">
+            <div className="h-2 bg-[#22252b] rounded-full overflow-hidden">
               <div className="h-full bg-[#6d5efc] rounded-full transition-all" style={{ width: `${pct}%` }} />
             </div>
           </div>
@@ -744,7 +744,7 @@ function TasksTab({ go, onAvatar }) {
                 className={`w-full flex items-center gap-3 ${C.card} p-4 text-right active:scale-[0.99] transition-transform`}>
                 {t.done ? <CheckCircle2 size={22} className="text-[#6d5efc] flex-shrink-0" /> : <Circle size={22} className="text-[#c4c4d4] flex-shrink-0" />}
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-bold ${t.done ? "text-[#b4b4c4] line-through" : "text-[#1b1b2e]"}`}>{t.title}</p>
+                  <p className={`text-sm font-bold ${t.done ? "text-[#b4b4c4] line-through" : "text-[#eef0f6]"}`}>{t.title}</p>
                   <p className="text-xs text-[#8a8aa0] font-semibold">{t.due}</p>
                 </div>
               </button>
@@ -815,7 +815,7 @@ function LearnTab({ mastered, learnItem, onAvatar }) {
           <p className="text-lg font-black leading-snug">ה-AI ניתח את התפריט המלא והכין לך תרגול קצר להיום</p>
           <p className="text-sm text-white/85 font-semibold mt-1">{daily.length} פריטים · מנת היום: {liveSpecialName}</p>
           <div className="grid grid-cols-2 gap-2 mt-4">
-            <button onClick={() => startFlash(daily)} className="bg-white text-[#6d5efc] font-bold text-sm py-3 rounded-2xl flex items-center justify-center gap-1.5 active:bg-white/90">
+            <button onClick={() => startFlash(daily)} className="bg-[#16181c] text-[#6d5efc] font-bold text-sm py-3 rounded-2xl flex items-center justify-center gap-1.5 active:bg-white/90">
               <Layers size={16} /> כרטיסיות
             </button>
             <button onClick={() => startQuiz(daily)} className="bg-white/20 text-white font-bold text-sm py-3 rounded-2xl flex items-center justify-center gap-1.5 active:bg-white/30">
@@ -826,9 +826,9 @@ function LearnTab({ mastered, learnItem, onAvatar }) {
 
         {/* Live sync indicator — the menu the owner published from the manager app */}
         {Array.isArray(published) && (
-          <div className="flex items-center gap-2.5 rounded-2xl px-4 py-3 bg-[#e7f7f0] border border-[#bde9d6]">
-            <Check size={16} className="text-[#0c9b6e] flex-shrink-0" />
-            <p className="text-xs font-bold text-[#0c7a57] flex-1 min-w-0">
+          <div className="flex items-center gap-2.5 rounded-2xl px-4 py-3 bg-[#15302b] border border-[#1c4f48]">
+            <Check size={16} className="text-[#22c08c] flex-shrink-0" />
+            <p className="text-xs font-bold text-[#1aa376] flex-1 min-w-0">
               התפריט סונכרן מהמנהל · {published.length} מנות
               {ownerExtras.length > 0 && ` · ${ownerExtras.length} חדשות`}
             </p>
@@ -848,14 +848,14 @@ function LearnTab({ mastered, learnItem, onAvatar }) {
         {/* How it's built — the automatic creation "click" */}
         <button onClick={() => setMode("import")}
           className="w-full text-right rounded-3xl p-4 active:scale-[0.99] transition-transform"
-          style={{ background: "linear-gradient(135deg,#fff4ec,#ffffff)", border: "1px dashed #ffc9a8" }}>
+          style={{ background: "linear-gradient(135deg,#33290f,#16181c)", border: "1px dashed #33290f" }}>
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
+            <div className="w-11 h-11 rounded-2xl bg-[#16181c] flex items-center justify-center flex-shrink-0 shadow-sm">
               <Sparkles size={20} className="text-[#ff7a59]" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-black text-[#1b1b2e]">איך נוצר התרגול? ✨</p>
-              <p className="text-xs text-[#9a7a66] font-semibold mt-0.5">העלה/הדבק תפריט וראה את ה-AI בונה את המשחק</p>
+              <p className="text-sm font-black text-[#eef0f6]">איך נוצר התרגול? ✨</p>
+              <p className="text-xs text-[#cbb59a] font-semibold mt-0.5">העלה/הדבק תפריט וראה את ה-AI בונה את המשחק</p>
             </div>
             <ChevronLeft size={18} className="text-[#d9b8a0]" />
           </div>
@@ -873,15 +873,15 @@ function LearnTab({ mastered, learnItem, onAvatar }) {
               return (
                 <button key={key} onClick={() => startFlash(items)}
                   className={`w-full flex items-center gap-3 ${C.card} p-3.5 text-right active:scale-[0.99] transition-transform`}>
-                  <div className="w-11 h-11 rounded-2xl bg-[#f1f1f7] flex items-center justify-center flex-shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-[#1c1e22] flex items-center justify-center flex-shrink-0">
                     <Icon size={19} className="text-[#6d5efc]" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-black text-[#1b1b2e]">{c.label}</p>
+                      <p className="text-sm font-black text-[#eef0f6]">{c.label}</p>
                       <span className="text-[11px] font-bold text-[#8a8aa0]">{known}/{items.length}</span>
                     </div>
-                    <div className="h-1.5 bg-[#ecebf3] rounded-full overflow-hidden mt-1.5">
+                    <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mt-1.5">
                       <div className="h-full bg-[#6d5efc] rounded-full" style={{ width: `${cpct}%` }} />
                     </div>
                   </div>
@@ -898,7 +898,7 @@ function LearnTab({ mastered, learnItem, onAvatar }) {
 
 // Avatar colors by name (the DB doesn't store presentation).
 const TEAM_COLORS = {
-  "עומר טל": "#0c9b6e", "שירה אבני": "#ff7a59", "מאיה ברק": "#e0315a",
+  "עומר טל": "#22c08c", "שירה אבני": "#ff7a59", "מאיה ברק": "#e0315a",
   "איתי כהן": "#f3a712", "יותם פרץ": "#3a86ff", [ME_NAME]: "#6d5efc",
 };
 
@@ -970,11 +970,11 @@ function TeamLeaderboard({ mastered }) {
   return (
     <div className={`${C.card} overflow-hidden`}>
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
-        <span className="text-[11px] font-black text-[#ff7a59] bg-[#fff1ea] px-2 py-1 rounded-lg">
+        <span className="text-[11px] font-black text-[#ff7a59] bg-[#33290f] px-2 py-1 rounded-lg">
           {myRank === 1 ? "המקום הראשון! 🥇" : `מקום ${myRank} מתוך ${rows.length}`}
         </span>
         <div className="flex items-center gap-1.5">
-          <p className="text-sm font-black text-[#1b1b2e]">תחרות הצוות</p>
+          <p className="text-sm font-black text-[#eef0f6]">תחרות הצוות</p>
           <Trophy size={16} className="text-[#f3c14b]" />
         </div>
       </div>
@@ -987,10 +987,10 @@ function TeamLeaderboard({ mastered }) {
         </p>
       </div>
 
-      <div className="divide-y divide-[#f1f1f7]">
+      <div className="divide-y divide-[#1c1e22]">
         {rows.map((r, idx) => (
           <div key={r.name}
-            className={`flex items-center gap-3 px-4 py-2.5 ${r.me ? "bg-[#f3f1ff]" : ""}`}>
+            className={`flex items-center gap-3 px-4 py-2.5 ${r.me ? "bg-[#241f3a]" : ""}`}>
             <span className="w-5 text-center text-sm font-black flex-shrink-0"
               style={{ color: idx < 3 ? medals[idx] : "#b6b6c6" }}>
               {idx < 3 ? "●" : idx + 1}
@@ -1000,7 +1000,7 @@ function TeamLeaderboard({ mastered }) {
               {r.name.split(" ").map((w) => w[0]).join("")}
             </span>
             <div className="flex-1 min-w-0">
-              <p className={`text-sm font-bold truncate ${r.me ? "text-[#6d5efc]" : "text-[#1b1b2e]"}`}>
+              <p className={`text-sm font-bold truncate ${r.me ? "text-[#6d5efc]" : "text-[#eef0f6]"}`}>
                 {r.name}{r.me && " (אני)"}
               </p>
               <div className="flex items-center gap-2 text-[10px] font-bold text-[#9a9ab0]">
@@ -1008,7 +1008,7 @@ function TeamLeaderboard({ mastered }) {
                 <span>+{r.today} היום</span>
               </div>
             </div>
-            <span className="text-sm font-black text-[#1b1b2e] flex-shrink-0">{r.pts.toLocaleString()}</span>
+            <span className="text-sm font-black text-[#eef0f6] flex-shrink-0">{r.pts.toLocaleString()}</span>
           </div>
         ))}
       </div>
@@ -1049,29 +1049,29 @@ function Flashcards({ items, onKnown, onDone }) {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#f4f4f9]">
+    <div className="h-full flex flex-col bg-[#0c0d10]">
       <LearnHeader label={`כרטיסייה ${i + 1}/${items.length}`} onDone={onDone} />
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 flex flex-col">
-        <div className="h-1.5 bg-[#ecebf3] rounded-full overflow-hidden mb-4">
+        <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mb-4">
           <div className="h-full bg-[#6d5efc] rounded-full transition-all" style={{ width: `${(i / items.length) * 100}%` }} />
         </div>
 
         <div className={`flex-1 ${C.card} overflow-hidden flex flex-col`}>
           {/* card header */}
-          <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-[#f1f1f7]">
-            <span className="text-[11px] font-bold text-[#6d5efc] bg-[#efedff] px-2 py-1 rounded-lg">{CATS[it.cat].label}</span>
+          <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-[#1c1e22]">
+            <span className="text-[11px] font-bold text-[#6d5efc] bg-[#241f3a] px-2 py-1 rounded-lg">{CATS[it.cat].label}</span>
             <span className="text-sm font-black text-[#6d5efc]">₪{it.price}</span>
           </div>
 
           {!revealed ? (
             <div className="flex-1 px-5 py-5 flex flex-col">
-              <h2 className="text-2xl font-black text-center text-[#1b1b2e] mb-1">{it.name}</h2>
+              <h2 className="text-2xl font-black text-center text-[#eef0f6] mb-1">{it.name}</h2>
               {it.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 justify-center mb-4">{it.tags.map((t) => <Tag key={t} t={t} />)}</div>
               )}
               <div className="space-y-2.5 mt-2">
                 {frontCues(it).map((c, idx) => (
-                  <div key={idx} className="flex items-center gap-2.5 text-sm font-bold text-[#3a3a52]">
+                  <div key={idx} className="flex items-center gap-2.5 text-sm font-bold text-[#c4c4d4]">
                     <span className="w-2 h-2 rounded-full bg-[#6d5efc] flex-shrink-0" /> {c}
                   </div>
                 ))}
@@ -1084,13 +1084,13 @@ function Flashcards({ items, onKnown, onDone }) {
             </div>
           ) : (
             <div className="flex-1 px-5 py-5 overflow-y-auto text-right">
-              <h2 className="text-xl font-black text-[#1b1b2e] mb-3">{it.name}</h2>
+              <h2 className="text-xl font-black text-[#eef0f6] mb-3">{it.name}</h2>
 
               {it.groups.map((g) => (
                 <div key={g.label} className="mb-3">
                   <p className="text-[11px] font-black text-[#8a8aa0] mb-1">{g.label}</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {g.items.map((x) => <span key={x} className="text-xs font-bold text-[#3a3a52] bg-[#f1f1f7] px-2.5 py-1 rounded-lg">{x}</span>)}
+                    {g.items.map((x) => <span key={x} className="text-xs font-bold text-[#c4c4d4] bg-[#1c1e22] px-2.5 py-1 rounded-lg">{x}</span>)}
                   </div>
                 </div>
               ))}
@@ -1099,26 +1099,26 @@ function Flashcards({ items, onKnown, onDone }) {
                 <div className="mt-3 mb-3">
                   <p className="text-[11px] font-black text-[#8a8aa0] mb-1 flex items-center gap-1"><Pencil size={12} /> שינויים אפשריים</p>
                   <ul className="space-y-1">
-                    {it.modifications.map((m) => <li key={m} className="text-xs font-semibold text-[#3a3a52]">• {m}</li>)}
+                    {it.modifications.map((m) => <li key={m} className="text-xs font-semibold text-[#c4c4d4]">• {m}</li>)}
                   </ul>
                 </div>
               )}
 
-              <div className="bg-[#fff1f3] border border-[#ffd9e0] rounded-2xl p-3 mt-3">
+              <div className="bg-[#3a1d22] border border-[#3a1d22] rounded-2xl p-3 mt-3">
                 <p className="text-[11px] font-black text-[#e0315a] mb-1 flex items-center gap-1"><AlertTriangle size={12} /> המנה לא מתאימה ל:</p>
                 <p className="text-sm font-bold text-[#e0315a]">{it.allergens.length ? it.allergens.join(" · ") : "ללא אלרגנים ידועים"}</p>
               </div>
 
               <div className="flex items-center gap-2 mt-3">
-                <span className={`text-xs font-black px-2.5 py-1 rounded-lg flex items-center gap-1 ${it.kosher ? "bg-[#e7f7f0] text-[#0c9b6e]" : "bg-[#fff1f3] text-[#e0315a]"}`}>
+                <span className={`text-xs font-black px-2.5 py-1 rounded-lg flex items-center gap-1 ${it.kosher ? "bg-[#15302b] text-[#22c08c]" : "bg-[#3a1d22] text-[#e0315a]"}`}>
                   {it.kosher ? <><Leaf size={12} /> כשר</> : <><X size={12} /> לא כשר</>}
                 </span>
               </div>
 
               {it.pitfall && (
-                <div className="bg-[#fff8ec] border border-[#ffe6b8] rounded-2xl p-3 mt-3">
-                  <p className="text-[11px] font-black text-[#b8791a] mb-0.5">⚠️ המוקש</p>
-                  <p className="text-sm font-bold text-[#8a6516]">{it.pitfall}</p>
+                <div className="bg-[#33290f] border border-[#33290f] rounded-2xl p-3 mt-3">
+                  <p className="text-[11px] font-black text-[#f3c14b] mb-0.5">⚠️ המוקש</p>
+                  <p className="text-sm font-bold text-[#f3c14b]">{it.pitfall}</p>
                 </div>
               )}
 
@@ -1188,35 +1188,35 @@ function Quiz({ questions, onCorrect, onDone }) {
     : q.options.map((o) => ({ val: o, label: o }));
 
   return (
-    <div className="h-full flex flex-col bg-[#f4f4f9]">
+    <div className="h-full flex flex-col bg-[#0c0d10]">
       <LearnHeader label={`שאלה ${i + 1}/${questions.length}`} onDone={onDone} />
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 flex flex-col">
-        <div className="h-1.5 bg-[#ecebf3] rounded-full overflow-hidden mb-4">
+        <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mb-4">
           <div className="h-full bg-[#6d5efc] rounded-full transition-all" style={{ width: `${(i / questions.length) * 100}%` }} />
         </div>
 
         <div className={`${C.card} p-5 mb-4`}>
-          <span className="text-[11px] font-bold text-[#6d5efc] bg-[#efedff] px-2 py-1 rounded-lg">
+          <span className="text-[11px] font-bold text-[#6d5efc] bg-[#241f3a] px-2 py-1 rounded-lg">
             {q.kind === "yesno" ? "כן / לא" : "רב-ברירה"}
           </span>
-          <p className="text-lg font-black text-[#1b1b2e] mt-3 leading-snug">{q.q}</p>
+          <p className="text-lg font-black text-[#eef0f6] mt-3 leading-snug">{q.q}</p>
         </div>
 
         <div className={`grid gap-2.5 ${q.kind === "yesno" ? "grid-cols-2" : "grid-cols-1"}`}>
           {options.map((o) => {
             const isSel = sel === o.val;
             const isRight = o.val === correctVal;
-            let cls = "bg-white border-[#ecebf3] text-[#3a3a52]";
+            let cls = "bg-[#16181c] border-[#22252b] text-[#c4c4d4]";
             if (answered) {
-              if (isRight) cls = "bg-[#e7f7f0] border-[#3fb27f] text-[#0c9b6e]";
-              else if (isSel) cls = "bg-[#fff1f3] border-[#f0506e] text-[#e0315a]";
-              else cls = "bg-white border-[#ecebf3] text-[#b4b4c4]";
+              if (isRight) cls = "bg-[#15302b] border-[#3fb27f] text-[#22c08c]";
+              else if (isSel) cls = "bg-[#3a1d22] border-[#f0506e] text-[#e0315a]";
+              else cls = "bg-[#16181c] border-[#22252b] text-[#b4b4c4]";
             }
             return (
               <button key={String(o.val)} onClick={() => choose(o.val)} disabled={answered}
                 className={`py-3.5 px-4 rounded-2xl border-2 font-bold text-sm text-right flex items-center justify-between transition-colors ${cls}`}>
                 <span>{o.label}</span>
-                {answered && isRight && <Check size={17} className="text-[#0c9b6e]" />}
+                {answered && isRight && <Check size={17} className="text-[#22c08c]" />}
                 {answered && isSel && !isRight && <X size={17} className="text-[#e0315a]" />}
               </button>
             );
@@ -1226,7 +1226,7 @@ function Quiz({ questions, onCorrect, onDone }) {
         {answered && (
           <div className={`mt-4 ${C.card} p-4`}>
             <p className="text-xs font-bold text-[#8a8aa0] mb-1">הסבר</p>
-            <p className="text-sm text-[#3a3a52] font-semibold leading-relaxed">{q.explain}</p>
+            <p className="text-sm text-[#c4c4d4] font-semibold leading-relaxed">{q.explain}</p>
             <button onClick={() => { setSel(null); setI(i + 1); }}
               className="w-full mt-3 py-3 rounded-2xl font-bold text-sm bg-[#6d5efc] text-white active:bg-[#5b4ef0]">
               {i + 1 >= questions.length ? "סיום" : "השאלה הבאה"}
@@ -1322,16 +1322,16 @@ function MenuImportFlow({ onStudy, onDone }) {
   // INPUT
   if (step === "input") {
     return (
-      <div className="h-full flex flex-col bg-[#f4f4f9]">
+      <div className="h-full flex flex-col bg-[#0c0d10]">
         <LearnHeader label="יצירת תרגול מהתפריט" onDone={onDone} />
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
-          <p className="text-sm font-bold text-[#3a3a52] mb-3">בחר/י מקור — ה-AI יבנה את המשחק לבד:</p>
+          <p className="text-sm font-bold text-[#c4c4d4] mb-3">בחר/י מקור — ה-AI יבנה את המשחק לבד:</p>
           <div className="grid grid-cols-3 gap-2.5 mb-4">
             {[["paste", "הדבקה", ClipboardPaste], ["upload", "קובץ", Upload], ["photo", "צילום", Camera]].map(([k, label, Icon]) => {
               const active = src === k;
               return (
                 <button key={k} onClick={() => setSrc(k)}
-                  className={`rounded-2xl p-3 flex flex-col items-center gap-1.5 border-2 transition-colors ${active ? "bg-[#efedff] border-[#6d5efc] text-[#6d5efc]" : "bg-white border-[#ecebf3] text-[#8a8aa0]"}`}>
+                  className={`rounded-2xl p-3 flex flex-col items-center gap-1.5 border-2 transition-colors ${active ? "bg-[#241f3a] border-[#6d5efc] text-[#6d5efc]" : "bg-[#16181c] border-[#22252b] text-[#8a8aa0]"}`}>
                   <Icon size={20} />
                   <span className="text-xs font-bold">{label}</span>
                 </button>
@@ -1341,17 +1341,17 @@ function MenuImportFlow({ onStudy, onDone }) {
 
           {src === "paste" ? (
             <textarea value={text} onChange={(e) => setText(e.target.value)} rows={11}
-              className="w-full bg-white border border-[#ecebf3] rounded-2xl px-4 py-3 text-xs leading-relaxed text-[#3a3a52] text-right resize-none focus:outline-none focus:border-[#6d5efc] shadow-sm" />
+              className="w-full bg-[#16181c] border border-[#22252b] rounded-2xl px-4 py-3 text-xs leading-relaxed text-[#c4c4d4] text-right resize-none focus:outline-none focus:border-[#6d5efc] shadow-sm" />
           ) : (
-            <div className="bg-white border border-[#ecebf3] rounded-2xl p-5 shadow-sm flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-[#efedff] flex items-center justify-center flex-shrink-0">
+            <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-5 shadow-sm flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-[#241f3a] flex items-center justify-center flex-shrink-0">
                 {src === "upload" ? <FileText size={22} className="text-[#6d5efc]" /> : <Camera size={22} className="text-[#6d5efc]" />}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-[#1b1b2e]">{src === "upload" ? "menu-2026.pdf" : "תפריט.jpg"}</p>
+                <p className="text-sm font-black text-[#eef0f6]">{src === "upload" ? "menu-2026.pdf" : "תפריט.jpg"}</p>
                 <p className="text-xs text-[#8a8aa0] font-semibold">{src === "upload" ? "PDF · 1.2MB · מוכן לעיבוד" : "תמונה · תעבור OCR"}</p>
               </div>
-              <CheckCircle2 size={20} className="text-[#0c9b6e]" />
+              <CheckCircle2 size={20} className="text-[#22c08c]" />
             </div>
           )}
 
@@ -1372,14 +1372,14 @@ function MenuImportFlow({ onStudy, onDone }) {
   // PROCESSING
   if (step === "processing") {
     return (
-      <div className="h-full flex flex-col bg-[#f4f4f9]">
+      <div className="h-full flex flex-col bg-[#0c0d10]">
         <LearnHeader label="ה-AI עובד..." onDone={onDone} />
         <div className="flex-1 flex flex-col justify-center px-6">
           <div className="flex flex-col items-center mb-8">
             <div className="w-20 h-20 rounded-3xl flex items-center justify-center shadow-[0_10px_30px_rgba(109,94,252,0.35)] animate-pulse" style={{ background: "linear-gradient(135deg,#6d5efc,#9b7bff)" }}>
               <Sparkles size={36} className="text-white" />
             </div>
-            <p className="text-base font-black text-[#1b1b2e] mt-4">בונה את המשחק מהתפריט</p>
+            <p className="text-base font-black text-[#eef0f6] mt-4">בונה את המשחק מהתפריט</p>
           </div>
           <div className="space-y-2.5">
             {PIPELINE.map((p, idx) => {
@@ -1387,13 +1387,13 @@ function MenuImportFlow({ onStudy, onDone }) {
               const isActive = idx === done;
               const Icon = p.icon;
               return (
-                <div key={idx} className={`flex items-center gap-3 rounded-2xl p-3.5 border transition-all ${isDone ? "bg-white border-[#ecebf3]" : isActive ? "bg-white border-[#6d5efc] shadow-[0_4px_14px_rgba(109,94,252,0.15)]" : "bg-white/50 border-[#f1f1f7] opacity-50"}`}>
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isDone ? "bg-[#e7f7f0]" : "bg-[#efedff]"}`}>
-                    {isDone ? <Check size={19} className="text-[#0c9b6e]" /> : <Icon size={19} className={isActive ? "text-[#6d5efc] animate-pulse" : "text-[#b4b4c4]"} />}
+                <div key={idx} className={`flex items-center gap-3 rounded-2xl p-3.5 border transition-all ${isDone ? "bg-[#16181c] border-[#22252b]" : isActive ? "bg-[#16181c] border-[#6d5efc] shadow-[0_4px_14px_rgba(109,94,252,0.15)]" : "bg-white/50 border-[#1c1e22] opacity-50"}`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isDone ? "bg-[#15302b]" : "bg-[#241f3a]"}`}>
+                    {isDone ? <Check size={19} className="text-[#22c08c]" /> : <Icon size={19} className={isActive ? "text-[#6d5efc] animate-pulse" : "text-[#b4b4c4]"} />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-bold ${isDone || isActive ? "text-[#1b1b2e]" : "text-[#b4b4c4]"}`}>{p.label}</p>
-                    {isDone && <p className="text-[11px] text-[#0c9b6e] font-semibold">{p.sub}</p>}
+                    <p className={`text-sm font-bold ${isDone || isActive ? "text-[#eef0f6]" : "text-[#b4b4c4]"}`}>{p.label}</p>
+                    {isDone && <p className="text-[11px] text-[#22c08c] font-semibold">{p.sub}</p>}
                   </div>
                 </div>
               );
@@ -1406,14 +1406,14 @@ function MenuImportFlow({ onStudy, onDone }) {
 
   // DONE — the "click"
   return (
-    <div className="h-full flex flex-col bg-[#f4f4f9]">
+    <div className="h-full flex flex-col bg-[#0c0d10]">
       <LearnHeader label="התרגול מוכן" onDone={onDone} />
       <div className="flex-1 overflow-y-auto px-6 py-4 flex flex-col">
         <div className="flex flex-col items-center text-center mt-2 mb-5">
-          <div className="w-20 h-20 rounded-full bg-[#e7f7f0] flex items-center justify-center mb-4">
-            <Check size={40} className="text-[#0c9b6e]" strokeWidth={3} />
+          <div className="w-20 h-20 rounded-full bg-[#15302b] flex items-center justify-center mb-4">
+            <Check size={40} className="text-[#22c08c]" strokeWidth={3} />
           </div>
-          <h2 className="text-2xl font-black text-[#1b1b2e]">המשחק נוצר! 🎉</h2>
+          <h2 className="text-2xl font-black text-[#eef0f6]">המשחק נוצר! 🎉</h2>
           <p className="text-sm text-[#8a8aa0] font-semibold mt-1">15 כרטיסים · 4 קטגוריות · חידון אוטומטי</p>
         </div>
 
@@ -1422,13 +1422,13 @@ function MenuImportFlow({ onStudy, onDone }) {
           {[MENU_BY_ID.m6, MENU_BY_ID.m8, MENU_BY_ID.m13].map((it) => (
             <div key={it.id} className={`${C.card} p-3.5`}>
               <div className="flex items-center justify-between">
-                <p className="text-sm font-black text-[#1b1b2e]">{it.name}</p>
+                <p className="text-sm font-black text-[#eef0f6]">{it.name}</p>
                 <span className="text-xs font-bold text-[#6d5efc]">₪{it.price}</span>
               </div>
               <div className="flex flex-wrap gap-1.5 mt-1.5">
-                <span className="text-[10px] font-bold text-[#6d5efc] bg-[#efedff] px-2 py-0.5 rounded-md">{it.groups.length} קבוצות מרכיבים</span>
-                {it.allergens.length > 0 && <span className="text-[10px] font-bold text-[#e0315a] bg-[#fff1f3] px-2 py-0.5 rounded-md">{it.allergens.length} אלרגנים</span>}
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${it.kosher ? "bg-[#e7f7f0] text-[#0c9b6e]" : "bg-[#fff1f3] text-[#e0315a]"}`}>{it.kosher ? "כשר" : "לא כשר"}</span>
+                <span className="text-[10px] font-bold text-[#6d5efc] bg-[#241f3a] px-2 py-0.5 rounded-md">{it.groups.length} קבוצות מרכיבים</span>
+                {it.allergens.length > 0 && <span className="text-[10px] font-bold text-[#e0315a] bg-[#3a1d22] px-2 py-0.5 rounded-md">{it.allergens.length} אלרגנים</span>}
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${it.kosher ? "bg-[#15302b] text-[#22c08c]" : "bg-[#3a1d22] text-[#e0315a]"}`}>{it.kosher ? "כשר" : "לא כשר"}</span>
               </div>
             </div>
           ))}
@@ -1439,7 +1439,7 @@ function MenuImportFlow({ onStudy, onDone }) {
           className="w-full py-4 rounded-2xl font-black text-sm bg-[#6d5efc] text-white active:bg-[#5b4ef0] shadow-[0_6px_18px_rgba(109,94,252,0.35)] flex items-center justify-center gap-2">
           <Layers size={17} /> התחל ללמוד
         </button>
-        <button onClick={onDone} className="w-full py-3.5 rounded-2xl font-bold text-sm bg-white border border-[#ecebf3] text-[#3a3a52] active:bg-[#f1f1f7]">
+        <button onClick={onDone} className="w-full py-3.5 rounded-2xl font-bold text-sm bg-[#16181c] border border-[#22252b] text-[#c4c4d4] active:bg-[#1c1e22]">
           חזרה ללימוד
         </button>
       </div>
@@ -1451,7 +1451,7 @@ function MenuImportFlow({ onStudy, onDone }) {
 function Stat({ value, label }) {
   return (
     <div className={`${C.card} p-3 text-center`}>
-      <p className="text-lg font-black text-[#1b1b2e] leading-none">{value}</p>
+      <p className="text-lg font-black text-[#eef0f6] leading-none">{value}</p>
       <p className="text-[10px] font-semibold text-[#8a8aa0] mt-1">{label}</p>
     </div>
   );
@@ -1460,33 +1460,33 @@ function StatBox({ icon: Icon, value, label, tint }) {
   return (
     <div className={`${C.card} p-3 text-center`}>
       <Icon size={16} className={`mx-auto ${tint ? "text-[#ff7a59]" : "text-[#6d5efc]"}`} />
-      <p className="text-base font-black text-[#1b1b2e] mt-1 leading-none">{value}</p>
+      <p className="text-base font-black text-[#eef0f6] mt-1 leading-none">{value}</p>
       <p className="text-[10px] font-semibold text-[#8a8aa0] mt-0.5">{label}</p>
     </div>
   );
 }
 function Tag({ t }) {
-  return <span className="text-[10px] font-bold text-[#0c9b6e] bg-[#e7f7f0] px-2 py-0.5 rounded-md">{t}</span>;
+  return <span className="text-[10px] font-bold text-[#22c08c] bg-[#15302b] px-2 py-0.5 rounded-md">{t}</span>;
 }
 function LearnHeader({ label, onDone }) {
   return (
-    <div className="bg-[#f4f4f9] px-4 pt-6 pb-3 flex items-center gap-3 sticky top-0 z-10">
-      <button onClick={onDone} className="w-9 h-9 rounded-xl bg-white border border-[#ecebf3] flex items-center justify-center text-[#8a8aa0] active:bg-[#f1f1f7] shadow-sm">
+    <div className="bg-[#0c0d10] px-4 pt-6 pb-3 flex items-center gap-3 sticky top-0 z-10">
+      <button onClick={onDone} className="w-9 h-9 rounded-xl bg-[#16181c] border border-[#22252b] flex items-center justify-center text-[#8a8aa0] active:bg-[#1c1e22] shadow-sm">
         <X size={18} />
       </button>
-      <span className="text-sm font-black text-[#1b1b2e]">{label}</span>
+      <span className="text-sm font-black text-[#eef0f6]">{label}</span>
     </div>
   );
 }
 function DoneScreen({ title, lines, onAgain, onDone }) {
   return (
-    <div className="h-full flex flex-col bg-[#f4f4f9]">
+    <div className="h-full flex flex-col bg-[#0c0d10]">
       <LearnHeader label="סיכום" onDone={onDone} />
       <div className="flex-1 flex flex-col items-center justify-center px-8 text-center">
-        <div className="w-20 h-20 rounded-full bg-[#efedff] flex items-center justify-center mb-5">
+        <div className="w-20 h-20 rounded-full bg-[#241f3a] flex items-center justify-center mb-5">
           <Trophy size={38} className="text-[#6d5efc]" />
         </div>
-        <h2 className="text-2xl font-black text-[#1b1b2e]">{title}</h2>
+        <h2 className="text-2xl font-black text-[#eef0f6]">{title}</h2>
         <div className="mt-3 space-y-1">
           {lines.filter(Boolean).map((l, idx) => <p key={idx} className="text-sm text-[#8a8aa0] font-semibold">{l}</p>)}
         </div>
@@ -1494,7 +1494,7 @@ function DoneScreen({ title, lines, onAgain, onDone }) {
           <button onClick={onAgain} className="w-full py-3.5 rounded-2xl font-bold text-sm bg-[#6d5efc] text-white active:bg-[#5b4ef0] flex items-center justify-center gap-1.5 shadow-[0_6px_18px_rgba(109,94,252,0.35)]">
             <RotateCcw size={16} /> תרגול נוסף
           </button>
-          <button onClick={onDone} className="w-full py-3.5 rounded-2xl font-bold text-sm bg-white border border-[#ecebf3] text-[#3a3a52] active:bg-[#f1f1f7]">
+          <button onClick={onDone} className="w-full py-3.5 rounded-2xl font-bold text-sm bg-[#16181c] border border-[#22252b] text-[#c4c4d4] active:bg-[#1c1e22]">
             חזרה ללימוד
           </button>
         </div>
@@ -1514,11 +1514,11 @@ function SettingsScreen({ onBack, onSignOut, restaurantName }) {
   ];
   return (
     <>
-      <div className="bg-[#f4f4f9] px-4 pt-6 pb-3 flex items-center gap-3">
-        <button onClick={onBack} className="w-9 h-9 rounded-xl bg-white border border-[#ecebf3] flex items-center justify-center text-[#8a8aa0] active:bg-[#f1f1f7] shadow-sm">
+      <div className="bg-[#0c0d10] px-4 pt-6 pb-3 flex items-center gap-3">
+        <button onClick={onBack} className="w-9 h-9 rounded-xl bg-[#16181c] border border-[#22252b] flex items-center justify-center text-[#8a8aa0] active:bg-[#1c1e22] shadow-sm">
           <ChevronRight size={18} />
         </button>
-        <span className="text-lg font-black text-[#1b1b2e]">החשבון שלי</span>
+        <span className="text-lg font-black text-[#eef0f6]">החשבון שלי</span>
       </div>
       <div className="flex-1 overflow-y-auto px-5 py-4">
         <div className={`${C.card} p-5 mb-4 flex items-center gap-3`}>
@@ -1526,22 +1526,22 @@ function SettingsScreen({ onBack, onSignOut, restaurantName }) {
             {ME.name.split(" ").map((w) => w[0]).join("")}
           </div>
           <div>
-            <p className="text-base font-black text-[#1b1b2e]">{ME.name}</p>
+            <p className="text-base font-black text-[#eef0f6]">{ME.name}</p>
             <p className="text-xs text-[#8a8aa0] font-semibold">{ME.role}{restaurantName ? ` · ${restaurantName}` : ""}</p>
           </div>
         </div>
-        <div className="bg-white rounded-3xl border border-[#ecebf3] shadow-sm overflow-hidden mb-4">
+        <div className="bg-[#16181c] rounded-3xl border border-[#22252b] shadow-sm overflow-hidden mb-4">
           {MENU_ITEMS.map((m, idx) => (
-            <button key={m.label} className={`w-full flex items-center gap-3 px-4 py-3.5 text-right active:bg-[#f4f4f9] ${idx < MENU_ITEMS.length - 1 ? "border-b border-[#f1f1f7]" : ""}`}>
-              <div className="w-9 h-9 rounded-xl bg-[#f1f1f7] flex items-center justify-center flex-shrink-0">
+            <button key={m.label} className={`w-full flex items-center gap-3 px-4 py-3.5 text-right active:bg-[#0c0d10] ${idx < MENU_ITEMS.length - 1 ? "border-b border-[#1c1e22]" : ""}`}>
+              <div className="w-9 h-9 rounded-xl bg-[#1c1e22] flex items-center justify-center flex-shrink-0">
                 <m.icon size={17} className="text-[#6d5efc]" />
               </div>
-              <span className="flex-1 text-sm font-bold text-[#3a3a52]">{m.label}</span>
+              <span className="flex-1 text-sm font-bold text-[#c4c4d4]">{m.label}</span>
               <ChevronLeft size={17} className="text-[#c4c4d4]" />
             </button>
           ))}
         </div>
-        <button onClick={onSignOut} className="w-full flex items-center justify-center gap-2 text-[#e0315a] text-sm font-bold py-3.5 bg-white rounded-2xl border border-[#ecebf3] active:bg-[#f4f4f9]">
+        <button onClick={onSignOut} className="w-full flex items-center justify-center gap-2 text-[#e0315a] text-sm font-bold py-3.5 bg-[#16181c] rounded-2xl border border-[#22252b] active:bg-[#0c0d10]">
           <LogOut size={16} /> התנתקות
         </button>
       </div>
@@ -1551,7 +1551,7 @@ function SettingsScreen({ onBack, onSignOut, restaurantName }) {
 
 function BottomNav({ tab, setTab }) {
   return (
-    <nav className="bg-white border-t border-[#ecebf3] flex safe-bottom flex-shrink-0 shadow-[0_-2px_14px_rgba(30,25,70,0.05)]">
+    <nav className="bg-[#16181c] border-t border-[#22252b] flex safe-bottom flex-shrink-0 shadow-[0_-2px_14px_rgba(30,25,70,0.05)]">
       {TABS.map(({ id, icon: Icon, label }) => {
         const active = tab === id;
         return (
