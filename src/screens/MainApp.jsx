@@ -351,8 +351,10 @@ export default function MainApp({ waiter, onSignOut }) {
   }, [schedRows, myName]);
 
   const totals = useMemo(() => {
-    const hours = myShifts.reduce((s, x) => s + x.hours, 0);
-    return { count: myShifts.length, hours: Math.round(hours) };
+    // We don't promise hours — the manager sets actual hours per shift — so the
+    // weekly summary counts shifts and distinct work days, not committed hours.
+    const days = new Set(myShifts.map((x) => x.day)).size;
+    return { count: myShifts.length, days };
   }, [myShifts]);
 
   const published = Array.isArray(schedRows) && schedRows.length > 0;
@@ -410,7 +412,7 @@ function HomeTab({ totals, myShifts, loading, go, mastered, onAvatar }) {
                 <span className="text-xs font-bold flex items-center gap-1"><s.icon size={14} /> {s.label}</span>
               </div>
               <p className="text-2xl font-black">{DAYS[next.day]} · {next.date}</p>
-              <p className="text-sm font-semibold text-white/85 mt-1 flex items-center gap-1.5" dir="ltr"><Clock size={14} /> {next.from}–{next.to} · {next.hours} ש׳</p>
+              <p className="text-sm font-semibold text-white/85 mt-1 flex items-center gap-1.5"><Clock size={14} /> החל מ־<span dir="ltr">{next.from}</span></p>
               <p className="text-sm font-semibold text-white/85 mt-1 flex items-center gap-1.5"><MapPin size={14} /> {PLACE}</p>
             </div>
           ) : (
@@ -426,7 +428,7 @@ function HomeTab({ totals, myShifts, loading, go, mastered, onAvatar }) {
           <p className="text-xs font-bold text-[#8a8aa0] mb-2">השבוע במספרים</p>
           <div className="grid grid-cols-2 gap-2.5">
             <Stat value={totals.count} label="משמרות" />
-            <Stat value={totals.hours} label="שעות" />
+            <Stat value={totals.days} label="ימים" />
           </div>
         </div>
 
@@ -481,7 +483,7 @@ function ScheduleTab({ totals, myShifts, published, loading, onAvatar }) {
 
             <div className="grid grid-cols-2 gap-2.5 mb-4">
               <Stat value={totals.count} label="משמרות" />
-              <Stat value={totals.hours} label="שעות" />
+              <Stat value={totals.days} label="ימים" />
             </div>
 
             {myShifts.length === 0 ? (
@@ -504,7 +506,7 @@ function ScheduleTab({ totals, myShifts, published, loading, onAvatar }) {
                             <p className="text-sm font-black">{DAYS[x.day]} · {x.date}</p>
                             <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-[#241f3a] text-[#6d5efc]">{x.position}</span>
                           </div>
-                          <p className="text-xs text-[#8a8aa0] font-semibold flex items-center gap-1 mt-1" dir="ltr"><Clock size={12} /> {x.from}–{x.to} · {x.hours} שעות</p>
+                          <p className="text-xs text-[#8a8aa0] font-semibold flex items-center gap-1 mt-1"><Clock size={12} /> החל מ־<span dir="ltr">{x.from}</span></p>
                           {x.coworkers.length > 0 && (
                             <p className="text-xs text-[#a0a0b4] font-semibold flex items-center gap-1 mt-0.5"><Users size={12} /> איתך: {x.coworkers.join(", ")}</p>
                           )}
