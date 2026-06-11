@@ -547,8 +547,10 @@ function AvailTab({ waiter, onAvatar }) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
-  const staffId = waiter?.staff_id || null;
-  const restId = waiter?.restaurant_id || null;
+  // Session is built camelCase in App.jsx / WaiterLogin.jsx (staffId/restaurantId).
+  // Accept the snake_case spellings too in case an older cached session is read.
+  const staffId = waiter?.staffId ?? waiter?.staff_id ?? null;
+  const restId = waiter?.restaurantId ?? waiter?.restaurant_id ?? null;
 
   // Pull back what this waiter already submitted for the week so the grid opens
   // pre-filled (and re-submitting feels like an edit, not a fresh start).
