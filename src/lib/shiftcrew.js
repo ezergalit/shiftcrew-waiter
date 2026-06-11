@@ -46,3 +46,114 @@ export async function checkWaiterAccess(phone) {
   const row = Array.isArray(data) ? data[0] : data;
   return row || null;
 }
+
+// ─── Menu progress (real mastery, persisted per waiter) ──────────────────────
+// menu_progress rows: { waiter_id, source_item_id, mastery (0-5), last_reviewed }.
+// We treat mastery >= 4 as "mastered". Keyed/upserted on (waiter_id, source_item_id).
+export async function loadMastered(staffId) {
+  if (!staffId) return [];
+  const { data, error } = await scWaiter
+    .from("menu_progress")
+    .select("source_item_id, mastery")
+    .eq("waiter_id", staffId);
+  if (error) { console.error("[shiftcrew] loadMastered:", error); return []; }
+  return (data || []).filter((r) => (r.mastery ?? 0) >= 4).map((r) => r.source_item_id);
+}
+
+export async function saveMastery(staffId, sourceItemId, mastery = 5) {
+  if (!staffId || !sourceItemId) return;
+  const { error } = await scWaiter
+    .from("menu_progress")
+    .upsert(
+      { waiter_id: staffId, source_item_id: sourceItemId, mastery, last_reviewed: new Date().toISOString() },
+      { onConflict: "waiter_id,source_item_id" }
+    );
+  if (error) console.error("[shiftcrew] saveMastery:", error);
+}
+
+// ─── Leaderboard (real, restaurant-scoped, staff-keyed) ──────────────────────
+export async function loadLeaderboard(restaurantId) {
+  if (!restaurantId) return [];
+  const { data, error } = await scWaiter
+    .from("leaderboard")
+    .select("staff_id, waiter_name, points, mastered_count, streak, today_count, last_study_date")
+    .eq("restaurant_id", restaurantId)
+    .order("points", { ascending: false });
+  if (error) { console.error("[shiftcrew] loadLeaderboard:", error); return []; }
+  return data || [];
+}
+
+// Recompute this waiter's leaderboard row from their real mastered count.
+// points = mastered_count * 100. Streak/today are best-effort by last_study_date.
+export async function upsertLeaderboard(restaurantId, staffId, waiterName, masteredCount) {
+  if (!restaurantId || !staffId) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: prev } = await scWaiter
+    .from("leaderboard")
+    .select("streak, last_study_date, today_count, mastered_count")
+    .eq("restaurant_id", restaurantId)
+    .eq("staff_id", staffId)
+    .maybeSingle();
+
+  let streak = 1, todayCount = 1;
+  if (prev) {
+    const last = prev.last_study_date;
+    if (last === today) { streak = prev.streak || 1; todayCount = (prev.today_count || 0) + 1; }
+    else {
+      const y = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+      streak = last === y ? (prev.streak || 0) + 1 : 1;
+      todayCount = 1;
+    }
+  }
+  const { error } = await scWaiter
+    .from("leaderboard")
+    .upsert(
+      {
+        restaurant_id: restaurantId, staff_id: staffId, waiter_name: waiterName || "מלצר/ית",
+        points: masteredCount * 100, mastered_count: masteredCount,
+        streak, today_count: todayCount, last_study_date: today,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "restaurant_id,staff_id" }
+    );
+  if (error) console.error("[shiftcrew] upsertLeaderboard:", error);
+}
+
+// ─── Shift swaps (open request → teammate claims) ────────────────────────────
+export async function loadSwaps(restaurantId) {
+  if (!restaurantId) return [];
+  const { data, error } = await scWaiter
+    .from("shift_swaps")
+    .select("*")
+    .eq("restaurant_id", restaurantId)
+    .order("created_at", { ascending: false });
+  if (error) { console.error("[shiftcrew] loadSwaps:", error); return []; }
+  return data || [];
+}
+
+export async function createSwap(swap) {
+  const { data, error } = await scWaiter
+    .from("shift_swaps")
+    .insert({ ...swap, status: "open" })
+    .select("*")
+    .single();
+  if (error) { console.error("[shiftcrew] createSwap:", error); throw error; }
+  return data;
+}
+
+export async function claimSwap(swapId, staffId, name) {
+  const { error } = await scWaiter
+    .from("shift_swaps")
+    .update({ status: "claimed", claimed_by_staff_id: staffId, claimed_by_name: name, updated_at: new Date().toISOString() })
+    .eq("id", swapId)
+    .eq("status", "open");
+  if (error) { console.error("[shiftcrew] claimSwap:", error); throw error; }
+}
+
+export async function cancelSwap(swapId) {
+  const { error } = await scWaiter
+    .from("shift_swaps")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", swapId);
+  if (error) { console.error("[shiftcrew] cancelSwap:", error); throw error; }
+}
