@@ -37,6 +37,7 @@ export default function WaiterLogin({ onGranted }) {
         restaurantName: row.restaurant_name,
         name: row.waiter_name,
         role: row.role,
+        accessRole: row.access_role || "waiter",
       };
       localStorage.setItem(ACCESS_KEY, JSON.stringify(session));
       setMe(session.name);

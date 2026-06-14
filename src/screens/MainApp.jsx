@@ -13,6 +13,7 @@ import {
   loadLeaderboard, upsertLeaderboard,
   loadSwaps, createSwap, claimSwap, cancelSwap,
 } from "../lib/shiftcrew";
+import ManageScreen, { canManage, accessRoleMeta } from "./Manage";
 
 // The week the owner schedules/collects availability for. Both apps MUST agree on
 // this key for the round-trip to line up, so both derive it the SAME way: the
@@ -1310,7 +1311,20 @@ function InfoRow({ label, value }) {
 function SettingsScreen({ onBack, onSignOut, waiter, restaurantName, swaps = [], staffId, onClaimSwap, onCancelSwap }) {
   // null = the account list; otherwise the open item's id (its detail panel).
   const [open, setOpen] = useState(null);
+  const [manageOpen, setManageOpen] = useState(false);
   const phone = waiter?.phone || "";
+  const accessRole = waiter?.accessRole || "waiter";
+  const roleMeta = accessRoleMeta(accessRole);
+
+  // Role-holders (admin / scheduler / menu_manager) get a management entry that
+  // opens the screens their access_role unlocks. Plain waiters never see it.
+  if (manageOpen) {
+    return (
+      <div className="absolute inset-0 z-50 bg-[#0c0d10] flex flex-col">
+        <ManageScreen waiter={waiter} onBack={() => setManageOpen(false)} />
+      </div>
+    );
+  }
 
   // My swap requests + open requests from teammates I can cover.
   const mySwaps = swaps.filter((sw) => sw.requester_staff_id === staffId);
@@ -1477,6 +1491,23 @@ function SettingsScreen({ onBack, onSignOut, waiter, restaurantName, swaps = [],
             <p className="text-xs text-[#8a8aa0] font-semibold">{ME.role}{restaurantName ? ` · ${restaurantName}` : ""}</p>
           </div>
         </div>
+
+        {/* Role-gated management entry (admin / scheduler / menu_manager only) */}
+        {canManage(accessRole) && (
+          <button onClick={() => setManageOpen(true)}
+            className="w-full flex items-center gap-3 rounded-3xl p-4 mb-4 text-right active:scale-[0.99] transition-transform"
+            style={{ background: roleMeta.bg, border: `1px solid ${roleMeta.bd}` }}>
+            <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "#0c0d10" }}>
+              <roleMeta.Icon size={20} style={{ color: roleMeta.color }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-black" style={{ color: roleMeta.color }}>ניהול · {roleMeta.label}</p>
+              <p className="text-xs font-semibold mt-0.5" style={{ color: "#a0a0b4" }}>{roleMeta.desc}</p>
+            </div>
+            <ChevronLeft size={18} style={{ color: roleMeta.color }} />
+          </button>
+        )}
+
         <div className="bg-[#16181c] rounded-3xl border border-[#22252b] shadow-sm overflow-hidden mb-4">
           {MENU_ITEMS.map((m, idx) => (
             <button key={m.id} onClick={() => setOpen(m.id)} className={`w-full flex items-center gap-3 px-4 py-3.5 text-right active:bg-[#0c0d10] ${idx < MENU_ITEMS.length - 1 ? "border-b border-[#1c1e22]" : ""}`}>

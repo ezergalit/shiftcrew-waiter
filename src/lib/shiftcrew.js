@@ -157,3 +157,130 @@ export async function cancelSwap(swapId) {
     .eq("id", swapId);
   if (error) { console.error("[shiftcrew] cancelSwap:", error); throw error; }
 }
+
+// ─── Role-gated management (admin / scheduler / menu_manager) ─────────────────
+// Role-holders open this SAME no-password team app; their staff.access_role unlocks
+// management screens that write to the OWNER schema (shiftcrew_owner). This is safe
+// and ShiftMatch-isolated: anon already holds full DML on the shiftcrew_owner tables
+// plus EXECUTE on publish_week / publish_schedule (both SECURITY DEFINER), so no new
+// auth user is created and ShiftMatch's `public` schema is never touched. The UI is
+// gated by access_role; these helpers are the only write surface they use.
+
+const ACCESS_ROLE_KEYS = ["waiter", "scheduler", "menu_manager", "admin"];
+
+// ADMIN — staff roster CRUD (add/remove/suspend a teammate, set their access role).
+export async function loadStaffRoster(restaurantId) {
+  if (!restaurantId) return [];
+  const { data, error } = await scOwnerPublic
+    .from("staff").select("*").eq("restaurant_id", restaurantId)
+    .order("created_at", { ascending: true });
+  if (error) { console.error("[shiftcrew] loadStaffRoster:", error); return []; }
+  return data || [];
+}
+
+export async function addStaff(restaurantId, { name, phone, role, accessRole }) {
+  const p = normPhone(phone);
+  const ar = ACCESS_ROLE_KEYS.includes(accessRole) ? accessRole : "waiter";
+  const { data, error } = await scOwnerPublic
+    .from("staff")
+    .insert({
+      restaurant_id: restaurantId, phone: p,
+      name: (name || "").trim() || p, role: role || "מלצר/ית",
+      access_role: ar, active: true,
+    })
+    .select("*").single();
+  if (error) throw error;
+  return data;
+}
+
+export async function setStaffActive(id, active) {
+  const { error } = await scOwnerPublic.from("staff").update({ active }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function setStaffAccessRole(id, accessRole) {
+  const ar = ACCESS_ROLE_KEYS.includes(accessRole) ? accessRole : "waiter";
+  const { error } = await scOwnerPublic.from("staff").update({ access_role: ar }).eq("id", id);
+  if (error) throw error;
+}
+
+export async function removeStaff(id) {
+  const { error } = await scOwnerPublic.from("staff").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// MENU MANAGER — edit the menu/dishes (and the questions about them, which are
+// derived from each dish's ingredients/allergens/price), then publish to the team.
+export async function loadMenuItems(restaurantId) {
+  if (!restaurantId) return [];
+  const { data, error } = await scOwnerPublic
+    .from("menu_items").select("*").eq("restaurant_id", restaurantId)
+    .order("created_at", { ascending: true });
+  if (error) { console.error("[shiftcrew] loadMenuItems:", error); return []; }
+  return data || [];
+}
+
+export async function saveMenuItem(restaurantId, item) {
+  const payload = {
+    category: item.category || "mains",
+    name: (item.name || "").trim(),
+    price: Number(item.price) || 0,
+    description: item.description || "",
+    ingredients: Array.isArray(item.ingredients) ? item.ingredients.filter(Boolean) : [],
+    allergens: Array.isArray(item.allergens) ? item.allergens.filter(Boolean) : [],
+    is_special: !!item.is_special,
+  };
+  if (item.id) {
+    const { data, error } = await scOwnerPublic
+      .from("menu_items").update(payload).eq("id", item.id).select("*").single();
+    if (error) throw error;
+    return data;
+  }
+  const { data, error } = await scOwnerPublic
+    .from("menu_items").insert({ ...payload, restaurant_id: restaurantId }).select("*").single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteMenuItem(id) {
+  const { error } = await scOwnerPublic.from("menu_items").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function publishMenu(restaurantId) {
+  const today = new Date().toISOString().slice(0, 10);
+  const { error } = await scOwnerPublic
+    .rpc("publish_week", { p_restaurant_id: restaurantId, p_week_start: today });
+  if (error) throw error;
+}
+
+// SCHEDULER — build & publish the weekly schedule. The draft is a flat list of
+// assignment rows persisted on schedule_weeks.assignments; publishing snapshots the
+// expanded rows into the waiter app via the cross-schema publish_schedule RPC.
+export async function loadScheduleDraft(restaurantId, weekIso) {
+  if (!restaurantId || !weekIso) return { assignments: {}, status: "draft" };
+  const { data, error } = await scOwnerPublic
+    .from("schedule_weeks").select("assignments,status")
+    .eq("restaurant_id", restaurantId).eq("week_start", weekIso).maybeSingle();
+  if (error) { console.error("[shiftcrew] loadScheduleDraft:", error); return { assignments: {}, status: "draft" }; }
+  return data || { assignments: {}, status: "draft" };
+}
+
+export async function saveScheduleDraft(restaurantId, weekIso, assignments) {
+  if (!restaurantId) throw new Error("missing restaurant id");
+  const { error } = await scOwnerPublic
+    .from("schedule_weeks")
+    .upsert(
+      { restaurant_id: restaurantId, week_start: weekIso, assignments, status: "draft" },
+      { onConflict: "restaurant_id,week_start" }
+    );
+  if (error) throw error;
+}
+
+// rows: [{ day, label, name, from, to, position, color }] — expanded filled shifts.
+export async function publishScheduleRows(restaurantId, weekIso, rows) {
+  if (!restaurantId) throw new Error("missing restaurant id");
+  const { error } = await scOwnerPublic
+    .rpc("publish_schedule", { p_restaurant_id: restaurantId, p_week_start: weekIso, p_rows: rows });
+  if (error) throw error;
+}
