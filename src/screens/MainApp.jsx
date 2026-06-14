@@ -15,13 +15,21 @@ import {
 } from "../lib/shiftcrew";
 
 // The week the owner schedules/collects availability for. Both apps MUST agree on
-// this key for the round-trip to line up (owner anchors on Sun 7.6.2026).
-const WEEK_START = new Date(2026, 5, 7);
+// this key for the round-trip to line up, so both derive it the SAME way: the
+// Sunday (Israeli week start) of the current real week. No longer pinned to a
+// fixed date — the schedule tracks time alongside the owner app.
 function isoDate(d) {
   const z = new Date(d);
   z.setMinutes(z.getMinutes() - z.getTimezoneOffset());
   return z.toISOString().slice(0, 10);
 }
+function weekStartDate(ref = new Date(), offsetWeeks = 0) {
+  const d = new Date(ref);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - d.getDay() + offsetWeeks * 7);
+  return d;
+}
+const WEEK_START = weekStartDate();
 const WEEK_ISO = isoDate(WEEK_START);
 
 // Hours between two "HH:MM" times, wrapping past midnight (22:00→02:00 = 4).
