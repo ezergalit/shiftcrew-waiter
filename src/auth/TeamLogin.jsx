@@ -41,11 +41,21 @@ export default function TeamLogin({ onGranted }) {
         return;
       }
 
-      // Create or find team member
-      const { data: member, error } = await db.from("team_members")
-        .insert({ restaurant_id: rest.id, name: name.trim() })
-        .select("id, name").single();
-      if (error) throw error;
+      // Returning name? Reuse the same team_member row so mastery/leaderboard progress
+      // (both keyed on team_member_id) picks up right where it left off, instead of a
+      // fresh row with zero progress every time someone logs in.
+      const trimmedName = name.trim();
+      const { data: existing } = await db.from("team_members")
+        .select("id, name").eq("restaurant_id", rest.id).ilike("name", trimmedName).maybeSingle();
+
+      let member = existing;
+      if (!member) {
+        const { data, error } = await db.from("team_members")
+          .insert({ restaurant_id: rest.id, name: trimmedName })
+          .select("id, name").single();
+        if (error) throw error;
+        member = data;
+      }
 
       const session = {
         teamMemberId: member.id,
