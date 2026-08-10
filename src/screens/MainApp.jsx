@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, Repeat, ChevronLeft } from "lucide-react";
+import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, Repeat, ChevronLeft, AlertTriangle, PenLine } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
 
@@ -80,42 +80,68 @@ export default function MainApp({ session, onSignOut }) {
     return () => { alive = false; supabase.removeChannel(channel); };
   }, [session?.restaurantId, session?.teamMemberId, session?.offline]);
 
-  const learnItem = async (id, masteryValue = 5) => {
-    if (mastered.has(id) || !session?.teamMemberId) return;
-    const next = new Set(mastered).add(id);
-    setMastered(next);
+  // rating: 1-5. Self-reported in Flashcards (the one genuinely subjective mode); every
+  // other mode (Quiz/Speed/Matching/Allergens/NameCompletion) computes it itself from
+  // actual correctness — 5 on a correct answer, 2 on a wrong one — specifically so a
+  // player can't just self-report "I knew it" without being tested. Mastery (>=4) can
+  // move in EITHER direction: a later wrong answer un-masters something they'd already
+  // gotten right before, which is the whole point of letting objective games grade it.
+  const learnItem = async (id, rating) => {
+    if (!session?.teamMemberId) return;
+    const wasMastered = mastered.has(id);
+    const nowMastered = rating >= 4;
+    const crossed = wasMastered !== nowMastered;
 
-    // Daily challenge: 3 new dishes/day → one-time +50 bonus, persisted per team member.
-    const base = daily.date === todayStr() ? daily : { date: todayStr(), count: 0, bonusAwarded: false };
-    const newDaily = { date: todayStr(), count: base.count + 1, bonusAwarded: base.bonusAwarded || base.count + 1 >= DAILY_TARGET };
-    const justEarnedBonus = !base.bonusAwarded && newDaily.bonusAwarded;
-    setDaily(newDaily);
-    saveDaily(session.teamMemberId, newDaily);
-    const newBonusTotal = justEarnedBonus ? bonusTotal + DAILY_BONUS : bonusTotal;
-    if (justEarnedBonus) { setBonusTotal(newBonusTotal); saveNum("menu-app-bonus", session.teamMemberId, newBonusTotal); }
+    let nextMasteredSize = mastered.size;
+    if (crossed) {
+      const next = new Set(mastered);
+      if (nowMastered) next.add(id); else next.delete(id);
+      nextMasteredSize = next.size;
+      setMastered(next);
+    }
 
-    const points = next.size * 100 + newBonusTotal;
-    // Optimistic local leaderboard update so the rater sees their own score move instantly.
-    setLeaderboard(prev => {
-      const exists = prev.find(r => r.team_member_id === session.teamMemberId);
-      const updated = exists
-        ? prev.map(r => r.team_member_id === session.teamMemberId ? { ...r, points, mastered_count: next.size } : r)
-        : [...prev, { restaurant_id: session.restaurantId, team_member_id: session.teamMemberId, name: session.name, points, mastered_count: next.size, streak: 1, today_count: 1 }];
-      return updated.sort((a, b) => b.points - a.points);
-    });
+    // Daily challenge: 3 NEWLY-mastered dishes/day → one-time +50 bonus. Only counts
+    // fresh mastery (not re-grading something already known), and only counts up.
+    let newBonusTotal = bonusTotal;
+    if (!wasMastered && nowMastered) {
+      const base = daily.date === todayStr() ? daily : { date: todayStr(), count: 0, bonusAwarded: false };
+      const newDaily = { date: todayStr(), count: base.count + 1, bonusAwarded: base.bonusAwarded || base.count + 1 >= DAILY_TARGET };
+      const justEarnedBonus = !base.bonusAwarded && newDaily.bonusAwarded;
+      setDaily(newDaily);
+      saveDaily(session.teamMemberId, newDaily);
+      if (justEarnedBonus) { newBonusTotal = bonusTotal + DAILY_BONUS; setBonusTotal(newBonusTotal); saveNum("menu-app-bonus", session.teamMemberId, newBonusTotal); }
+    }
+
+    if (crossed) {
+      const points = nextMasteredSize * 100 + newBonusTotal;
+      // Optimistic local leaderboard update so the rater sees their own score move instantly.
+      setLeaderboard(prev => {
+        const exists = prev.find(r => r.team_member_id === session.teamMemberId);
+        const updated = exists
+          ? prev.map(r => r.team_member_id === session.teamMemberId ? { ...r, points, mastered_count: nextMasteredSize } : r)
+          : [...prev, { restaurant_id: session.restaurantId, team_member_id: session.teamMemberId, name: session.name, points, mastered_count: nextMasteredSize, streak: 1, today_count: 1 }];
+        return updated.sort((a, b) => b.points - a.points);
+      });
+    }
+
     if (session.offline) return; // TEMP DEV FALLBACK — local-only, nothing to persist.
-    await db.from("menu_progress").upsert({ team_member_id: session.teamMemberId, source_item_id: id, mastery: masteryValue, last_reviewed: new Date().toISOString() }, { onConflict: "team_member_id,source_item_id" });
-    await db.from("leaderboard").upsert({ restaurant_id: session.restaurantId, team_member_id: session.teamMemberId, name: session.name, points, mastered_count: next.size, updated_at: new Date().toISOString() }, { onConflict: "restaurant_id,team_member_id" });
+    await db.from("menu_progress").upsert({ team_member_id: session.teamMemberId, source_item_id: id, mastery: rating, last_reviewed: new Date().toISOString() }, { onConflict: "team_member_id,source_item_id" });
+    if (crossed) {
+      const points = nextMasteredSize * 100 + newBonusTotal;
+      await db.from("leaderboard").upsert({ restaurant_id: session.restaurantId, team_member_id: session.teamMemberId, name: session.name, points, mastered_count: nextMasteredSize, updated_at: new Date().toISOString() }, { onConflict: "restaurant_id,team_member_id" });
+    }
   };
 
   const finishSpeed = (correctCount) => {
     if (correctCount > bestSpeed) { setBestSpeed(correctCount); saveNum("menu-app-best-speed", session?.teamMemberId, correctCount); }
   };
 
-  if (mode === "flashcards") return <Flashcards items={modeItems || cards} onKnown={learnItem} onDone={exitMode} />;
-  if (mode === "quiz") return <Quiz items={modeItems || cards} onCorrect={learnItem} onDone={exitMode} />;
-  if (mode === "match") return <Matching items={modeItems || cards} onKnown={learnItem} onDone={exitMode} />;
-  if (mode === "speed") return <Speed items={modeItems || cards} onKnown={learnItem} onDone={exitMode} onFinish={finishSpeed} />;
+  if (mode === "flashcards") return <Flashcards items={modeItems || cards} onRate={learnItem} onDone={exitMode} />;
+  if (mode === "quiz") return <Quiz items={modeItems || cards} onAnswer={learnItem} onDone={exitMode} />;
+  if (mode === "match") return <Matching items={modeItems || cards} onAnswer={learnItem} onDone={exitMode} />;
+  if (mode === "speed") return <Speed items={modeItems || cards} onAnswer={learnItem} onDone={exitMode} onFinish={finishSpeed} />;
+  if (mode === "allergens") return <AllergenQuiz items={modeItems || cards} onAnswer={learnItem} onDone={exitMode} />;
+  if (mode === "namecomplete") return <NameCompletion items={modeItems || cards} onAnswer={learnItem} onDone={exitMode} />;
 
   const pct = cards?.length ? Math.round((mastered.size / cards.length) * 100) : 0;
   const myRank = leaderboard.findIndex(r => r.team_member_id === session?.teamMemberId) + 1;
@@ -130,14 +156,16 @@ export default function MainApp({ session, onSignOut }) {
       progress: Math.min(daily.count, DAILY_TARGET), target: DAILY_TARGET, done: dailyDone,
       action: dailyDone ? null : { label: "התחילו ללמוד", onClick: () => { setModeItems(null); setMode("flashcards"); } },
     },
-    ...cats.filter(({ items }) => items.filter(x => mastered.has(x.id)).length < items.length).map(({ c, items }) => {
-      const known = items.filter(x => mastered.has(x.id)).length;
-      return {
-        id: `cat-${c}`, icon: BarChart3, color: "#6d5efc", title: `שליטה ב${CAT_LABELS[c]}`,
-        desc: `סיימו ללמוד את כל פריטי ${CAT_LABELS[c]}`, progress: known, target: items.length, done: false,
-        action: { label: "תרגול קטגוריה", onClick: () => { setModeItems(items); setMode("flashcards"); } },
-      };
-    }),
+    {
+      id: "allergens", icon: AlertTriangle, color: "#e0315a", title: "אתגר האלרגנים",
+      desc: "קראו את שם המנה וזהו את כל האלרגנים שבה", progress: null, target: null, done: false,
+      action: { label: "לאתגר האלרגנים", onClick: () => { setModeItems(null); setMode("allergens"); } },
+    },
+    {
+      id: "namecomplete", icon: PenLine, color: "#3a86ff", title: "השלימו את השם",
+      desc: "קראו את התיאור ונחשו איזו מנה זו", progress: null, target: null, done: false,
+      action: { label: "לאתגר", onClick: () => { setModeItems(null); setMode("namecomplete"); } },
+    },
     {
       id: "full", icon: Trophy, color: "#22c08c", title: "שליטה מלאה בתפריט",
       desc: "למדו את כל המנות בתפריט", progress: mastered.size, target: cards.length,
@@ -283,11 +311,15 @@ export default function MainApp({ session, onSignOut }) {
         )}
         {tab === "categories" && (
           <div className="space-y-2">
+            <p className="text-[10px] text-[#8a8aa0] px-1">לחצו על קטגוריה כדי לתרגל רק אותה</p>
             {cats.map(({ c, items }) => {
               const known = items.filter(x => mastered.has(x.id)).length;
               const catPct = items.length ? Math.round((known / items.length) * 100) : 0;
               return (
-                <div key={c} className="bg-[#16181c] rounded-lg p-2.5">
+                <button
+                  key={c} onClick={() => { setModeItems(items); setMode("flashcards"); }}
+                  className="w-full bg-[#16181c] rounded-lg p-2.5 text-right active:scale-[0.99] transition-transform"
+                >
                   <div className="flex items-center justify-between mb-1.5">
                     <p className="text-xs font-black text-[#eef0f6]">{CAT_LABELS[c]}</p>
                     <span className="text-[11px] font-bold text-[#6d5efc]">{known}/{items.length}</span>
@@ -295,7 +327,7 @@ export default function MainApp({ session, onSignOut }) {
                   <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden">
                     <div className="h-full bg-[#6d5efc]" style={{ width: `${catPct}%` }} />
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -428,12 +460,17 @@ function PromoCarousel({ items }) {
   );
 }
 
-function Flashcards({ items, onKnown, onDone }) {
+// The one genuinely subjective mode — there's nothing to objectively check when you're
+// just looking at a card, so the player self-rates 1-5 after reveal. Every other mode
+// grades itself instead (see learnItem in MainApp).
+function Flashcards({ items, onRate, onDone }) {
   const [i, setI] = useState(0);
   const [revealed, setRevealed] = useState(false);
   if (!items?.length) return <div className="h-screen flex items-center justify-center"><p>אין פריטים</p></div>;
   if (i >= items.length) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Trophy size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">סיימת!</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
   const it = items[i];
+  const rate = (v) => { onRate(it.id, v); setRevealed(false); setI(i + 1); };
+  const RATING_STYLE = { 1: "bg-[#3a1d22] text-[#e0315a]", 2: "bg-[#3a1d22] text-[#e0315a]", 3: "bg-[#33290f] text-[#f3a712]", 4: "bg-[#15302b] text-[#22c08c]", 5: "bg-[#15302b] text-[#22c08c]" };
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0"><button onClick={onDone} className="text-xs text-[#8a8aa0]">← חזרה</button><p className="text-xs font-bold">{i + 1}/{items.length}</p></div>
@@ -446,9 +483,17 @@ function Flashcards({ items, onKnown, onDone }) {
             <>
               {it.desc && <p className="text-xs text-[#c4c4d4]">{it.desc}</p>}
               {it.allergens?.length > 0 && <div className="bg-[#3a1d22] p-2 rounded-lg"><p className="text-[10px] font-bold text-[#e0315a]">אלרגנים: {it.allergens.join(", ")}</p></div>}
-              <div className="flex gap-2">
-                <button onClick={() => { onKnown(it.id); setRevealed(false); setI(i + 1); }} className="flex-1 py-2 rounded-lg font-bold text-xs bg-[#22c08c] text-white">ידעתי ✓</button>
-                <button onClick={() => { setRevealed(false); setI(i + 1); }} className="flex-1 py-2 rounded-lg font-bold text-xs bg-[#22252b] text-[#c4c4d4]">עוד תרגול</button>
+              <div className="pt-1">
+                <p className="text-[10px] font-bold text-[#8a8aa0] mb-1.5">כמה טוב ידעתם?</p>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {[1, 2, 3, 4, 5].map(v => (
+                    <button key={v} onClick={() => rate(v)} className={`py-2.5 rounded-lg font-black text-sm ${RATING_STYLE[v]}`}>{v}</button>
+                  ))}
+                </div>
+                <div className="flex justify-between mt-1 px-0.5">
+                  <span className="text-[9px] text-[#8a8aa0]">לא ידעתי</span>
+                  <span className="text-[9px] text-[#8a8aa0]">ידעתי מצוין</span>
+                </div>
               </div>
             </>
           )}
@@ -458,7 +503,9 @@ function Flashcards({ items, onKnown, onDone }) {
   );
 }
 
-function Quiz({ items, onCorrect, onDone }) {
+// Objective — right/wrong is checkable, so the game grades itself: correct → 5,
+// wrong → 2. No self-report here, unlike Flashcards.
+function Quiz({ items, onAnswer, onDone }) {
   const [i, setI] = useState(0);
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState(null);
@@ -474,7 +521,8 @@ function Quiz({ items, onCorrect, onDone }) {
   const next = (opt) => {
     setPicked(opt);
     const correct = opt === q.a;
-    if (correct) { setScore(s => s + 1); onCorrect(q.it.id); }
+    if (correct) setScore(s => s + 1);
+    onAnswer(q.it.id, correct ? 5 : 2);
     setTimeout(() => { setPicked(null); setI(i + 1); }, 500);
   };
   return (
@@ -497,7 +545,9 @@ function Quiz({ items, onCorrect, onDone }) {
 }
 
 // Quizlet-style Match: a shuffled grid of name+price tiles; tap two tiles to pair them.
-function Matching({ items, onKnown, onDone }) {
+// Objective — a pair matched with zero wrong attempts grades 5, one wrong attempt 4,
+// two 3, three+ 2. No self-report; guessing wrong repeatedly costs you the rating.
+function Matching({ items, onAnswer, onDone }) {
   const deck = useMemo(() => {
     // Never put two items with the same price in one round — identical price tiles
     // are visually indistinguishable and make a "correct-looking" match actually wrong.
@@ -522,6 +572,7 @@ function Matching({ items, onKnown, onDone }) {
   const [seconds, setSeconds] = useState(0);
   const [running, setRunning] = useState(true);
   const startedRef = useRef(Date.now());
+  const wrongAttemptsRef = useRef(new Map()); // pairId -> count, for objective grading
 
   useEffect(() => {
     if (!running) return;
@@ -543,8 +594,14 @@ function Matching({ items, onKnown, onDone }) {
       if (a.pairId === b.pairId && a.kind !== b.kind) {
         setMatched(m => new Set(m).add(a.key).add(b.key));
         setSel([]);
-        onKnown(a.pairId);
+        const wrongCount = wrongAttemptsRef.current.get(a.pairId) || 0;
+        const rating = wrongCount === 0 ? 5 : wrongCount === 1 ? 4 : wrongCount === 2 ? 3 : 2;
+        onAnswer(a.pairId, rating);
       } else {
+        // A wrong guess counts against BOTH tiles involved — whichever one the player
+        // eventually matches correctly will remember this miss.
+        wrongAttemptsRef.current.set(a.pairId, (wrongAttemptsRef.current.get(a.pairId) || 0) + 1);
+        wrongAttemptsRef.current.set(b.pairId, (wrongAttemptsRef.current.get(b.pairId) || 0) + 1);
         setWrongPair([a.key, b.key]);
         setTimeout(() => { setWrongPair([]); setSel([]); }, 550);
       }
@@ -593,11 +650,19 @@ function Matching({ items, onKnown, onDone }) {
   );
 }
 
-function Speed({ items, onKnown, onDone, onFinish }) {
-  const deck = useMemo(() => shuffle(items || []).slice(0, 12), [items]);
+// Objective, same as Quiz but faster-paced (3 options, 30s overall clock instead of
+// per-question) — was previously a self-report "ידעתי/לא יודע" button pair, which is
+// exactly the kind of unverifiable self-grading the other objective modes avoid.
+function Speed({ items, onAnswer, onDone, onFinish }) {
+  const deck = useMemo(() => shuffle(items || []).slice(0, 12).map(it => ({
+    it,
+    a: `₪${it.price}`,
+    opts: shuffle([`₪${it.price}`, `₪${it.price + 10}`, `₪${Math.max(5, it.price - 10)}`]),
+  })), [items]);
   const [i, setI] = useState(0);
   const [correct, setCorrect] = useState(0);
   const [time, setTime] = useState(30);
+  const [picked, setPicked] = useState(null);
   useEffect(() => {
     if (time <= 0) return;
     const t = setInterval(() => setTime(x => x - 1), 1000);
@@ -608,18 +673,139 @@ function Speed({ items, onKnown, onDone, onFinish }) {
   useEffect(() => { if (finished) onFinish?.(correct); }, [finished]);
   if (!deck.length) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>אין פריטים</p></div>;
   if (finished) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Zap size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">{correct} נכונים!</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
-  const it = deck[i];
+  const q = deck[i];
+  const answer = (opt) => {
+    setPicked(opt);
+    const isCorrect = opt === q.a;
+    if (isCorrect) setCorrect(c => c + 1);
+    onAnswer(q.it.id, isCorrect ? 5 : 2);
+    setTimeout(() => { setPicked(null); setI(x => x + 1); }, 350);
+  };
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0"><span className="text-xs font-bold text-[#f3c14b]">⏱ {time}s</span><p className="text-xs font-bold">{i + 1}/{deck.length}</p></div>
       <div className="flex-1 flex flex-col items-center justify-center px-4">
-        <div className="text-center">
-          <p className="text-lg font-black mb-1">{it.name}</p>
-          <p className="text-sm text-[#8a8aa0] mb-4">₪{it.price}</p>
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => { setCorrect(c => c + 1); onKnown(it.id); setI(i + 1); }} className="px-4 py-3 rounded-lg bg-[#22c08c] text-white font-bold text-xs">ידעתי</button>
-            <button onClick={() => setI(i + 1)} className="px-4 py-3 rounded-lg bg-[#22252b] text-[#c4c4d4] font-bold text-xs">לא יודע</button>
+        <div className="text-center w-full">
+          <p className="text-lg font-black mb-4">{q.it.name}</p>
+          <div className="flex flex-col gap-2">
+            {q.opts.map((opt, j) => {
+              const isCorrectOpt = picked && opt === q.a;
+              const isWrongPick = picked && opt === picked && opt !== q.a;
+              return (
+                <button key={j} disabled={!!picked} onClick={() => answer(opt)}
+                  className={`py-3 rounded-lg font-black text-sm transition-colors ${isCorrectOpt ? "bg-[#22c08c] text-white" : isWrongPick ? "bg-[#e0315a] text-white" : "bg-[#16181c] border border-[#22252b] text-[#eef0f6]"}`}>
+                  {opt}
+                </button>
+              );
+            })}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const ALLERGENS = ["גלוטן", "חלב", "ביצים", "אגוזים", "בוטנים", "דגים", "רכיכות", "סויה", "שומשום", "סולפיטים"];
+
+// Objective: pick every allergen the dish actually has (submitting with none selected
+// is itself the "no allergens" answer). Exact-set match required — no partial credit —
+// since a missed allergen in real life isn't a "partial" mistake.
+function AllergenQuiz({ items, onAnswer, onDone }) {
+  const deck = useMemo(() => shuffle(items || []).slice(0, 8), [items]);
+  const [i, setI] = useState(0);
+  const [score, setScore] = useState(0);
+  const [selected, setSelected] = useState(new Set());
+  const [submitted, setSubmitted] = useState(false);
+  if (!deck.length) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>אין פריטים</p></div>;
+  if (i >= deck.length) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Trophy size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">{score}/{deck.length}</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
+  const it = deck[i];
+  const actual = new Set(it.allergens || []);
+  const toggle = (a) => { if (submitted) return; setSelected(prev => { const n = new Set(prev); n.has(a) ? n.delete(a) : n.add(a); return n; }); };
+  const submit = () => {
+    if (submitted) return;
+    const correct = selected.size === actual.size && [...selected].every(a => actual.has(a));
+    if (correct) setScore(s => s + 1);
+    onAnswer(it.id, correct ? 5 : 2);
+    setSubmitted(true);
+    setTimeout(() => { setSubmitted(false); setSelected(new Set()); setI(x => x + 1); }, 1400);
+  };
+  return (
+    <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
+      <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0"><button onClick={onDone} className="text-xs text-[#8a8aa0]">← חזרה</button><p className="text-xs font-bold">{i + 1}/{deck.length}</p></div>
+      <div className="flex-1 overflow-y-auto px-4 py-3">
+        <div className="bg-[#16181c] rounded-lg p-3 mb-3 text-center">
+          <p className="text-sm font-black mb-1">{it.name}</p>
+          <p className="text-[10px] text-[#8a8aa0]">אילו אלרגנים יש במנה הזו?</p>
+        </div>
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {ALLERGENS.map(a => {
+            const on = selected.has(a);
+            const showCorrect = submitted && actual.has(a);
+            const showWrongPick = submitted && on && !actual.has(a);
+            return (
+              <button key={a} disabled={submitted} onClick={() => toggle(a)}
+                className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border transition-colors ${
+                  showCorrect ? "bg-[#22c08c] text-white border-[#22c08c]" :
+                  showWrongPick ? "bg-[#e0315a] text-white border-[#e0315a]" :
+                  on ? "bg-[#6d5efc] text-white border-[#6d5efc]" : "bg-[#16181c] text-[#c4c4d4] border-[#22252b]"
+                }`}>
+                {a}
+              </button>
+            );
+          })}
+        </div>
+        {!submitted && (
+          <button onClick={submit} className="w-full py-2.5 rounded-lg font-bold text-xs bg-[#6d5efc] text-white">
+            {selected.size === 0 ? "אין אלרגנים / שליחה" : "שליחה"}
+          </button>
+        )}
+        {submitted && actual.size === 0 && <p className="text-[11px] text-center text-[#8a8aa0] mt-2">אין אלרגנים במנה זו</p>}
+      </div>
+    </div>
+  );
+}
+
+// Objective: read the description, type the dish's name. Exact match (trimmed,
+// case-insensitive) — no fuzzy matching, so a real typo counts as wrong, same as
+// getting a multiple-choice question wrong.
+function NameCompletion({ items, onAnswer, onDone }) {
+  const deck = useMemo(() => shuffle((items || []).filter(it => it.desc)).slice(0, 8), [items]);
+  const [i, setI] = useState(0);
+  const [score, setScore] = useState(0);
+  const [value, setValue] = useState("");
+  const [result, setResult] = useState(null); // null | "correct" | "wrong"
+  if (!deck.length) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>אין פריטים עם תיאור</p></div>;
+  if (i >= deck.length) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Trophy size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">{score}/{deck.length}</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
+  const it = deck[i];
+  const submit = () => {
+    if (result || !value.trim()) return;
+    const norm = s => s.trim().toLowerCase().replace(/\s+/g, " ");
+    const correct = norm(value) === norm(it.name);
+    if (correct) setScore(s => s + 1);
+    onAnswer(it.id, correct ? 5 : 2);
+    setResult(correct ? "correct" : "wrong");
+    setTimeout(() => { setResult(null); setValue(""); setI(x => x + 1); }, 1700);
+  };
+  return (
+    <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
+      <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0"><button onClick={onDone} className="text-xs text-[#8a8aa0]">← חזרה</button><p className="text-xs font-bold">{i + 1}/{deck.length}</p></div>
+      <div className="flex-1 flex flex-col items-center justify-center px-4">
+        <div className="bg-[#16181c] rounded-xl p-5 w-full text-center space-y-3">
+          <p className="text-[10px] font-bold text-[#8a8aa0]">איזו מנה זו?</p>
+          <p className="text-sm text-[#c4c4d4]">{it.desc}</p>
+          <p className="text-xs font-bold text-[#ea7317]">₪{it.price}</p>
+          <input
+            value={value} onChange={e => setValue(e.target.value)} disabled={!!result}
+            onKeyDown={e => e.key === "Enter" && submit()}
+            dir="ltr" placeholder="הקלידו את שם המנה..." autoFocus
+            className="w-full bg-[#0c0d10] border border-[#22252b] rounded-lg px-3 py-2.5 text-sm text-center text-[#eef0f6] focus:outline-none focus:border-[#6d5efc]"
+          />
+          {result && (
+            <p className={`text-xs font-bold ${result === "correct" ? "text-[#22c08c]" : "text-[#e0315a]"}`}>
+              {result === "correct" ? "נכון! ✓" : `לא בדיוק — התשובה: ${it.name}`}
+            </p>
+          )}
+          {!result && <button onClick={submit} className="w-full py-2.5 rounded-lg font-bold text-xs bg-[#6d5efc] text-white">שליחה</button>}
         </div>
       </div>
     </div>
