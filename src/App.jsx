@@ -20,6 +20,10 @@ export default function App() {
       try { sess = JSON.parse(cached); } catch { sess = null; }
       if (!sess?.teamMemberId || !sess?.restaurantId) { localStorage.removeItem(SESSION_KEY); if (alive) setPhase("login"); return; }
 
+      // TEMP DEV FALLBACK — offline sessions (see auth/TeamLogin.jsx) aren't in the DB,
+      // so skip the verification round-trip and trust the cached session as-is.
+      if (sess.offline) { if (alive) { setSession(sess); setPhase("app"); } return; }
+
       try {
         // Verify team member still exists
         const { data, error } = await db.from("team_members")
