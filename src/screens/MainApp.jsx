@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check } from "lucide-react";
+import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, Repeat, ChevronLeft } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
 
@@ -156,6 +156,40 @@ export default function MainApp({ session, onSignOut }) {
     },
   ] : [];
 
+  // Home-page promo carousel — "ad"-style banners for the daily challenge and other
+  // team members' live achievements (streak/points leaders), so the home screen hypes
+  // up what's actually happening in the team, not just static shortcuts.
+  const streakLeader = [...leaderboard].filter(r => (r.streak || 0) > 1).sort((a, b) => (b.streak || 0) - (a.streak || 0))[0];
+  const pointsLeader = leaderboard[0];
+  const promos = cards ? [
+    {
+      id: "daily", gradient: "linear-gradient(135deg,#f3a712,#ff7a59)", icon: Sparkles,
+      kicker: "אתגר יומי", title: dailyDone ? `הושלם! +${DAILY_BONUS} נקודות בונוס 🎉` : `למדו ${DAILY_TARGET} מנות היום`,
+      subtitle: dailyDone ? "חזרו מחר לאתגר חדש" : `עוד ${DAILY_TARGET - daily.count} ותקבלו ${DAILY_BONUS} נקודות בונוס`,
+      cta: dailyDone ? "לכל האתגרים" : "בואו נתחיל", onClick: () => { if (dailyDone) setTab("challenges"); else { setModeItems(null); setMode("flashcards"); } },
+    },
+    streakLeader && streakLeader.team_member_id !== session?.teamMemberId ? {
+      id: "streak-leader", gradient: "linear-gradient(135deg,#e0315a,#ff7a59)", icon: Flame,
+      kicker: "בשרשרת חמה", title: `${streakLeader.name} ברצף של ${streakLeader.streak} ימים! 🔥`,
+      subtitle: "מי מצליח/ה להדביק אותם?", cta: "לדירוג", onClick: () => setTab("leaderboard"),
+    } : null,
+    pointsLeader && pointsLeader.team_member_id !== session?.teamMemberId ? {
+      id: "points-leader", gradient: "linear-gradient(135deg,#6d5efc,#9b7bff)", icon: Trophy,
+      kicker: "בראש הטבלה", title: `${pointsLeader.name} מוביל/ה עם ${pointsLeader.points} נקודות`,
+      subtitle: "הצטרפו לתחרות ותתפסו אותם", cta: "לדירוג המלא", onClick: () => setTab("leaderboard"),
+    } : null,
+    {
+      id: "match", gradient: "linear-gradient(135deg,#22c08c,#1aa376)", icon: Repeat,
+      kicker: "משחק חדש", title: "משחק ההתאמה", subtitle: "התאימו מנות למחירים במהירות שיא",
+      cta: "לשחק", onClick: () => { setModeItems(null); setMode("match"); },
+    },
+    {
+      id: "speed", gradient: "linear-gradient(135deg,#3a86ff,#6d5efc)", icon: Zap,
+      kicker: "אתגר מהירות", title: bestSpeed > 0 ? `שברו את השיא של ${bestSpeed}!` : "כמה תשובות נכונות תספיקו?",
+      subtitle: "30 שניות על השעון", cta: "לאתגר", onClick: () => { setModeItems(null); setMode("speed"); },
+    },
+  ].filter(Boolean) : [];
+
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       {/* Header */}
@@ -175,6 +209,7 @@ export default function MainApp({ session, onSignOut }) {
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {tab === "home" && (
           <div className="space-y-3">
+            <PromoCarousel items={promos} />
             <div className="rounded-xl p-4 text-white" style={{ background: "linear-gradient(135deg,#6d5efc,#9b7bff)" }}>
               <p className="text-sm font-black mb-2">תרגול יומי</p>
               <div className="grid grid-cols-2 gap-2">
@@ -311,7 +346,7 @@ function BottomNav({ tab, setTab, hasDailyUpdate, hasChallenge }) {
     ["challenges", Target, "אתגרים", hasChallenge],
     ["daily", BookOpen, "יומי", hasDailyUpdate],
     ["leaderboard", Trophy, "דירוג", false],
-    ["categories", BarChart3, "קטגוריות", false],
+    ["categories", BarChart3, "תפריט", false],
   ];
   return (
     <div
@@ -333,6 +368,62 @@ function BottomNav({ tab, setTab, hasDailyUpdate, hasChallenge }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// "Ad"-style promo carousel: one full-width slide at a time, auto-advances, swipeable,
+// dot indicators. Each slide hypes up something real (daily challenge, a teammate's
+// streak, the points leader) or teases a game mode — tapping jumps straight into it.
+function PromoCarousel({ items }) {
+  const [index, setIndex] = useState(0);
+  const touchStartX = useRef(null);
+
+  useEffect(() => {
+    if (items.length < 2) return;
+    const t = setInterval(() => setIndex(i => (i + 1) % items.length), 4500);
+    return () => clearInterval(t);
+  }, [items.length]);
+
+  const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+  const onTouchEnd = (e) => {
+    if (touchStartX.current == null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(dx) < 40) return;
+    setIndex(i => dx < 0 ? (i + 1) % items.length : (i - 1 + items.length) % items.length);
+  };
+
+  if (!items.length) return null;
+  const p = items[Math.min(index, items.length - 1)];
+  return (
+    <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <button
+        key={p.id} onClick={p.onClick}
+        className="animate-fadeIn w-full text-right rounded-2xl p-4 text-white flex flex-col justify-between min-h-[112px]"
+        style={{ background: p.gradient }}
+      >
+        <div className="flex items-center gap-1.5">
+          <p.icon size={13} />
+          <span className="text-[10px] font-black opacity-90">{p.kicker}</span>
+        </div>
+        <div>
+          <p className="text-base font-black leading-tight mb-1">{p.title}</p>
+          <p className="text-xs opacity-90 mb-2.5">{p.subtitle}</p>
+          <span className="inline-flex items-center gap-1 bg-white/20 rounded-lg px-3 py-1.5 text-xs font-bold">
+            {p.cta} <ChevronLeft size={12} />
+          </span>
+        </div>
+      </button>
+      {items.length > 1 && (
+        <div className="flex items-center justify-center gap-1.5 mt-2">
+          {items.map((_, i) => (
+            <button key={i} onClick={() => setIndex(i)} className="p-1" aria-label={`שקופית ${i + 1}`}>
+              <span className="block rounded-full transition-all duration-300" style={{ width: i === index ? 16 : 6, height: 6, background: i === index ? "#eef0f6" : "#3a3d45" }} />
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
