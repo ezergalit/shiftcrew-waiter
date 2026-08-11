@@ -900,19 +900,45 @@ function NameCompletion({ items, onAnswer, onDone }) {
   );
 }
 
-// The real test: no options to pick from, no hints — just the dish name, and you write
-// what's in it. Graded on how much of the dish's actual ingredient/allergen list you
-// covered, with allergens weighted heaviest because that's the one that matters in
-// service. Scored locally against data the owner already entered, so it costs nothing
-// per attempt.
+// The graduation step for a category. Deliberately NOT free text: an earlier version asked
+// the trainee to describe the dish and scored how many real ingredients they happened to
+// mention. That only measured recall, never precision — so listing every ingredient on the
+// menu scored 100% on every dish, and it couldn't tell Greek Truffle Cream 38 from 44 from
+// 48, which is precisely the distinction that matters in service.
+//
+// Instead: the real ingredients are mixed with near-miss decoys taken from the OTHER dishes
+// in the same category, and the trainee has to pick the exact set. Scored by Jaccard
+// (correct / correct+missed+wrong), so both missing an ingredient and inventing one cost
+// you, and "select everything" collapses to a low score. Fully deterministic — no AI, no
+// language matching, nothing to tune — which also makes the number honest enough for the
+// owner to act on.
 function CategoryExam({ items, categoryLabel, onAnswer, onDone }) {
-  const deck = useMemo(
-    () => shuffle((items || []).filter((it) => it.ingredients?.length > 0)).slice(0, 4),
-    [items],
-  );
+  const deck = useMemo(() => {
+    const pool = (items || []).filter((it) => it.ingredients?.length > 0);
+    return shuffle(pool)
+      .slice(0, 4)
+      .map((it) => {
+        const real = it.ingredients || [];
+        const isReal = (x) => real.some((r) => r.trim() === x.trim());
+        const others = pool.filter((x) => x.id !== it.id);
+        // Same-category siblings make the hardest, fairest decoys: for the three Truffle
+        // Creams the decoys ARE the ingredients that tell them apart.
+        const near = [...new Set(others.flatMap((x) => x.ingredients || []))].filter((x) => !isReal(x));
+        const decoys = shuffle(near).slice(0, Math.min(5, Math.max(3, real.length)));
+        return {
+          it,
+          options: shuffle([
+            ...real.map((label) => ({ label, correct: true })),
+            ...decoys.map((label) => ({ label, correct: false })),
+          ]),
+        };
+      });
+  }, [items]);
+
   const [i, setI] = useState(0);
-  const [value, setValue] = useState("");
-  const [result, setResult] = useState(null); // { score, hitIng, missIng, hitAll, missAll }
+  const [picked, setPicked] = useState(new Set());
+  const [pickedAll, setPickedAll] = useState(new Set());
+  const [result, setResult] = useState(null);
   const [scores, setScores] = useState([]);
 
   if (deck.length < 2)
@@ -942,33 +968,56 @@ function CategoryExam({ items, categoryLabel, onAnswer, onDone }) {
     );
   }
 
-  const it = deck[i];
-  const submit = () => {
-    if (result || !value.trim()) return;
-    const answerWords = normWords(value);
-    const ingredients = it.ingredients || [];
-    const allergens = it.allergens || [];
-    const hitIng = ingredients.filter((x) => mentions(answerWords, x));
-    const missIng = ingredients.filter((x) => !mentions(answerWords, x));
-    const hitAll = allergens.filter((x) => mentions(answerWords, x));
-    const missAll = allergens.filter((x) => !mentions(answerWords, x));
+  const q = deck[i];
+  const realIng = q.it.ingredients || [];
+  const realAll = q.it.allergens || [];
 
-    const ingPct = ingredients.length ? hitIng.length / ingredients.length : 1;
-    // A dish with no allergens can't be penalised for missing one — the ingredient
-    // coverage carries the whole score there.
-    const score = allergens.length
-      ? Math.round((ingPct * 0.6 + (hitAll.length / allergens.length) * 0.4) * 100)
-      : Math.round(ingPct * 100);
-
-    // Same 1-5 mastery scale the other objective modes report, so an exam result moves
-    // the menu percentage exactly like any other graded answer.
-    const rating = score >= 85 ? 5 : score >= 70 ? 4 : score >= 50 ? 3 : score >= 30 ? 2 : 1;
-    onAnswer(it.id, rating);
-    setScores((s) => [...s, score]);
-    setResult({ score, hitIng, missIng, hitAll, missAll });
+  // Correct / (correct + missed + wrong). Both empty is a perfect answer — knowing a dish
+  // has no allergens is real knowledge, and selecting one anyway is penalised.
+  const jaccard = (selected, correct) => {
+    const s = new Set([...selected].map((x) => x.trim()));
+    const c = new Set(correct.map((x) => x.trim()));
+    const tp = [...c].filter((x) => s.has(x)).length;
+    const fp = [...s].filter((x) => !c.has(x)).length;
+    const fn = [...c].filter((x) => !s.has(x)).length;
+    return tp + fp + fn === 0 ? 1 : tp / (tp + fp + fn);
   };
 
-  const next = () => { setResult(null); setValue(""); setI((x) => x + 1); };
+  const toggle = (setter) => (label) =>
+    setter((prev) => {
+      const n = new Set(prev);
+      n.has(label) ? n.delete(label) : n.add(label);
+      return n;
+    });
+
+  const submit = () => {
+    if (result) return;
+    const ingJ = jaccard(picked, realIng);
+    const allJ = jaccard(pickedAll, realAll);
+    const score = Math.round((ingJ * 0.6 + allJ * 0.4) * 100);
+    const rating = score >= 85 ? 5 : score >= 70 ? 4 : score >= 50 ? 3 : score >= 30 ? 2 : 1;
+    onAnswer(q.it.id, rating);
+    setScores((s) => [...s, score]);
+    setResult({
+      score,
+      wrongIng: [...picked].filter((x) => !realIng.some((r) => r.trim() === x.trim())),
+      missIng: realIng.filter((x) => !picked.has(x)),
+      wrongAll: [...pickedAll].filter((x) => !realAll.some((r) => r.trim() === x.trim())),
+      missAll: realAll.filter((x) => !pickedAll.has(x)),
+    });
+  };
+
+  const next = () => { setResult(null); setPicked(new Set()); setPickedAll(new Set()); setI((x) => x + 1); };
+
+  // Post-submit colouring: green = you got it, red = you picked it and it's not in the dish,
+  // amber outline = it was in the dish and you missed it.
+  const chipClass = (label, isSelected, isCorrect) => {
+    if (!result) return isSelected ? "bg-[#6d5efc] text-white border-[#6d5efc]" : "bg-[#16181c] text-[#c4c4d4] border-[#22252b]";
+    if (isSelected && isCorrect) return "bg-[#22c08c] text-white border-[#22c08c]";
+    if (isSelected && !isCorrect) return "bg-[#e0315a] text-white border-[#e0315a]";
+    if (!isSelected && isCorrect) return "bg-[#33290f] text-[#f3a712] border-[#f3a712]";
+    return "bg-[#16181c] text-[#4a4a5a] border-[#22252b]";
+  };
 
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
@@ -977,38 +1026,51 @@ function CategoryExam({ items, categoryLabel, onAnswer, onDone }) {
         <p className="text-xs font-bold">מבחן {categoryLabel}</p>
         <p className="text-xs font-bold text-[#8a8aa0]">{i + 1}/{deck.length}</p>
       </div>
+
       <div className="flex-1 overflow-y-auto px-4 py-4">
-        <div className="bg-[#16181c] rounded-xl p-4 text-center mb-3">
-          <p className="text-[10px] font-bold text-[#8a8aa0] mb-1.5">ספרו במילים שלכם מה יש במנה</p>
-          <p className="text-xl font-black">{it.name}</p>
+        <div className="bg-[#16181c] rounded-xl p-4 text-center mb-4">
+          <p className="text-xl font-black">{q.it.name}</p>
+          {result && (
+            <p className={`text-3xl font-black mt-2 ${result.score >= 70 ? "text-[#22c08c]" : "text-[#e0315a]"}`}>{result.score}%</p>
+          )}
+        </div>
+
+        <p className="text-[11px] font-bold text-[#8a8aa0] mb-2">מה נמצא במנה? (בחרו את כל הנכונים)</p>
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {q.options.map((opt) => (
+            <button
+              key={opt.label}
+              disabled={!!result}
+              onClick={() => toggle(setPicked)(opt.label)}
+              className={`text-[12px] font-bold px-3 py-2 rounded-lg border transition-colors ${chipClass(opt.label, picked.has(opt.label), opt.correct)}`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        <p className="text-[11px] font-bold text-[#8a8aa0] mb-2">אילו אלרגיות יש במנה? (אם אין — אל תבחרו כלום)</p>
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {ALLERGENS.map((a) => (
+            <button
+              key={a}
+              disabled={!!result}
+              onClick={() => toggle(setPickedAll)(a)}
+              className={`text-[12px] font-bold px-3 py-2 rounded-lg border transition-colors ${chipClass(a, pickedAll.has(a), realAll.some((r) => r.trim() === a.trim()))}`}
+            >
+              {a}
+            </button>
+          ))}
         </div>
 
         {!result && (
-          <>
-            <textarea
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder="מה המנה כוללת? מרכיבים, אלרגיות…"
-              rows={5}
-              autoFocus
-              className="w-full bg-[#16181c] border border-[#22252b] rounded-xl px-3.5 py-3 text-sm text-[#eef0f6] text-right leading-relaxed placeholder:text-[#8a8aa0] focus:outline-none focus:border-[#6d5efc] resize-none"
-            />
-            <button
-              onClick={submit}
-              disabled={!value.trim()}
-              className={`w-full mt-3 py-3.5 rounded-2xl font-black text-sm ${value.trim() ? "bg-[#6d5efc] text-white" : "bg-[#22252b] text-[#b4b4c4]"}`}
-            >
-              שליחה
-            </button>
-          </>
+          <button onClick={submit} className="w-full py-3.5 rounded-2xl font-black text-sm bg-[#6d5efc] text-white">
+            שליחה
+          </button>
         )}
 
         {result && (
           <div className="space-y-3">
-            <div className={`rounded-xl p-4 text-center ${result.score >= 70 ? "bg-[#15302b]" : "bg-[#3a1d22]"}`}>
-              <p className={`text-3xl font-black ${result.score >= 70 ? "text-[#22c08c]" : "text-[#e0315a]"}`}>{result.score}%</p>
-            </div>
-
             {result.missAll.length > 0 && (
               <div className="bg-[#3a1d22] border border-[#e0315a]/40 rounded-xl p-3">
                 <p className="text-[11px] font-black text-[#e0315a] mb-1">⚠️ פספסתם אלרגיות</p>
@@ -1016,26 +1078,21 @@ function CategoryExam({ items, categoryLabel, onAnswer, onDone }) {
                 <p className="text-[10px] text-[#c4c4d4] mt-1.5">זה הדבר הכי חשוב לדעת — לקוח עלול להיפגע.</p>
               </div>
             )}
-
-            {result.hitIng.length > 0 && (
-              <div>
-                <p className="text-[11px] font-bold text-[#8a8aa0] mb-1">ציינתם נכון</p>
-                <p className="text-sm text-[#22c08c]">{result.hitIng.join(", ")}</p>
-              </div>
+            {result.wrongAll.length > 0 && (
+              <p className="text-[11px] text-[#e0315a]">סימנתם אלרגיות שאינן במנה: {result.wrongAll.join(", ")}</p>
+            )}
+            {result.wrongIng.length > 0 && (
+              <p className="text-[11px] text-[#e0315a]">לא נמצא במנה: {result.wrongIng.join(", ")}</p>
             )}
             {result.missIng.length > 0 && (
-              <div>
-                <p className="text-[11px] font-bold text-[#8a8aa0] mb-1">לא ציינתם</p>
-                <p className="text-sm text-[#c4c4d4]">{result.missIng.join(", ")}</p>
-              </div>
+              <p className="text-[11px] text-[#f3a712]">פספסתם: {result.missIng.join(", ")}</p>
             )}
-            {it.desc && (
+            {q.it.desc && (
               <div className="bg-[#16181c] rounded-xl p-3">
                 <p className="text-[11px] font-bold text-[#8a8aa0] mb-1">התיאור המלא</p>
-                <p className="text-sm text-[#c4c4d4] leading-relaxed">{it.desc}</p>
+                <p className="text-sm text-[#c4c4d4] leading-relaxed">{q.it.desc}</p>
               </div>
             )}
-
             <button onClick={next} className="w-full py-3.5 rounded-2xl font-black text-sm bg-[#6d5efc] text-white">
               {i + 1 >= deck.length ? "לתוצאה" : "לשאלה הבאה"}
             </button>
@@ -1048,49 +1105,6 @@ function CategoryExam({ items, categoryLabel, onAnswer, onDone }) {
 
 const shuffle = a => [...a].sort(() => Math.random() - 0.5);
 
-// --- Hebrew-aware loose matching, used by the category exam ---------------------------
-// The exam grades a free-text answer by checking which of the dish's real ingredients and
-// allergens the trainee actually mentioned. That has to tolerate how people actually
-// write: "עגבניה" for "עגבניות שרי", "בפטה" for "גבינת פטה", a stray final-form letter.
-// Deliberately generous — the point is to reward knowing the dish, not exact recall of
-// the owner's phrasing. Graded locally with zero API cost, so it stays free no matter how
-// many waiters take the exam.
-const HE_FINALS = { "ם": "מ", "ן": "נ", "ץ": "צ", "ף": "פ", "ך": "כ" };
-
-const normWords = (s) =>
-  String(s || "")
-    .toLowerCase()
-    .replace(/[֑-ׇ]/g, "")          // niqqud
-    .replace(/[^֐-׿a-z0-9]+/g, " ") // punctuation, geresh, quotes
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((w) => w.split("").map((c) => HE_FINALS[c] || c).join(""));
-
-// A leading ו/ב/ל/ה/מ/ש/כ *might* be a conjunction/preposition ("ובזיליקום" → "בזיליקום")
-// or might just be the first letter of the word — "בזיליקום" and "שום" start that way for
-// real. So we never commit to one reading: each word yields both forms and a match on any
-// pairing counts. Stripping unconditionally on both sides is wrong and silently makes every
-// ingredient beginning with one of those letters unmatchable.
-const variants = (w) => (w.length > 3 && /^[ובלהמשכ]/.test(w) ? [w, w.slice(1)] : [w]);
-
-const mentions = (answerWords, term) => {
-  const termWords = normWords(term).filter((w) => w.length >= 3);
-  if (!termWords.length) return false;
-  return termWords.some((tw) => {
-    const tvs = variants(tw);
-    return answerWords.some((aw) =>
-      variants(aw).some((a) =>
-        tvs.some(
-          (t) =>
-            a === t ||
-            // Prefix either way absorbs plural/construct endings: "זית" ↔ "זיתים".
-            (a.length >= 3 && t.length >= 3 && (a.startsWith(t) || t.startsWith(a))),
-        ),
-      ),
-    );
-  });
-};
 
 // Picks `count` distractors for a multiple-choice question, preferring dishes from the
 // SAME category as `it` first (e.g. another pasta for a pasta dish) — a random distractor
