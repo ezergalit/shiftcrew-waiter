@@ -175,9 +175,9 @@ export default function MainApp({ session, onSignOut }) {
       action: dailyDone ? null : { label: "התחילו ללמוד", onClick: () => { setModeItems(null); setMode("flashcards"); } },
     },
     {
-      id: "allergens", icon: AlertTriangle, color: "#e0315a", title: "אתגר האלרגנים",
-      desc: "קראו את שם המנה וזהו את כל האלרגנים שבה", progress: null, target: null, done: false,
-      action: { label: "לאתגר האלרגנים", onClick: () => { setModeItems(null); setMode("allergens"); } },
+      id: "allergens", icon: AlertTriangle, color: "#e0315a", title: "אתגר האלרגיות",
+      desc: "קראו את שם המנה וזהו את כל האלרגיות שבה", progress: null, target: null, done: false,
+      action: { label: "לאתגר האלרגיות", onClick: () => { setModeItems(null); setMode("allergens"); } },
     },
     {
       id: "namecomplete", icon: ListChecks, color: "#3a86ff", title: "התאימו תיאור למנה",
@@ -518,7 +518,7 @@ function Flashcards({ items, onRate, onDone }) {
                 <p className="text-[11px] font-bold text-[#8a8aa0]">
                   {[
                     it.ingredients?.length > 0 && `${it.ingredients.length} מרכיבים`,
-                    it.allergens?.length > 0 && `${it.allergens.length} אלרגנים`,
+                    it.allergens?.length > 0 && `${it.allergens.length} אלרגיות`,
                   ].filter(Boolean).join(" · ")}
                 </p>
               )}
@@ -529,7 +529,7 @@ function Flashcards({ items, onRate, onDone }) {
             <>
               {it.desc && <p className="text-xs text-[#c4c4d4]">{it.desc}</p>}
               {it.ingredients?.length > 0 && <p className="text-[11px] text-[#8a8aa0]">מרכיבים: {it.ingredients.join(", ")}</p>}
-              {it.allergens?.length > 0 && <div className="bg-[#3a1d22] p-2 rounded-lg"><p className="text-[10px] font-bold text-[#e0315a]">אלרגנים: {it.allergens.join(", ")}</p></div>}
+              {it.allergens?.length > 0 && <div className="bg-[#3a1d22] p-2 rounded-lg"><p className="text-[10px] font-bold text-[#e0315a]">אלרגיות: {it.allergens.join(", ")}</p></div>}
               <div className="pt-1">
                 <p className="text-[10px] font-bold text-[#8a8aa0] mb-1.5">כמה טוב ידעתם?</p>
                 <div className="grid grid-cols-5 gap-1.5">
@@ -786,7 +786,7 @@ function AllergenQuiz({ items, onAnswer, onDone }) {
       <div className="flex-1 overflow-y-auto px-4 py-3">
         <div className="bg-[#16181c] rounded-lg p-3 mb-3 text-center">
           <p className="text-sm font-black mb-1">{it.name}</p>
-          <p className="text-[10px] text-[#8a8aa0]">אילו אלרגנים יש במנה הזו?</p>
+          <p className="text-[10px] text-[#8a8aa0]">אילו אלרגיות יש במנה הזו?</p>
         </div>
         <div className="flex flex-wrap gap-1.5 mb-3">
           {ALLERGENS.map(a => {
@@ -807,10 +807,10 @@ function AllergenQuiz({ items, onAnswer, onDone }) {
         </div>
         {!submitted && (
           <button onClick={submit} className="w-full py-2.5 rounded-lg font-bold text-xs bg-[#6d5efc] text-white">
-            {selected.size === 0 ? "אין אלרגנים / שליחה" : "שליחה"}
+            {selected.size === 0 ? "אין אלרגיות / שליחה" : "שליחה"}
           </button>
         )}
-        {submitted && actual.size === 0 && <p className="text-[11px] text-center text-[#8a8aa0] mt-2">אין אלרגנים במנה זו</p>}
+        {submitted && actual.size === 0 && <p className="text-[11px] text-center text-[#8a8aa0] mt-2">אין אלרגיות במנה זו</p>}
       </div>
     </div>
   );
