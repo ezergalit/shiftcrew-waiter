@@ -1,6 +1,8 @@
 # shiftcrew-waiter — אפליקציית לימוד לצוות
 
-> ר' גם `/Users/homestation/Desktop/CLAUDE.md` להקשר הכללי (Supabase, deploy, סטטוס).
+> ר' גם `/Users/homestation/Desktop/CLAUDE.md` להקשר הכללי (Supabase, deploy, סטטוס,
+> ובמיוחד "סטטוס 2026-08-11" — commits בשם `Eytan Shleizer` הופיעו ב-`origin/main`
+> תוך כדי עבודה על הריפו הזה, ראו שם דיון אם זו זהות git מקומית או session מקביל).
 > קובץ זה מתמקד בפרטים הספציפיים לאפליקציה הזו — **כולל תיקייה מלאה בקוד מת/דמו,
 > קרא את "שלדים מהעבר" לפני שאתה נוגע בקבצים שאינך מכיר.**
 
@@ -39,12 +41,16 @@ main.jsx → App.jsx
               │   ├─ אין session → TeamLogin
               │   └─ יש session → מוודא team_members.id קיים ב-DB → MainApp
               │
-TeamLogin.jsx:
-  מזין team_code (1234) + שם → מחפש restaurant לפי team_code →
-  מחפש team_member קיים עם אותו שם (restaurant_id + name, ILIKE — case-insensitive
-  exact match) → אם נמצא, משתמש באותו id (מחזיר את כל ה-mastery/leaderboard הקיימים
-  שלו); אם לא, יוצר שורה חדשה → שומר session
-  (תוקן 2026-08-10: לפני כן היה יוצר team_member חדש בכל כניסה, מאבד התקדמות)
+TeamLogin.jsx (שוכתב 2026-08-11 — חשבונות אמיתיים):
+  מזין team_code + שם פרטי **ושם משפחה** (שניהם חובה, `first_name`/`last_name`) →
+  מחפש restaurant לפי team_code → שולף את כל חברי הצוות של אותה מסעדה →
+  1. התאמה מדויקת (case-insensitive) → משוחזר בשקט, בלי לשאול
+  2. אין מדויקת אבל יש שם קרוב (Levenshtein distance ≤2, פונקציה מקומית `levenshtein`) →
+     מסך אישור "האם אתה/את X?" (`pendingMatch` state) — "כן" משחזר את הפרופיל הקיים,
+     "לא" יוצר חבר צוות חדש עם השם שהוקלד. זה בדיוק המקרה "יותם עזר"/"יותם אזר" מהבקשה —
+     מונע גם טעויות הקלדה מקריות וגם התחזות בלי אישור מפורש.
+  3. אין התאמה בכלל → יוצר `team_members` חדש
+  נבדק חי קצה-לקצה כולל שני הענפים (כן/לא) מול ה-DB האמיתי.
 
 MainApp.jsx (src/screens/MainApp.jsx):
   5 טאבים בניווט תחתון (עם label, לא רק אייקון): בית | אתגרים | יומי | דירוג | תפריט
@@ -57,7 +63,7 @@ MainApp.jsx (src/screens/MainApp.jsx):
   לחיצה על כרטיס מנווטת ישירות למצב המתאים. ⚠️ **ר' "מלכודת RTL" למטה — קריטי לכל
   קרוסלה/swiper עתידי באפליקציה.**
   6 מצבי משחק (מ"בית" או מ"אתגרים", עם items מלא או scoped דרך modeItems):
-    כרטיסיות | חידון | התאמה | מהירות | אלרגנים | השלמת שם
+    כרטיסיות | חידון | התאמה | מהירות | אלרגנים | התאימו תיאור למנה
 
   ⭐ מודל הציונים (עודכן 2026-08-10, שינוי משמעותי): `mastery` הוא 1-5, `>=4` = "נלמד".
   **רק Flashcards הוא self-report** (המשתמש בוחר 1-5 בעצמו אחרי reveal — אין דרך
@@ -88,8 +94,13 @@ MainApp.jsx (src/screens/MainApp.jsx):
   - **אלרגנים** (AllergenQuiz, חדש): שם המנה בלבד (לא מחיר/תיאור) → בוחרים chips
     מתוך 10 אלרגנים אפשריים (אותה רשימה כמו ב-owner app) → "שליחה" (שליחה בלי לבחור
     כלום = תשובת "אין אלרגנים" בעצמה) → צריך התאמה **מדויקת** של הסט (לא ניקוד חלקי)
-  - **השלמת שם** (NameCompletion, חדש): מציג רק את התיאור (ולא את השם) → קלט טקסט
-    חופשי → השוואה exact match (trim+lowercase, לא fuzzy — טעות הקלדה = טעות)
+  - **התאימו תיאור למנה** (קומפוננטה עדיין נקראת `NameCompletion` בקוד, מצב `namecomplete`
+    — **שוכתב 2026-08-11** לפי משוב משתמש): הכיוון התהפך — מציג את **שם המנה**, ולוחצים
+    על התיאור הנכון מתוך 3 אפשרויות (1 נכונה + 2 distractors שנדגמים אקראית ממנות אחרות
+    עם תיאור). **בוטל לגמרי הקלט החופשי** שהיה קודם (הצגת תיאור → הקלדת שם המנה, exact
+    match) — היה בעייתי כי שמות המנות באנגלית/תעתיק, ומשתמשים דיווחו שקשה לכתוב אותם
+    מדויק (לא באג בקוד, סתם UX גרוע לתפריט הזה). Tap-only, אין הקלדה בכלל. דורש לפחות
+    3 מנות עם תיאור באותה מסעדה (אחרת מציג הודעת "אין מספיק").
 
   אתגרים (2026-08-10, עודכן): מחושבים בקוד, לא מטבלת DB ייעודית (אין כזו). כרטיס
   תצוגה מקדימה בבית + טאב "אתגרים" מלא. **תוקן אותו יום**: כרטיסי "שליטה בקטגוריה"
@@ -99,7 +110,7 @@ MainApp.jsx (src/screens/MainApp.jsx):
     `menu-app-daily-<teamMemberId>`, מתאפס כל יום; bonusTotal מצטבר תחת
     `menu-app-bonus-<teamMemberId>`, נכנס לנוסחת הניקוד לצמיתות)
   - **אתגר האלרגנים** — מפעיל AllergenQuiz
-  - **השלימו את השם** — מפעיל NameCompletion
+  - **התאימו תיאור למנה** — מפעיל NameCompletion (ר' תיאור מעודכן למעלה)
   - שליטה מלאה בתפריט: mastered.size מול cards.length, ללא כפתור פעולה
   - שיא מהירות: `menu-app-best-speed-<teamMemberId>`
   - רצף למידה: `leaderboard.streak`
@@ -136,7 +147,18 @@ MainApp.jsx (src/screens/MainApp.jsx):
    בראש טאב "בית" — שניהם render מותנה (`session?.restaurantName && ...`) כדי לא לקרוס
    בנתיב ה-offline, ששם השדות האלה לא קיימים.
 
-עדיין **לא committed** (בנוסף לרשימה למטה): `M src/auth/TeamLogin.jsx`, `M src/screens/MainApp.jsx`.
+## חשבונות אמיתיים + התקדמות משוקפת לבעלים — 2026-08-11
+
+ר' תיאור מלא של `TeamLogin.jsx` למעלה. הנקודה החשובה: `team_members` עכשיו כולל
+`first_name`/`last_name` (עמודות נוספו במיגרציה, `name` נשאר כטור דנורמל לתאימות עם
+`leaderboard.name` הקיים). כל rating שנשמר (`menu_progress`/`leaderboard`) משויך ל-
+`team_member_id` האמיתי, ולכן טאב "צוות" באפליקציית הבעלים (`OwnerDashboard.jsx`, ר'
+`shiftcrew-owner/CLAUDE.md`) רואה את זה מיד. נבדק חי: יצרתי "בדיקה אחת" דרך ה-waiter app,
+הוא הופיע בטאב "צוות" בעל הבית עם 0 נקודות/0 מנות (נכון, כי לא דירג עדיין כלום).
+
+מ-2026-08-11 יש גם commit נוסף (`Eytan Shleizer` — ר' CLAUDE.md הראשי לדיון על הזהות הזו)
+שמוסיף דיווח התקדמות-אתגר-יומי + קריאות-brief לשרת (`daily_brief_reads` וכו') — לא נבדק
+בפירוט בסשן הזה, אבל מסונכרן ופרוס.
 
 ## ⚠️ TEMP DEV FALLBACK — bypass התחברות (Supabase עדיין תקוע)
 
@@ -210,23 +232,13 @@ npm run dev
 ```
 `.env` כבר קיים עם `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`.
 
-## מה לא committed עדיין (נכון ל-2026-08-10)
+## סטטוס Git (2026-08-11)
 
-```
- M src/App.jsx               (תמיכה ב-session.offline — ר' TEMP DEV FALLBACK למעלה)
- M src/auth/TeamLogin.jsx    (בקשת המשתמש: bypass אם ה-DB לא מגיב — ר' TEMP DEV FALLBACK)
- M src/main.jsx              (תיקון: RestaurantDemo → App האמיתי)
- M src/screens/MainApp.jsx   (matching game מחדש, לידרבורד live, bottom nav מחודש, תיקון
-                              import, אתגרים חדש — ר' סעיף "אתגרים" למעלה)
-?? src/lib/supabase.js       (קובץ חדש — היה חסר)
-?? src/lib/mockMenu.js       (TEMP DEV FALLBACK — תפריט מוק לבדיקה בלי DB)
-?? CLAUDE.md                 (הקובץ הזה)
-```
+✅ **הכל committed ו-pushed** — `origin/main` מסונכרן, כולל השינויים שתוארו למעלה (חשבונות
+אמיתיים, fuzzy match) וגם commit נוסף של Eytan Shleizer מעל זה. `git status` אמור להראות
+עץ נקי; אם לא — יש עבודה לא-שמורה משיחה קודמת, תבדוק לפני שממשיכים.
 
-⚠️ **לפני כל commit/push**: קבצי ה-TEMP DEV FALLBACK (`TeamLogin.jsx`'s bypass, `App.jsx`'s
-`session.offline` skip, ו-`mockMenu.js` כולו) הם עוקף זמני מכוון שהמשתמש ביקש כדי לעבוד
-כש-Supabase תקוע — **הם לא אמורים להגיע ל-production כמו שהם**. ברגע שה-DB חוזר לעבוד:
-1. ודא ש-login אמיתי מול ה-DB עובד (לא רק ה-fallback).
-2. שקול אם להשאיר את מנגנון ה-fallback (יכול להיות שימושי כ-graceful degradation לעתיד)
-   או להסיר אותו — זו החלטה של המשתמש, לא משהו להסיר אוטומטית בלי לשאול.
-3. בדוק login מקומי עם `npm run dev` וקוד `LEARN`, ורק אז push (רק אחרי אישור מהמשתמש).
+ה-TEMP DEV FALLBACK (offline session ב-`TeamLogin.jsx`/`App.jsx`/`mockMenu.js`) **עדיין
+קיים בקוד ופרוס ל-production** — Supabase כבר לא תקוע, אז זה בפועל כמעט אף פעם לא מופעל
+(רק אם ה-DB זמנית לא זמין), אבל לא הוסר. זו עדיין החלטה פתוחה של המשתמש אם להסיר או
+להשאיר כ-graceful degradation — לא הוסר יזום בלי לשאול.

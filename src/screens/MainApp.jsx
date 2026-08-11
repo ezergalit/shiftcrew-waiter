@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, Repeat, ChevronLeft, AlertTriangle, PenLine } from "lucide-react";
+import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, Repeat, ChevronLeft, AlertTriangle, ListChecks } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
 
@@ -180,8 +180,8 @@ export default function MainApp({ session, onSignOut }) {
       action: { label: "לאתגר האלרגנים", onClick: () => { setModeItems(null); setMode("allergens"); } },
     },
     {
-      id: "namecomplete", icon: PenLine, color: "#3a86ff", title: "השלימו את השם",
-      desc: "קראו את התיאור ונחשו איזו מנה זו", progress: null, target: null, done: false,
+      id: "namecomplete", icon: ListChecks, color: "#3a86ff", title: "התאימו תיאור למנה",
+      desc: "קראו את שם המנה ובחרו את התיאור הנכון מבין 3 אפשרויות", progress: null, target: null, done: false,
       action: { label: "לאתגר", onClick: () => { setModeItems(null); setMode("namecomplete"); } },
     },
     {
@@ -800,47 +800,51 @@ function AllergenQuiz({ items, onAnswer, onDone }) {
   );
 }
 
-// Objective: read the description, type the dish's name. Exact match (trimmed,
-// case-insensitive) — no fuzzy matching, so a real typo counts as wrong, same as
-// getting a multiple-choice question wrong.
+// Objective: show the dish name, tap the correct description among 2 distractors.
+// Was originally "read the description, type the dish's name" — replaced 2026-08-11
+// (user feedback): the real menu's dish names are English/transliterated, so exact-match
+// free-text typing was mostly testing spelling, not menu knowledge. Tap-only removes that
+// friction entirely while keeping the grading objective (still can't self-report a lie).
 function NameCompletion({ items, onAnswer, onDone }) {
-  const deck = useMemo(() => shuffle((items || []).filter(it => it.desc)).slice(0, 8), [items]);
+  const pool = useMemo(() => (items || []).filter(it => it.desc), [items]);
+  const deck = useMemo(() => shuffle(pool).slice(0, 8).map(it => ({
+    it,
+    options: shuffle([it.desc, ...shuffle(pool.filter(x => x.id !== it.id)).slice(0, 2).map(x => x.desc)]),
+  })), [pool]);
   const [i, setI] = useState(0);
   const [score, setScore] = useState(0);
-  const [value, setValue] = useState("");
-  const [result, setResult] = useState(null); // null | "correct" | "wrong"
-  if (!deck.length) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>אין פריטים עם תיאור</p></div>;
+  const [picked, setPicked] = useState(null);
+  if (pool.length < 3) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>צריך לפחות 3 מנות עם תיאור</p></div>;
   if (i >= deck.length) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Trophy size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">{score}/{deck.length}</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
-  const it = deck[i];
-  const submit = () => {
-    if (result || !value.trim()) return;
-    const norm = s => s.trim().toLowerCase().replace(/\s+/g, " ");
-    const correct = norm(value) === norm(it.name);
+  const q = deck[i];
+  const answer = (opt) => {
+    if (picked) return;
+    setPicked(opt);
+    const correct = opt === q.it.desc;
     if (correct) setScore(s => s + 1);
-    onAnswer(it.id, correct ? 5 : 2);
-    setResult(correct ? "correct" : "wrong");
-    setTimeout(() => { setResult(null); setValue(""); setI(x => x + 1); }, 1700);
+    onAnswer(q.it.id, correct ? 5 : 2);
+    setTimeout(() => { setPicked(null); setI(x => x + 1); }, 1400);
   };
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0"><button onClick={onDone} className="text-xs text-[#8a8aa0]">← חזרה</button><p className="text-xs font-bold">{i + 1}/{deck.length}</p></div>
       <div className="flex-1 flex flex-col items-center justify-center px-4">
-        <div className="bg-[#16181c] rounded-xl p-5 w-full text-center space-y-3">
-          <p className="text-[10px] font-bold text-[#8a8aa0]">איזו מנה זו?</p>
-          <p className="text-sm text-[#c4c4d4]">{it.desc}</p>
-          <p className="text-xs font-bold text-[#ea7317]">₪{it.price}</p>
-          <input
-            value={value} onChange={e => setValue(e.target.value)} disabled={!!result}
-            onKeyDown={e => e.key === "Enter" && submit()}
-            dir="ltr" placeholder="הקלידו את שם המנה..." autoFocus
-            className="w-full bg-[#0c0d10] border border-[#22252b] rounded-lg px-3 py-2.5 text-sm text-center text-[#eef0f6] focus:outline-none focus:border-[#6d5efc]"
-          />
-          {result && (
-            <p className={`text-xs font-bold ${result === "correct" ? "text-[#22c08c]" : "text-[#e0315a]"}`}>
-              {result === "correct" ? "נכון! ✓" : `לא בדיוק — התשובה: ${it.name}`}
-            </p>
-          )}
-          {!result && <button onClick={submit} className="w-full py-2.5 rounded-lg font-bold text-xs bg-[#6d5efc] text-white">שליחה</button>}
+        <div className="w-full text-center space-y-3">
+          <p className="text-[10px] font-bold text-[#8a8aa0]">איזה תיאור מתאים למנה?</p>
+          <p className="text-lg font-black mb-1">{q.it.name}</p>
+          <p className="text-xs font-bold text-[#ea7317] mb-3">₪{q.it.price}</p>
+          <div className="flex flex-col gap-2">
+            {q.options.map((opt, j) => {
+              const isCorrectOpt = picked && opt === q.it.desc;
+              const isWrongPick = picked === opt && opt !== q.it.desc;
+              return (
+                <button key={j} disabled={!!picked} onClick={() => answer(opt)}
+                  className={`py-3 px-3 rounded-lg font-bold text-sm text-right leading-snug transition-colors ${isCorrectOpt ? "bg-[#22c08c] text-white" : isWrongPick ? "bg-[#e0315a] text-white" : "bg-[#16181c] border border-[#22252b] text-[#eef0f6]"}`}>
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
