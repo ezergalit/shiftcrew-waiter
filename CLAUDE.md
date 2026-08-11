@@ -29,8 +29,8 @@
 | `src/Demo.jsx` | עוד דמו ישן | לא בשימוש |
 
 **כלל אצבע**: האפליקציה החיה היא אך ורק השרשרת `main.jsx → App.jsx → auth/TeamLogin.jsx |
-screens/MainApp.jsx`. כל קובץ אחר ב-`src/` הוא ארכיון/מקור-נתונים, לא קוד רץ. לפני שמתקנים
-באג "באפליקציה" — ודא קודם שאתה בקובץ הנכון בשרשרת הזו.
+screens/WelcomeTutorial.jsx | screens/MainApp.jsx`. כל קובץ אחר ב-`src/` הוא ארכיון/
+מקור-נתונים, לא קוד רץ. לפני שמתקנים באג "באפליקציה" — ודא קודם שאתה בקובץ הנכון בשרשרת הזו.
 
 ## זרימת האפליקציה (הקוד החי)
 
@@ -39,7 +39,9 @@ main.jsx → App.jsx
               │
               ├─ טוען session מ-localStorage ("menu-app-team-session")
               │   ├─ אין session → TeamLogin
-              │   └─ יש session → מוודא team_members.id קיים ב-DB → MainApp
+              │   └─ יש session → מוודא team_members.id קיים ב-DB →
+              │       ├─ session.showTutorial === true → WelcomeTutorial (פעם אחת בלבד)
+              │       └─ אחרת → MainApp
               │
 TeamLogin.jsx (שוכתב 2026-08-11 — חשבונות אמיתיים):
   מזין team_code + שם פרטי **ושם משפחה** (שניהם חובה, `first_name`/`last_name`) →
@@ -51,6 +53,23 @@ TeamLogin.jsx (שוכתב 2026-08-11 — חשבונות אמיתיים):
      מונע גם טעויות הקלדה מקריות וגם התחזות בלי אישור מפורש.
   3. אין התאמה בכלל → יוצר `team_members` חדש
   נבדק חי קצה-לקצה כולל שני הענפים (כן/לא) מול ה-DB האמיתי.
+  שולף גם `service_style`/`service_notes` (בנוסף ל-`description`/`cuisine_types`) ומעביר
+  ל-session — מזין את מסך ה-WelcomeTutorial. מסמן `showTutorial: true` **רק כשנוצר
+  פרופיל חדש** (לא כשמשחזרים קיים / מאשרים fuzzy-match כ"זה אני").
+
+WelcomeTutorial.jsx (חדש 2026-08-11 — בקשת משתמש):
+  4 שקופיות, מוצג פעם אחת לכל חבר צוות חדש, לפני MainApp:
+  1. **תדריך על המסעדה** — שם + `cuisine_types` + `description` + `service_notes`,
+     כלומר **מה שבעל המסעדה כתב באונבורדינג באפליקציית הבעלים** (`menu_app.restaurants`).
+     אם השדות ריקים ב-DB → נופל להודעה גנרית. ⚠️ **זה לא באג** — התוכן הזה מגיע מהבעלים,
+     אז מסעדה שלא השלימה אונבורדינג תראה מסך רזה (נכון ל-2026-08-11 זה המצב של SALON
+     האמיתית: `description`/`service_notes`/`cuisine_types` כולם ריקים).
+  2. איפה כל דבר — הסבר על 5 הטאבים בניווט התחתון
+  3. איך לומדים — ההבדל בין Flashcards (self-report) לשאר המשחקים (אובייקטיביים)
+  4. סיום
+  `App.jsx` מכבה את הדגל (`showTutorial: false`) ומעדכן את localStorage בסיום/דילוג,
+  כך שהוא לא חוזר ברענון. אין עמודת DB לזה — הדגל חי רק ב-session המקומי, כלומר
+  מכשיר חדש יראה את הטוטוריאל שוב (מקובל, לא נדרש אחרת).
 
 MainApp.jsx (src/screens/MainApp.jsx):
   5 טאבים בניווט תחתון (עם label, לא רק אייקון): בית | אתגרים | יומי | דירוג | תפריט
@@ -115,6 +134,12 @@ MainApp.jsx (src/screens/MainApp.jsx):
   הראשי) — כלומר משחק מבוסס-מחיר יכול היה "לדלוף" את התשובה דרך השם. השלושה עברו
   ל-ingredients/desc: Quiz→תיאור-לשם, Matching→שם↔מרכיבים, Speed→שם→מרכיב נכון.
 
+  **`pickDistractors(pool, it, count)` — בחירת מסיחים (2026-08-11, משוב משתמש)**: כל
+  שאלת multiple-choice (Quiz, Speed, NameCompletion) בוחרת מסיחים **מאותה קטגוריה קודם**
+  (`it.category`), ורק אם אין מספיק — משלימה ממנות אחרות. הסיבה: לפני זה המסיחים היו
+  רנדומליים לגמרי, אז שאלה על פסטה יכלה לקבל "סלט ירוק" ו"קינוח" כאופציות — פתיר
+  באלימינציה בלי לדעת את התפריט בכלל. עכשיו מנת פסטה תקבל פסטות אחרות כמסיחים.
+
   אתגרים (2026-08-10, עודכן): מחושבים בקוד, לא מטבלת DB ייעודית (אין כזו). כרטיס
   תצוגה מקדימה בבית + טאב "אתגרים" מלא. **תוקן אותו יום**: כרטיסי "שליטה בקטגוריה"
   (אחד לכל קטגוריה) **הוסרו מכאן** — עברו לטאב "תפריט" עצמו (ר' למטה), כי המשתמש
@@ -140,9 +165,10 @@ MainApp.jsx (src/screens/MainApp.jsx):
 | קובץ | תפקיד |
 |---|---|
 | `src/main.jsx` | mount של `App.jsx` (תוקן 2026-08-10 — היה `RestaurantDemo`) |
-| `src/App.jsx` | ניהול session + ניתוב |
-| `src/auth/TeamLogin.jsx` | מסך הצטרפות (קוד+שם) |
-| `src/screens/MainApp.jsx` | כל ה-UI: בית/יומי/דירוג/קטגוריות + 4 קומפוננטות משחק בתוך אותו קובץ |
+| `src/App.jsx` | ניהול session + ניתוב (כולל שער ה-WelcomeTutorial) |
+| `src/auth/TeamLogin.jsx` | מסך הצטרפות (team_code + שם פרטי/משפחה, fuzzy-match) |
+| `src/screens/WelcomeTutorial.jsx` | ⭐ חדש 2026-08-11 — 4 שקופיות פתיחה לחבר צוות חדש, כולל תדריך המסעדה שהבעלים כתב |
+| `src/screens/MainApp.jsx` | כל ה-UI: בית/יומי/דירוג/קטגוריות + 6 קומפוננטות משחק בתוך אותו קובץ |
 | `src/lib/supabase.js` | לקוח Supabase (נוצר 2026-08-10 — היה חסר לגמרי!), `persistSession: false` |
 | `src/lib/mockMenu.js` | ⚠️ **TEMP DEV FALLBACK** (נוצר 2026-08-10) — עותק סטטי של התפריט האמיתי (19 פריטים) לשימוש כשאין חיבור ל-DB |
 

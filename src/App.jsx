@@ -3,6 +3,7 @@ import { Utensils, Loader2 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import TeamLogin from "./auth/TeamLogin";
 import MainApp from "./screens/MainApp";
+import WelcomeTutorial from "./screens/WelcomeTutorial";
 
 const SESSION_KEY = "menu-app-team-session";
 const db = supabase.schema("menu_app");
@@ -40,6 +41,15 @@ export default function App() {
 
   if (phase === "loading") return <Splash />;
   if (phase === "login") return <TeamLogin onGranted={(sess) => { setSession(sess); setPhase("app"); }} />;
+
+  if (session?.showTutorial) {
+    const dismissTutorial = () => {
+      const next = { ...session, showTutorial: false };
+      localStorage.setItem(SESSION_KEY, JSON.stringify(next));
+      setSession(next);
+    };
+    return <WelcomeTutorial session={session} onDone={dismissTutorial} />;
+  }
 
   return <MainApp session={session} onSignOut={() => { localStorage.removeItem(SESSION_KEY); setPhase("login"); }} />;
 }

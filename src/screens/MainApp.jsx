@@ -564,7 +564,7 @@ function Quiz({ items, onAnswer, onDone }) {
   const pool = useMemo(() => (items || []).filter(it => it.desc), [items]);
   const qs = useMemo(() => shuffle(pool).slice(0, 8).map(it => ({
     it,
-    opts: shuffle([it.name, ...shuffle(pool.filter(x => x.id !== it.id)).slice(0, 3).map(x => x.name)]),
+    opts: shuffle([it.name, ...pickDistractors(pool, it, 3).map(x => x.name)]),
   })), [pool]);
   if (pool.length < 4) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>צריך לפחות 4 מנות עם תיאור</p></div>;
   if (i >= qs.length) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Trophy size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">{score}/{qs.length}</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
@@ -706,7 +706,7 @@ function Speed({ items, onAnswer, onDone, onFinish }) {
   const pool = useMemo(() => (items || []).filter(it => it.ingredients?.length > 0), [items]);
   const deck = useMemo(() => shuffle(pool).slice(0, 12).map(it => {
     const a = shuffle(it.ingredients)[0];
-    const otherIngredients = [...new Set(pool.filter(x => x.id !== it.id).flatMap(x => x.ingredients))].filter(ing => ing !== a);
+    const otherIngredients = [...new Set(pickDistractors(pool, it, 6).flatMap(x => x.ingredients))].filter(ing => ing !== a);
     return { it, a, opts: shuffle([a, ...shuffle(otherIngredients).slice(0, 2)]) };
   }), [pool]);
   const [i, setI] = useState(0);
@@ -825,7 +825,7 @@ function NameCompletion({ items, onAnswer, onDone }) {
   const pool = useMemo(() => (items || []).filter(it => it.desc), [items]);
   const deck = useMemo(() => shuffle(pool).slice(0, 8).map(it => ({
     it,
-    options: shuffle([it.desc, ...shuffle(pool.filter(x => x.id !== it.id)).slice(0, 2).map(x => x.desc)]),
+    options: shuffle([it.desc, ...pickDistractors(pool, it, 2).map(x => x.desc)]),
   })), [pool]);
   const [i, setI] = useState(0);
   const [score, setScore] = useState(0);
@@ -867,3 +867,15 @@ function NameCompletion({ items, onAnswer, onDone }) {
 }
 
 const shuffle = a => [...a].sort(() => Math.random() - 0.5);
+
+// Picks `count` distractors for a multiple-choice question, preferring dishes from the
+// SAME category as `it` first (e.g. another pasta for a pasta dish) — a random distractor
+// from a totally different category (a salad next to a pasta) is trivially eliminated by
+// elimination alone, which isn't testing menu knowledge. Falls back to any other item if
+// the category doesn't have enough dishes to fill the count.
+function pickDistractors(pool, it, count) {
+  const others = pool.filter(x => x.id !== it.id);
+  const sameCategory = shuffle(others.filter(x => x.category === it.category));
+  const rest = shuffle(others.filter(x => x.category !== it.category));
+  return [...sameCategory, ...rest].slice(0, count);
+}

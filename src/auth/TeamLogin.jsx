@@ -42,7 +42,7 @@ export default function TeamLogin({ onGranted }) {
   // When a near-duplicate name is found, pause here for a yes/no before committing.
   const [pendingMatch, setPendingMatch] = useState(null); // { rest, match, typedFirst, typedLast }
 
-  const finishLogin = (rest, member) => {
+  const finishLogin = (rest, member, isNewMember) => {
     const session = {
       teamMemberId: member.id,
       name: member.name,
@@ -52,6 +52,11 @@ export default function TeamLogin({ onGranted }) {
       restaurantName: rest.name,
       restaurantDescription: rest.description || "",
       restaurantCuisineTypes: rest.cuisine_types || [],
+      restaurantServiceStyle: rest.service_style || "",
+      restaurantServiceNotes: rest.service_notes || "",
+      // Drives the one-time welcome tutorial in MainApp — only for a brand-new profile,
+      // not someone whose name we just matched back to an existing one.
+      showTutorial: !!isNewMember,
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     onGranted(session);
@@ -76,7 +81,7 @@ export default function TeamLogin({ onGranted }) {
       // Find restaurant by team code — only the owner's chosen code for THIS restaurant
       // gets you into THAT restaurant's menu. No code, no access.
       const { data: rest, error: e1 } = await db.from("restaurants")
-        .select("id, name, description, cuisine_types").eq("team_code", teamCode.trim()).single();
+        .select("id, name, description, cuisine_types, service_style, service_notes").eq("team_code", teamCode.trim()).single();
 
       if (e1 || !rest) {
         console.warn("[TeamLogin] Supabase lookup failed, using local offline session:", e1);
@@ -86,6 +91,7 @@ export default function TeamLogin({ onGranted }) {
           firstName: first, lastName: last,
           restaurantId: FALLBACK_RESTAURANT_ID,
           offline: true,
+          showTutorial: true,
         };
         localStorage.setItem(SESSION_KEY, JSON.stringify(session));
         onGranted(session);
@@ -98,7 +104,7 @@ export default function TeamLogin({ onGranted }) {
 
       // Exact match (case/whitespace-insensitive) — silently reuse, no need to ask.
       const exact = (roster || []).find(m => normName(m.name || `${m.first_name} ${m.last_name}`) === fullTyped);
-      if (exact) { finishLogin(rest, exact); return; }
+      if (exact) { finishLogin(rest, exact, false); return; }
 
       // Near match (small edit distance) — could be the same person with a typo, could
       // be a genuinely different name. Ask instead of guessing either way.
@@ -114,7 +120,7 @@ export default function TeamLogin({ onGranted }) {
       }
 
       const member = await createMember(rest, first, last);
-      finishLogin(rest, member);
+      finishLogin(rest, member, true);
     } catch (e2) {
       console.error(e2);
       setErr("משהו השתבש. נסה/י שוב.");
@@ -129,10 +135,10 @@ export default function TeamLogin({ onGranted }) {
     setBusy(true);
     try {
       if (isSamePerson) {
-        finishLogin(rest, match);
+        finishLogin(rest, match, false);
       } else {
         const member = await createMember(rest, typedFirst, typedLast);
-        finishLogin(rest, member);
+        finishLogin(rest, member, true);
       }
     } catch (e2) {
       console.error(e2);
