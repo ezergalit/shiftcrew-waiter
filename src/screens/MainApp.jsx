@@ -226,7 +226,7 @@ export default function MainApp({ session, onSignOut }) {
     } : null,
     {
       id: "match", gradient: "linear-gradient(135deg,#22c08c,#1aa376)", icon: Repeat,
-      kicker: "משחק חדש", title: "משחק ההתאמה", subtitle: "התאימו מנות למחירים במהירות שיא",
+      kicker: "משחק חדש", title: "משחק ההתאמה", subtitle: "התאימו מנות למרכיבים שלהן במהירות שיא",
       cta: "לשחק", onClick: () => { setModeItems(null); setMode("match"); },
     },
     {
@@ -512,11 +512,23 @@ function Flashcards({ items, onRate, onDone }) {
       <div className="flex-1 flex flex-col items-center justify-center px-4">
         <div className="bg-[#16181c] rounded-xl p-6 w-full text-center space-y-3">
           <p className="text-2xl font-black text-[#eef0f6]">{it.name}</p>
-          <p className="text-base font-bold text-[#ea7317]">₪{it.price}</p>
-          {!revealed && <button onClick={() => setRevealed(true)} className="w-full py-2.5 rounded-lg font-bold bg-[#6d5efc] text-white text-xs">חשוף</button>}
+          {!revealed && (
+            <>
+              {(it.ingredients?.length > 0 || it.allergens?.length > 0) && (
+                <p className="text-[11px] font-bold text-[#8a8aa0]">
+                  {[
+                    it.ingredients?.length > 0 && `${it.ingredients.length} מרכיבים`,
+                    it.allergens?.length > 0 && `${it.allergens.length} אלרגנים`,
+                  ].filter(Boolean).join(" · ")}
+                </p>
+              )}
+              <button onClick={() => setRevealed(true)} className="w-full py-2.5 rounded-lg font-bold bg-[#6d5efc] text-white text-xs">חשוף</button>
+            </>
+          )}
           {revealed && (
             <>
               {it.desc && <p className="text-xs text-[#c4c4d4]">{it.desc}</p>}
+              {it.ingredients?.length > 0 && <p className="text-[11px] text-[#8a8aa0]">מרכיבים: {it.ingredients.join(", ")}</p>}
               {it.allergens?.length > 0 && <div className="bg-[#3a1d22] p-2 rounded-lg"><p className="text-[10px] font-bold text-[#e0315a]">אלרגנים: {it.allergens.join(", ")}</p></div>}
               <div className="pt-1">
                 <p className="text-[10px] font-bold text-[#8a8aa0] mb-1.5">כמה טוב ידעתם?</p>
@@ -540,22 +552,26 @@ function Flashcards({ items, onRate, onDone }) {
 
 // Objective — right/wrong is checkable, so the game grades itself: correct → 5,
 // wrong → 2. No self-report here, unlike Flashcards.
+// Objective: read the description, pick the matching dish name among 4 options — the
+// multiple-choice mirror of NameCompletion's name→description below. Price was dropped
+// entirely (2026-08-11, user feedback): it's irrelevant to knowing the menu, and some
+// dish *names* have a price baked into them (data-quality issue, fixed separately once
+// the real menu text is in), so quizzing on price actively worked against the concept.
 function Quiz({ items, onAnswer, onDone }) {
   const [i, setI] = useState(0);
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState(null);
-  const qs = useMemo(() => shuffle(items || []).slice(0, 8).map(it => ({
-    q: `מה המחיר של ${it.name}?`,
-    a: `₪${it.price}`,
-    opts: shuffle([`₪${it.price}`, `₪${it.price + 10}`, `₪${Math.max(5, it.price - 10)}`, `₪${it.price + 20}`]),
+  const pool = useMemo(() => (items || []).filter(it => it.desc), [items]);
+  const qs = useMemo(() => shuffle(pool).slice(0, 8).map(it => ({
     it,
-  })), [items]);
-  if (!qs.length) return <div className="h-screen flex items-center justify-center"><p>אין פריטים</p></div>;
+    opts: shuffle([it.name, ...shuffle(pool.filter(x => x.id !== it.id)).slice(0, 3).map(x => x.name)]),
+  })), [pool]);
+  if (pool.length < 4) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>צריך לפחות 4 מנות עם תיאור</p></div>;
   if (i >= qs.length) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Trophy size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">{score}/{qs.length}</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
   const q = qs[i];
   const next = (opt) => {
     setPicked(opt);
-    const correct = opt === q.a;
+    const correct = opt === q.it.name;
     if (correct) setScore(s => s + 1);
     onAnswer(q.it.id, correct ? 5 : 2);
     setTimeout(() => { setPicked(null); setI(i + 1); }, 500);
@@ -564,11 +580,14 @@ function Quiz({ items, onAnswer, onDone }) {
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10]" dir="rtl">
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0"><button onClick={onDone} className="text-xs text-[#8a8aa0]">← חזרה</button><p className="text-xs font-bold text-[#eef0f6]">{i + 1}/{qs.length}</p></div>
       <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col">
-        <div className="bg-[#16181c] rounded-lg p-3 mb-3"><p className="text-sm font-black text-[#eef0f6]">{q.q}</p></div>
+        <div className="bg-[#16181c] rounded-lg p-3 mb-3">
+          <p className="text-[10px] font-bold text-[#8a8aa0] mb-1">איזו מנה מתאימה לתיאור?</p>
+          <p className="text-sm font-black text-[#eef0f6]">{q.it.desc}</p>
+        </div>
         <div className="space-y-2">
           {q.opts.map((opt, j) => {
-            const isCorrect = picked && opt === q.a;
-            const isWrong = picked && opt === picked && opt !== q.a;
+            const isCorrect = picked && opt === q.it.name;
+            const isWrong = picked === opt && opt !== q.it.name;
             return (
               <button key={j} disabled={!!picked} onClick={() => next(opt)} className={`w-full py-2.5 px-3 rounded-lg font-bold text-xs text-right transition-colors ${isCorrect ? "bg-[#22c08c] text-white" : isWrong ? "bg-[#e0315a] text-white" : "bg-[#16181c] text-[#c4c4d4]"}`}>{opt}</button>
             );
@@ -579,24 +598,18 @@ function Quiz({ items, onAnswer, onDone }) {
   );
 }
 
-// Quizlet-style Match: a shuffled grid of name+price tiles; tap two tiles to pair them.
+// Quizlet-style Match: a shuffled grid of name+key-ingredients tiles; tap two tiles to
+// pair them. Was name+price — switched 2026-08-11 (user feedback): price isn't relevant
+// to menu knowledge, and some dish *names* have a price baked into them (data-quality
+// issue from the seed data), which made price tiles actively misleading.
 // Objective — a pair matched with zero wrong attempts grades 5, one wrong attempt 4,
 // two 3, three+ 2. No self-report; guessing wrong repeatedly costs you the rating.
 function Matching({ items, onAnswer, onDone }) {
   const deck = useMemo(() => {
-    // Never put two items with the same price in one round — identical price tiles
-    // are visually indistinguishable and make a "correct-looking" match actually wrong.
-    const seenPrices = new Set();
-    const chosen = [];
-    for (const it of shuffle(items || [])) {
-      if (seenPrices.has(it.price)) continue;
-      seenPrices.add(it.price);
-      chosen.push(it);
-      if (chosen.length === 6) break;
-    }
+    const chosen = shuffle((items || []).filter(it => it.ingredients?.length > 0)).slice(0, 6);
     const tiles = chosen.flatMap(it => [
       { key: `${it.id}-name`, pairId: it.id, kind: "name", label: it.name },
-      { key: `${it.id}-price`, pairId: it.id, kind: "price", label: `₪${it.price}` },
+      { key: `${it.id}-ing`, pairId: it.id, kind: "ing", label: it.ingredients.slice(0, 3).join(", ") },
     ]);
     return shuffle(tiles);
   }, [items]);
@@ -685,15 +698,17 @@ function Matching({ items, onAnswer, onDone }) {
   );
 }
 
-// Objective, same as Quiz but faster-paced (3 options, 30s overall clock instead of
-// per-question) — was previously a self-report "ידעתי/לא יודע" button pair, which is
-// exactly the kind of unverifiable self-grading the other objective modes avoid.
+// Objective, faster-paced version of the name→ingredient idea (3 options, 30s overall
+// clock instead of per-question) — was originally a self-report "ידעתי/לא יודע" button
+// pair, then a price quiz; both replaced (2026-08-11, user feedback: price is irrelevant
+// to menu knowledge and self-report is unverifiable — this keeps neither).
 function Speed({ items, onAnswer, onDone, onFinish }) {
-  const deck = useMemo(() => shuffle(items || []).slice(0, 12).map(it => ({
-    it,
-    a: `₪${it.price}`,
-    opts: shuffle([`₪${it.price}`, `₪${it.price + 10}`, `₪${Math.max(5, it.price - 10)}`]),
-  })), [items]);
+  const pool = useMemo(() => (items || []).filter(it => it.ingredients?.length > 0), [items]);
+  const deck = useMemo(() => shuffle(pool).slice(0, 12).map(it => {
+    const a = shuffle(it.ingredients)[0];
+    const otherIngredients = [...new Set(pool.filter(x => x.id !== it.id).flatMap(x => x.ingredients))].filter(ing => ing !== a);
+    return { it, a, opts: shuffle([a, ...shuffle(otherIngredients).slice(0, 2)]) };
+  }), [pool]);
   const [i, setI] = useState(0);
   const [correct, setCorrect] = useState(0);
   const [time, setTime] = useState(30);
@@ -706,7 +721,7 @@ function Speed({ items, onAnswer, onDone, onFinish }) {
   const finished = time <= 0 || i >= deck.length;
   // Fires exactly once on the false→true transition (both `time` and `i` only move forward).
   useEffect(() => { if (finished) onFinish?.(correct); }, [finished]);
-  if (!deck.length) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>אין פריטים</p></div>;
+  if (!deck.length) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>אין מספיק פריטים</p></div>;
   if (finished) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Zap size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">{correct} נכונים!</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
   const q = deck[i];
   const answer = (opt) => {
@@ -721,6 +736,7 @@ function Speed({ items, onAnswer, onDone, onFinish }) {
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0"><span className="text-xs font-bold text-[#f3c14b]">⏱ {time}s</span><p className="text-xs font-bold">{i + 1}/{deck.length}</p></div>
       <div className="flex-1 flex flex-col items-center justify-center px-4">
         <div className="text-center w-full">
+          <p className="text-[10px] font-bold text-[#8a8aa0] mb-2">איזה מרכיב שייך למנה הזו?</p>
           <p className="text-lg font-black mb-4">{q.it.name}</p>
           <div className="flex flex-col gap-2">
             {q.opts.map((opt, j) => {
@@ -831,8 +847,7 @@ function NameCompletion({ items, onAnswer, onDone }) {
       <div className="flex-1 flex flex-col items-center justify-center px-4">
         <div className="w-full text-center space-y-3">
           <p className="text-[10px] font-bold text-[#8a8aa0]">איזה תיאור מתאים למנה?</p>
-          <p className="text-lg font-black mb-1">{q.it.name}</p>
-          <p className="text-xs font-bold text-[#ea7317] mb-3">₪{q.it.price}</p>
+          <p className="text-lg font-black mb-3">{q.it.name}</p>
           <div className="flex flex-col gap-2">
             {q.options.map((opt, j) => {
               const isCorrectOpt = picked && opt === q.it.desc;
