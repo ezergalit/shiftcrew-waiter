@@ -73,7 +73,7 @@ export default function MainApp({ session, onSignOut }) {
       // Mark today's brief as read (for the owner's team-activity dashboard) — only when
       // there's an actual brief to read, and only for real (non-offline) sessions.
       if (b && session?.teamMemberId) {
-        db.from("daily_brief_reads").upsert(
+        await db.from("daily_brief_reads").upsert(
           { team_member_id: session.teamMemberId, restaurant_id: session.restaurantId, date: today, read_at: new Date().toISOString() },
           { onConflict: "team_member_id,date" }
         );
@@ -114,8 +114,9 @@ export default function MainApp({ session, onSignOut }) {
 
     // Daily challenge: 3 NEWLY-mastered dishes/day → one-time +50 bonus. Only counts
     // fresh mastery (not re-grading something already known), and only counts up.
+    const justMasteredFresh = !wasMastered && nowMastered;
     let newBonusTotal = bonusTotal;
-    if (!wasMastered && nowMastered) {
+    if (justMasteredFresh) {
       const base = daily.date === todayStr() ? daily : { date: todayStr(), count: 0, bonusAwarded: false };
       const newDaily = { date: todayStr(), count: base.count + 1, bonusAwarded: base.bonusAwarded || base.count + 1 >= DAILY_TARGET };
       const justEarnedBonus = !base.bonusAwarded && newDaily.bonusAwarded;
@@ -138,6 +139,11 @@ export default function MainApp({ session, onSignOut }) {
 
     if (session.offline) return; // TEMP DEV FALLBACK — local-only, nothing to persist.
     await db.from("menu_progress").upsert({ team_member_id: session.teamMemberId, source_item_id: id, mastery: rating, last_reviewed: new Date().toISOString() }, { onConflict: "team_member_id,source_item_id" });
+    // Server-side visibility for the owner's team-activity dashboard (today_count/last_study_date
+    // on leaderboard) — separate from the localStorage-based daily-bonus tracking above.
+    if (justMasteredFresh) {
+      await db.rpc("bump_daily_progress", { p_restaurant_id: session.restaurantId, p_team_member_id: session.teamMemberId, p_name: session.name });
+    }
     if (crossed) {
       const points = nextMasteredSize * 100 + newBonusTotal;
       await db.from("leaderboard").upsert({ restaurant_id: session.restaurantId, team_member_id: session.teamMemberId, name: session.name, points, mastered_count: nextMasteredSize, updated_at: new Date().toISOString() }, { onConflict: "restaurant_id,team_member_id" });
