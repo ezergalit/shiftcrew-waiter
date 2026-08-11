@@ -1064,9 +1064,20 @@ function CategoryExam({ items, categoryLabel, onAnswer, onDone }) {
         </div>
 
         {!result && (
-          <button onClick={submit} className="w-full py-3.5 rounded-2xl font-black text-sm bg-[#6d5efc] text-white">
-            שליחה
-          </button>
+          <>
+            <button
+              onClick={submit}
+              disabled={picked.size === 0}
+              className={`w-full py-3.5 rounded-2xl font-black text-sm ${
+                picked.size ? "bg-[#6d5efc] text-white" : "bg-[#22252b] text-[#b4b4c4]"
+              }`}
+            >
+              שליחה
+            </button>
+            {picked.size === 0 && (
+              <p className="text-[10px] text-[#8a8aa0] text-center mt-2">בחרו לפחות מרכיב אחד</p>
+            )}
+          </>
         )}
 
         {result && (
