@@ -61,7 +61,7 @@ export default function MainApp({ session, onSignOut }) {
 
     let alive = true;
     (async () => {
-      const { data } = await db.from("published_menu").select("*");
+      const { data } = await db.from("published_menu").select("*").eq("restaurant_id", session?.restaurantId);
       if (alive) setCards((data || []).map(pubToCard));
       const { data: m } = await db.from("menu_progress").select("source_item_id, mastery").eq("team_member_id", session?.teamMemberId);
       if (alive) setMastered(new Set((m || []).filter(r => (r.mastery ?? 0) >= 4).map(r => r.source_item_id)));
@@ -70,10 +70,22 @@ export default function MainApp({ session, onSignOut }) {
       const today = new Date().toISOString().slice(0, 10);
       const { data: b } = await db.from("daily_brief").select("*").eq("restaurant_id", session?.restaurantId).eq("date", today).maybeSingle();
       if (alive) setBrief(b || {});
+      // Mark today's brief as read (for the owner's team-activity dashboard) — only when
+      // there's an actual brief to read, and only for real (non-offline) sessions.
+      if (b && session?.teamMemberId) {
+        db.from("daily_brief_reads").upsert(
+          { team_member_id: session.teamMemberId, restaurant_id: session.restaurantId, date: today, read_at: new Date().toISOString() },
+          { onConflict: "team_member_id,date" }
+        );
+      }
     })();
 
     // Real-time leaderboard: every team member's rating updates everyone's screen instantly.
-    const channel = db.channel(`leaderboard-${session?.restaurantId}`)
+    // NOTE: .channel() must be called on the top-level `supabase` client, not the
+    // schema-scoped `db` proxy — `db.channel` doesn't exist and throws (only ever
+    // surfaced now that this code runs against a live connection instead of the
+    // offline fallback, which never reached this line for real).
+    const channel = supabase.channel(`leaderboard-${session?.restaurantId}`)
       .on("postgres_changes", { event: "*", schema: "menu_app", table: "leaderboard", filter: `restaurant_id=eq.${session?.restaurantId}` }, refetchLeaderboard)
       .subscribe();
 
@@ -223,7 +235,10 @@ export default function MainApp({ session, onSignOut }) {
       {/* Header */}
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-3 flex items-center justify-between flex-shrink-0">
         <button onClick={onSignOut} className="w-8 h-8 rounded-lg bg-[#191b1f] flex items-center justify-center text-[#8a8aa0]"><LogOut size={16} /></button>
-        <p className="text-sm font-black">{session?.name}</p>
+        <div className="text-center">
+          <p className="text-sm font-black">{session?.name}</p>
+          {session?.restaurantName && <p className="text-[10px] text-[#8a8aa0] font-semibold">{session.restaurantName}</p>}
+        </div>
         {myRank > 0 && <span className="text-[11px] font-bold text-[#f3c14b] bg-[#33290f] px-2 py-1 rounded-md">מקום {myRank}</span>}
       </div>
       {session?.offline && (
@@ -237,6 +252,20 @@ export default function MainApp({ session, onSignOut }) {
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {tab === "home" && (
           <div className="space-y-3">
+            {(session?.restaurantDescription || session?.restaurantCuisineTypes?.length > 0) && (
+              <div className="bg-[#16181c] border border-[#22252b] rounded-xl p-3">
+                {session?.restaurantCuisineTypes?.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-1.5">
+                    {session.restaurantCuisineTypes.map((c) => (
+                      <span key={c} className="bg-[#6d5efc]/15 border border-[#6d5efc]/40 text-[#a79bff] text-[10px] font-bold px-2 py-0.5 rounded-full">{c}</span>
+                    ))}
+                  </div>
+                )}
+                {session?.restaurantDescription && (
+                  <p className="text-xs text-[#8a8aa0] leading-relaxed">{session.restaurantDescription}</p>
+                )}
+              </div>
+            )}
             <PromoCarousel items={promos} />
             <div className="rounded-xl p-4 text-white" style={{ background: "linear-gradient(135deg,#6d5efc,#9b7bff)" }}>
               <p className="text-sm font-black mb-2">תרגול יומי</p>

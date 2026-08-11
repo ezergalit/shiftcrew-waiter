@@ -122,6 +122,22 @@ MainApp.jsx (src/screens/MainApp.jsx):
 | `src/lib/supabase.js` | לקוח Supabase (נוצר 2026-08-10 — היה חסר לגמרי!), `persistSession: false` |
 | `src/lib/mockMenu.js` | ⚠️ **TEMP DEV FALLBACK** (נוצר 2026-08-10) — עותק סטטי של התפריט האמיתי (19 פריטים) לשימוש כשאין חיבור ל-DB |
 
+## רב-דיירות (multi-tenant) — עדכון 2026-08-10 (עדכון שני)
+
+חלק מתשתית רב-דיירות רחבה יותר (ר' `/Users/homestation/Desktop/CLAUDE.md` לתמונה המלאה).
+שני תיקונים ב-**נתיב האמיתי בלבד** (ה-offline fallback לא נגע כלל):
+
+1. **תוקן באג רב-דיירות קריטי**: `MainApp.jsx` שלף `published_menu` בלי שום סינון
+   (`db.from("published_menu").select("*")`) — כל צוות היה רואה את המנות של **כל** המסעדות,
+   לא רק שלו. תוקן: `.eq("restaurant_id", session?.restaurantId)`.
+2. **פרסונליזציה בסיסית**: `TeamLogin.jsx` שולף עכשיו גם `name`/`description`/`cuisine_types`
+   של המסעדה (לא רק `id`), ושומר אותם ב-session בתור `restaurantName`/`restaurantDescription`/
+   `restaurantCuisineTypes`. `MainApp.jsx` מציג אותם ב-header (ליד שם המשתמש) ובכרטיס קטן
+   בראש טאב "בית" — שניהם render מותנה (`session?.restaurantName && ...`) כדי לא לקרוס
+   בנתיב ה-offline, ששם השדות האלה לא קיימים.
+
+עדיין **לא committed** (בנוסף לרשימה למטה): `M src/auth/TeamLogin.jsx`, `M src/screens/MainApp.jsx`.
+
 ## ⚠️ TEMP DEV FALLBACK — bypass התחברות (Supabase עדיין תקוע)
 
 כל עוד ה-Supabase לא חזר לפעול (ר' CLAUDE.md הראשי, PGRST002), הוספתי מנגנון עוקף כדי
