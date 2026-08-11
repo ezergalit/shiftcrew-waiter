@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, Repeat, ChevronLeft, AlertTriangle, ListChecks } from "lucide-react";
+import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, Repeat, ChevronLeft, AlertTriangle, ListChecks, GraduationCap } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
 
@@ -34,10 +34,15 @@ export default function MainApp({ session, onSignOut }) {
   const [tab, setTab] = useState("home");
   const [cards, setCards] = useState(null);
   const [mastered, setMastered] = useState(new Set());
+  // Raw 1-5 score per dish (id -> score). `mastered` above is still the >=4 threshold set
+  // that drives points/daily-challenge/leaderboard; this map is what the *percentages*
+  // are built from, so "4 out of 5 on every dish" reads as 80% instead of 100%.
+  const [masteryById, setMasteryById] = useState({});
   const [leaderboard, setLeaderboard] = useState([]);
   const [brief, setBrief] = useState(null);
-  const [mode, setMode] = useState(null); // flashcards | quiz | match | speed
+  const [mode, setMode] = useState(null); // flashcards | quiz | match | speed | exam | …
   const [modeItems, setModeItems] = useState(null); // scoped items for a challenge round; null = full menu
+  const [examCategory, setExamCategory] = useState(null); // label of the category under exam
   const [daily, setDaily] = useState(() => loadDaily(session?.teamMemberId));
   const [bonusTotal, setBonusTotal] = useState(() => loadNum("menu-app-bonus", session?.teamMemberId));
   const [bestSpeed, setBestSpeed] = useState(() => loadNum("menu-app-best-speed", session?.teamMemberId));
@@ -64,7 +69,10 @@ export default function MainApp({ session, onSignOut }) {
       const { data } = await db.from("published_menu").select("*").eq("restaurant_id", session?.restaurantId);
       if (alive) setCards((data || []).map(pubToCard));
       const { data: m } = await db.from("menu_progress").select("source_item_id, mastery").eq("team_member_id", session?.teamMemberId);
-      if (alive) setMastered(new Set((m || []).filter(r => (r.mastery ?? 0) >= 4).map(r => r.source_item_id)));
+      if (alive) {
+        setMastered(new Set((m || []).filter(r => (r.mastery ?? 0) >= 4).map(r => r.source_item_id)));
+        setMasteryById(Object.fromEntries((m || []).map(r => [r.source_item_id, r.mastery ?? 0])));
+      }
       const { data: l } = await db.from("leaderboard").select("*").eq("restaurant_id", session?.restaurantId).order("points", { ascending: false });
       if (alive) setLeaderboard(l || []);
       const today = new Date().toISOString().slice(0, 10);
@@ -103,6 +111,7 @@ export default function MainApp({ session, onSignOut }) {
     const wasMastered = mastered.has(id);
     const nowMastered = rating >= 4;
     const crossed = wasMastered !== nowMastered;
+    setMasteryById(prev => ({ ...prev, [id]: rating }));
 
     let nextMasteredSize = mastered.size;
     if (crossed) {
@@ -160,8 +169,18 @@ export default function MainApp({ session, onSignOut }) {
   if (mode === "speed") return <Speed items={modeItems || cards} onAnswer={learnItem} onDone={exitMode} onFinish={finishSpeed} />;
   if (mode === "allergens") return <AllergenQuiz items={modeItems || cards} onAnswer={learnItem} onDone={exitMode} />;
   if (mode === "namecomplete") return <NameCompletion items={modeItems || cards} onAnswer={learnItem} onDone={exitMode} />;
+  if (mode === "exam") return <CategoryExam items={modeItems || cards} categoryLabel={examCategory || "התפריט"} onAnswer={learnItem} onDone={exitMode} />;
 
-  const pct = cards?.length ? Math.round((mastered.size / cards.length) * 100) : 0;
+  // Success percentage = how much of the *available* score you've actually earned, not how
+  // many dishes crossed the pass mark. 4/5 on every dish reads as 80%, which is what the
+  // score actually means — a threshold count would round that up to a misleading 100%.
+  const scorePct = (list) => {
+    if (!list?.length) return 0;
+    const earned = list.reduce((sum, x) => sum + (masteryById[x.id] || 0), 0);
+    return Math.round((earned / (list.length * 5)) * 100);
+  };
+
+  const pct = scorePct(cards);
   const myRank = leaderboard.findIndex(r => r.team_member_id === session?.teamMemberId) + 1;
   const myStreak = leaderboard.find(r => r.team_member_id === session?.teamMemberId)?.streak || 0;
   const cats = ["starters", "mains", "desserts", "drinks"].map(c => ({ c, items: cards?.filter(x => x.category === c) || [] })).filter(g => g.items.length > 0);
@@ -287,7 +306,7 @@ export default function MainApp({ session, onSignOut }) {
               <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mb-2">
                 <div className="h-full bg-[#6d5efc]" style={{ width: `${pct}%` }} />
               </div>
-              <p className="text-[11px] text-[#8a8aa0]">{mastered.size}/{cards?.length || 0} פריטים — {pct}%</p>
+              <p className="text-[11px] text-[#8a8aa0]">{pct}% הצלחה · {mastered.size}/{cards?.length || 0} מנות נלמדו</p>
             </div>
             <button onClick={() => setTab("challenges")} className="w-full bg-[#16181c] rounded-lg p-3 flex items-center gap-3 text-right">
               <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#3a2a0f" }}>
@@ -348,21 +367,36 @@ export default function MainApp({ session, onSignOut }) {
           <div className="space-y-2">
             <p className="text-[10px] text-[#8a8aa0] px-1">לחצו על קטגוריה כדי לתרגל רק אותה</p>
             {cats.map(({ c, items }) => {
-              const known = items.filter(x => mastered.has(x.id)).length;
-              const catPct = items.length ? Math.round((known / items.length) * 100) : 0;
+              const catPct = scorePct(items);
+              // The exam is the graduation step, so it stays locked until they've actually
+              // worked the category — otherwise it's just a wall of blank text boxes.
+              const examReady = catPct >= 50 && items.filter(x => x.ingredients?.length > 0).length >= 2;
               return (
-                <button
-                  key={c} onClick={() => { setModeItems(items); setMode("flashcards"); }}
-                  className="w-full bg-[#16181c] rounded-lg p-2.5 text-right active:scale-[0.99] transition-transform"
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-xs font-black text-[#eef0f6]">{CAT_LABELS[c]}</p>
-                    <span className="text-[11px] font-bold text-[#6d5efc]">{known}/{items.length}</span>
-                  </div>
-                  <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden">
-                    <div className="h-full bg-[#6d5efc]" style={{ width: `${catPct}%` }} />
-                  </div>
-                </button>
+                <div key={c} className="bg-[#16181c] rounded-lg p-2.5">
+                  <button
+                    onClick={() => { setModeItems(items); setMode("flashcards"); }}
+                    className="w-full text-right active:scale-[0.99] transition-transform"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-xs font-black text-[#eef0f6]">{CAT_LABELS[c]}</p>
+                      <span className="text-[11px] font-bold text-[#6d5efc]">{catPct}%</span>
+                    </div>
+                    <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden">
+                      <div className="h-full bg-[#6d5efc]" style={{ width: `${catPct}%` }} />
+                    </div>
+                    <p className="text-[10px] text-[#8a8aa0] mt-1">{items.length} מנות · לחצו לתרגול</p>
+                  </button>
+                  <button
+                    disabled={!examReady}
+                    onClick={() => { setModeItems(items); setExamCategory(CAT_LABELS[c]); setMode("exam"); }}
+                    className={`w-full mt-2 py-2 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1.5 ${
+                      examReady ? "bg-[#15302b] text-[#22c08c]" : "bg-[#1c1e22] text-[#8a8aa0]"
+                    }`}
+                  >
+                    <GraduationCap size={13} />
+                    {examReady ? `מוכנים למבחן ${CAT_LABELS[c]}?` : `הגיעו ל-50% כדי להיבחן`}
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -866,7 +900,188 @@ function NameCompletion({ items, onAnswer, onDone }) {
   );
 }
 
+// The real test: no options to pick from, no hints — just the dish name, and you write
+// what's in it. Graded on how much of the dish's actual ingredient/allergen list you
+// covered, with allergens weighted heaviest because that's the one that matters in
+// service. Scored locally against data the owner already entered, so it costs nothing
+// per attempt.
+function CategoryExam({ items, categoryLabel, onAnswer, onDone }) {
+  const deck = useMemo(
+    () => shuffle((items || []).filter((it) => it.ingredients?.length > 0)).slice(0, 4),
+    [items],
+  );
+  const [i, setI] = useState(0);
+  const [value, setValue] = useState("");
+  const [result, setResult] = useState(null); // { score, hitIng, missIng, hitAll, missAll }
+  const [scores, setScores] = useState([]);
+
+  if (deck.length < 2)
+    return (
+      <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6] px-8 text-center" dir="rtl">
+        <p className="text-sm">צריך לפחות 2 מנות עם מרכיבים בקטגוריה הזו כדי להיבחן</p>
+      </div>
+    );
+
+  if (i >= deck.length) {
+    const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    const passed = avg >= 70;
+    return (
+      <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
+        <div className={`w-20 h-20 rounded-3xl flex items-center justify-center ${passed ? "bg-[#15302b]" : "bg-[#3a1d22]"}`}>
+          <GraduationCap size={38} className={passed ? "text-[#22c08c]" : "text-[#e0315a]"} />
+        </div>
+        <div>
+          <p className="text-4xl font-black">{avg}%</p>
+          <p className="text-sm font-bold text-[#8a8aa0] mt-1">מבחן {categoryLabel}</p>
+        </div>
+        <p className="text-sm text-[#c4c4d4] max-w-xs leading-relaxed">
+          {passed ? "עברת! אתה מכיר את הקטגוריה הזו טוב." : "עוד לא עברת — תרגלו את הקטגוריה ותנסו שוב."}
+        </p>
+        <button onClick={onDone} className="px-5 py-3 rounded-2xl bg-[#6d5efc] text-white font-black text-sm">סיום</button>
+      </div>
+    );
+  }
+
+  const it = deck[i];
+  const submit = () => {
+    if (result || !value.trim()) return;
+    const answerWords = normWords(value);
+    const ingredients = it.ingredients || [];
+    const allergens = it.allergens || [];
+    const hitIng = ingredients.filter((x) => mentions(answerWords, x));
+    const missIng = ingredients.filter((x) => !mentions(answerWords, x));
+    const hitAll = allergens.filter((x) => mentions(answerWords, x));
+    const missAll = allergens.filter((x) => !mentions(answerWords, x));
+
+    const ingPct = ingredients.length ? hitIng.length / ingredients.length : 1;
+    // A dish with no allergens can't be penalised for missing one — the ingredient
+    // coverage carries the whole score there.
+    const score = allergens.length
+      ? Math.round((ingPct * 0.6 + (hitAll.length / allergens.length) * 0.4) * 100)
+      : Math.round(ingPct * 100);
+
+    // Same 1-5 mastery scale the other objective modes report, so an exam result moves
+    // the menu percentage exactly like any other graded answer.
+    const rating = score >= 85 ? 5 : score >= 70 ? 4 : score >= 50 ? 3 : score >= 30 ? 2 : 1;
+    onAnswer(it.id, rating);
+    setScores((s) => [...s, score]);
+    setResult({ score, hitIng, missIng, hitAll, missAll });
+  };
+
+  const next = () => { setResult(null); setValue(""); setI((x) => x + 1); };
+
+  return (
+    <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
+      <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0">
+        <button onClick={onDone} className="text-xs text-[#8a8aa0]">← יציאה</button>
+        <p className="text-xs font-bold">מבחן {categoryLabel}</p>
+        <p className="text-xs font-bold text-[#8a8aa0]">{i + 1}/{deck.length}</p>
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="bg-[#16181c] rounded-xl p-4 text-center mb-3">
+          <p className="text-[10px] font-bold text-[#8a8aa0] mb-1.5">ספרו במילים שלכם מה יש במנה</p>
+          <p className="text-xl font-black">{it.name}</p>
+        </div>
+
+        {!result && (
+          <>
+            <textarea
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="מה המנה כוללת? מרכיבים, אלרגיות…"
+              rows={5}
+              autoFocus
+              className="w-full bg-[#16181c] border border-[#22252b] rounded-xl px-3.5 py-3 text-sm text-[#eef0f6] text-right leading-relaxed placeholder:text-[#8a8aa0] focus:outline-none focus:border-[#6d5efc] resize-none"
+            />
+            <button
+              onClick={submit}
+              disabled={!value.trim()}
+              className={`w-full mt-3 py-3.5 rounded-2xl font-black text-sm ${value.trim() ? "bg-[#6d5efc] text-white" : "bg-[#22252b] text-[#b4b4c4]"}`}
+            >
+              שליחה
+            </button>
+          </>
+        )}
+
+        {result && (
+          <div className="space-y-3">
+            <div className={`rounded-xl p-4 text-center ${result.score >= 70 ? "bg-[#15302b]" : "bg-[#3a1d22]"}`}>
+              <p className={`text-3xl font-black ${result.score >= 70 ? "text-[#22c08c]" : "text-[#e0315a]"}`}>{result.score}%</p>
+            </div>
+
+            {result.missAll.length > 0 && (
+              <div className="bg-[#3a1d22] border border-[#e0315a]/40 rounded-xl p-3">
+                <p className="text-[11px] font-black text-[#e0315a] mb-1">⚠️ פספסתם אלרגיות</p>
+                <p className="text-sm text-[#eef0f6]">{result.missAll.join(", ")}</p>
+                <p className="text-[10px] text-[#c4c4d4] mt-1.5">זה הדבר הכי חשוב לדעת — לקוח עלול להיפגע.</p>
+              </div>
+            )}
+
+            {result.hitIng.length > 0 && (
+              <div>
+                <p className="text-[11px] font-bold text-[#8a8aa0] mb-1">ציינתם נכון</p>
+                <p className="text-sm text-[#22c08c]">{result.hitIng.join(", ")}</p>
+              </div>
+            )}
+            {result.missIng.length > 0 && (
+              <div>
+                <p className="text-[11px] font-bold text-[#8a8aa0] mb-1">לא ציינתם</p>
+                <p className="text-sm text-[#c4c4d4]">{result.missIng.join(", ")}</p>
+              </div>
+            )}
+            {it.desc && (
+              <div className="bg-[#16181c] rounded-xl p-3">
+                <p className="text-[11px] font-bold text-[#8a8aa0] mb-1">התיאור המלא</p>
+                <p className="text-sm text-[#c4c4d4] leading-relaxed">{it.desc}</p>
+              </div>
+            )}
+
+            <button onClick={next} className="w-full py-3.5 rounded-2xl font-black text-sm bg-[#6d5efc] text-white">
+              {i + 1 >= deck.length ? "לתוצאה" : "לשאלה הבאה"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const shuffle = a => [...a].sort(() => Math.random() - 0.5);
+
+// --- Hebrew-aware loose matching, used by the category exam ---------------------------
+// The exam grades a free-text answer by checking which of the dish's real ingredients and
+// allergens the trainee actually mentioned. That has to tolerate how people actually
+// write: "עגבניה" for "עגבניות שרי", "בפטה" for "גבינת פטה", a stray final-form letter.
+// Deliberately generous — the point is to reward knowing the dish, not exact recall of
+// the owner's phrasing. Graded locally with zero API cost, so it stays free no matter how
+// many waiters take the exam.
+const HE_FINALS = { "ם": "מ", "ן": "נ", "ץ": "צ", "ף": "פ", "ך": "כ" };
+
+const normWords = (s) =>
+  String(s || "")
+    .toLowerCase()
+    .replace(/[֑-ׇ]/g, "")          // niqqud
+    .replace(/[^֐-׿a-z0-9]+/g, " ") // punctuation, geresh, quotes
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.split("").map((c) => HE_FINALS[c] || c).join(""));
+
+// Drop one leading conjunction/preposition letter (ו/ב/ל/ה/מ/ש/כ) when the remainder is
+// still a real word — "בפטה" → "פטה", but "מלח" is left alone.
+const stem = (w) => (w.length > 3 && /^[ובלהמשכ]/.test(w) ? w.slice(1) : w);
+
+const mentions = (answerWords, term) => {
+  const termWords = normWords(term).filter((w) => w.length >= 3);
+  if (!termWords.length) return false;
+  return termWords.some((tw) => {
+    const t = stem(tw);
+    return answerWords.some((aw) => {
+      const a = stem(aw);
+      return a === t || (a.length >= 3 && (a.startsWith(t) || t.startsWith(a)));
+    });
+  });
+};
 
 // Picks `count` distractors for a multiple-choice question, preferring dishes from the
 // SAME category as `it` first (e.g. another pasta for a pasta dish) — a random distractor
