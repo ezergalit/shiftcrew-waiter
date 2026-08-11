@@ -1067,19 +1067,28 @@ const normWords = (s) =>
     .filter(Boolean)
     .map((w) => w.split("").map((c) => HE_FINALS[c] || c).join(""));
 
-// Drop one leading conjunction/preposition letter (ו/ב/ל/ה/מ/ש/כ) when the remainder is
-// still a real word — "בפטה" → "פטה", but "מלח" is left alone.
-const stem = (w) => (w.length > 3 && /^[ובלהמשכ]/.test(w) ? w.slice(1) : w);
+// A leading ו/ב/ל/ה/מ/ש/כ *might* be a conjunction/preposition ("ובזיליקום" → "בזיליקום")
+// or might just be the first letter of the word — "בזיליקום" and "שום" start that way for
+// real. So we never commit to one reading: each word yields both forms and a match on any
+// pairing counts. Stripping unconditionally on both sides is wrong and silently makes every
+// ingredient beginning with one of those letters unmatchable.
+const variants = (w) => (w.length > 3 && /^[ובלהמשכ]/.test(w) ? [w, w.slice(1)] : [w]);
 
 const mentions = (answerWords, term) => {
   const termWords = normWords(term).filter((w) => w.length >= 3);
   if (!termWords.length) return false;
   return termWords.some((tw) => {
-    const t = stem(tw);
-    return answerWords.some((aw) => {
-      const a = stem(aw);
-      return a === t || (a.length >= 3 && (a.startsWith(t) || t.startsWith(a)));
-    });
+    const tvs = variants(tw);
+    return answerWords.some((aw) =>
+      variants(aw).some((a) =>
+        tvs.some(
+          (t) =>
+            a === t ||
+            // Prefix either way absorbs plural/construct endings: "זית" ↔ "זיתים".
+            (a.length >= 3 && t.length >= 3 && (a.startsWith(t) || t.startsWith(a))),
+        ),
+      ),
+    );
   });
 };
 
