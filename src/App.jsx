@@ -9,6 +9,13 @@ import BaselineIntake from "./screens/BaselineIntake";
 const SESSION_KEY = "menu-app-team-session";
 const db = supabase.schema("menu_app");
 
+// "I'll do it later" has to stick, or a waiter who skips gets the same wall on every
+// single load. Device-scoped rather than a DB column: the owner should still see that
+// this person has no starting score, and a fresh device is a fair place to re-offer it.
+const skipKey = (id) => `menu-app-baseline-skipped-${id}`;
+const baselineSkipped = (id) => !!id && localStorage.getItem(skipKey(id)) === "1";
+const rememberBaselineSkip = (id) => id && localStorage.setItem(skipKey(id), "1");
+
 export default function App() {
   const [phase, setPhase] = useState("loading"); // loading | login | app
   const [session, setSession] = useState(null);
@@ -35,7 +42,7 @@ export default function App() {
         const { data, error } = await db.from("team_members")
           .select("id, name, restaurant_id, baseline_taken_at").eq("id", sess.teamMemberId).single();
         if (error || !data) { localStorage.removeItem(SESSION_KEY); if (alive) setPhase("login"); return; }
-        if (!data.baseline_taken_at) {
+        if (!data.baseline_taken_at && !baselineSkipped(sess.teamMemberId)) {
           const { data: cfg } = await db.from("exam_config")
             .select("baseline_enabled").eq("restaurant_id", sess.restaurantId).maybeSingle();
           // Enabled unless the owner explicitly turned it off — a restaurant that never
@@ -73,7 +80,16 @@ export default function App() {
   // After the tutorial, before the app: locate the waiter so improvement has a baseline
   // to be measured against. Skippable — a waiter mid-shift shouldn't be trapped here.
   if (needsBaseline) {
-    return <BaselineIntake session={session} onDone={() => setNeedsBaseline(false)} />;
+    return (
+      <BaselineIntake
+        session={session}
+        onDone={(pct) => {
+          // A null pct means they skipped rather than finished; remember that.
+          if (pct == null) rememberBaselineSkip(session.teamMemberId);
+          setNeedsBaseline(false);
+        }}
+      />
+    );
   }
 
   return <MainApp session={session} onSignOut={() => { localStorage.removeItem(SESSION_KEY); setPhase("login"); }} />;
