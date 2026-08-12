@@ -42,7 +42,9 @@ export default function MainApp({ session, onSignOut }) {
   const [brief, setBrief] = useState(null);
   const [mode, setMode] = useState(null); // flashcards | quiz | match | speed | exam | …
   const [modeItems, setModeItems] = useState(null); // scoped items for a challenge round; null = full menu
-  const [examCategory, setExamCategory] = useState(null); // label of the category under exam
+  // Store the category key (e.g. "starters") for the DB record, and its Hebrew label for
+  // display — the exam_results row keys off the former so it stays stable if labels change.
+  const [examCategory, setExamCategory] = useState(null); // { key, label }
   const [daily, setDaily] = useState(() => loadDaily(session?.teamMemberId));
   const [bonusTotal, setBonusTotal] = useState(() => loadNum("menu-app-bonus", session?.teamMemberId));
   const [bestSpeed, setBestSpeed] = useState(() => loadNum("menu-app-best-speed", session?.teamMemberId));
@@ -163,13 +165,29 @@ export default function MainApp({ session, onSignOut }) {
     if (correctCount > bestSpeed) { setBestSpeed(correctCount); saveNum("menu-app-best-speed", session?.teamMemberId, correctCount); }
   };
 
+  // One row per completed exam attempt, so the owner sees exam history (and repeat
+  // failures) rather than only the current mastery snapshot. Per-dish scores already
+  // went to menu_progress via learnItem — this is the attempt-level record.
+  const recordExam = async ({ score, passed, dishCount }) => {
+    if (!session?.teamMemberId || session.offline || !examCategory) return;
+    const { error } = await db.from("exam_results").insert({
+      restaurant_id: session.restaurantId,
+      team_member_id: session.teamMemberId,
+      category: examCategory.key,
+      score, passed, dish_count: dishCount,
+    });
+    // Non-fatal: the exam already counted via menu_progress, so a failed insert loses the
+    // history row but not the trainee's progress. Don't interrupt the results screen.
+    if (error) console.error("exam_results insert failed:", error);
+  };
+
   if (mode === "flashcards") return <Flashcards items={modeItems || cards} onRate={learnItem} onDone={exitMode} />;
   if (mode === "quiz") return <Quiz items={modeItems || cards} onAnswer={learnItem} onDone={exitMode} />;
   if (mode === "match") return <Matching items={modeItems || cards} onAnswer={learnItem} onDone={exitMode} />;
   if (mode === "speed") return <Speed items={modeItems || cards} onAnswer={learnItem} onDone={exitMode} onFinish={finishSpeed} />;
   if (mode === "allergens") return <AllergenQuiz items={modeItems || cards} onAnswer={learnItem} onDone={exitMode} />;
   if (mode === "namecomplete") return <NameCompletion items={modeItems || cards} onAnswer={learnItem} onDone={exitMode} />;
-  if (mode === "exam") return <CategoryExam items={modeItems || cards} categoryLabel={examCategory || "התפריט"} onAnswer={learnItem} onDone={exitMode} />;
+  if (mode === "exam") return <CategoryExam items={modeItems || cards} categoryLabel={examCategory?.label || "התפריט"} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />;
 
   // Success percentage = how much of the *available* score you've actually earned, not how
   // many dishes crossed the pass mark. 4/5 on every dish reads as 80%, which is what the
@@ -388,7 +406,7 @@ export default function MainApp({ session, onSignOut }) {
                   </button>
                   <button
                     disabled={!examReady}
-                    onClick={() => { setModeItems(items); setExamCategory(CAT_LABELS[c]); setMode("exam"); }}
+                    onClick={() => { setModeItems(items); setExamCategory({ key: c, label: CAT_LABELS[c] }); setMode("exam"); }}
                     className={`w-full mt-2 py-2 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1.5 ${
                       examReady ? "bg-[#15302b] text-[#22c08c]" : "bg-[#1c1e22] text-[#8a8aa0]"
                     }`}
@@ -912,7 +930,7 @@ function NameCompletion({ items, onAnswer, onDone }) {
 // you, and "select everything" collapses to a low score. Fully deterministic — no AI, no
 // language matching, nothing to tune — which also makes the number honest enough for the
 // owner to act on.
-function CategoryExam({ items, categoryLabel, onAnswer, onDone }) {
+function CategoryExam({ items, categoryLabel, onAnswer, onDone, onFinish }) {
   const deck = useMemo(() => {
     const pool = (items || []).filter((it) => it.ingredients?.length > 0);
     return shuffle(pool)
@@ -940,6 +958,18 @@ function CategoryExam({ items, categoryLabel, onAnswer, onDone }) {
   const [pickedAll, setPickedAll] = useState(new Set());
   const [result, setResult] = useState(null);
   const [scores, setScores] = useState([]);
+
+  // Record the attempt exactly once, when the last question is graded. Declared above the
+  // early returns below because hooks can't run conditionally; the ref guards against
+  // re-firing on every re-render of the finished screen.
+  const finished = deck.length >= 2 && i >= deck.length;
+  const reportedRef = useRef(false);
+  useEffect(() => {
+    if (!finished || reportedRef.current || scores.length === 0) return;
+    reportedRef.current = true;
+    const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+    onFinish?.({ score: avg, passed: avg >= 70, dishCount: scores.length });
+  }, [finished, scores, onFinish]);
 
   if (deck.length < 2)
     return (
