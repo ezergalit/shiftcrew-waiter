@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, Repeat, ChevronLeft, AlertTriangle, ListChecks, GraduationCap } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
+import { pickDistractors, buildSmartDeck, qChanges, qNotIngredient, qDescMatch, qWhichDish } from "../lib/questionEngine";
 
 const db = supabase.schema("menu_app");
 const CAT_LABELS = { starters: "ראשונות", mains: "עיקריות", desserts: "קינוחים", drinks: "קוקטיילים" };
@@ -609,39 +610,41 @@ function Flashcards({ items, onRate, onDone }) {
 // entirely (2026-08-11, user feedback): it's irrelevant to knowing the menu, and some
 // dish *names* have a price baked into them (data-quality issue, fixed separately once
 // the real menu text is in), so quizzing on price actively worked against the concept.
+// Rebuilt 2026-08-12 on the smart question engine (src/lib/questionEngine.js) — user
+// feedback: most questions were trivially easy (the dish name literally appeared in the
+// correct option). Now a mixed deck of 4 question kinds (masked description→name,
+// ingredient trap, allowed modifications, name→masked description) with similarity-ranked
+// distractors and name-leak masking. See the engine file for the full rationale.
 function Quiz({ items, onAnswer, onDone }) {
   const [i, setI] = useState(0);
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState(null);
-  const pool = useMemo(() => (items || []).filter(it => it.desc), [items]);
-  const qs = useMemo(() => shuffle(pool).slice(0, 8).map(it => ({
-    it,
-    opts: shuffle([it.name, ...pickDistractors(pool, it, 3).map(x => x.name)]),
-  })), [pool]);
-  if (pool.length < 4) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>צריך לפחות 4 מנות עם תיאור</p></div>;
+  const pool = useMemo(() => items || [], [items]);
+  const qs = useMemo(() => buildSmartDeck(pool, 8, [qWhichDish, qNotIngredient, qChanges, qDescMatch]), [pool]);
+  if (qs.length < 3) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>אין מספיק פרטים במנות כדי לבנות חידון</p></div>;
   if (i >= qs.length) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Trophy size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">{score}/{qs.length}</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
   const q = qs[i];
   const next = (opt) => {
     setPicked(opt);
-    const correct = opt === q.it.name;
+    const correct = opt === q.correct;
     if (correct) setScore(s => s + 1);
-    onAnswer(q.it.id, correct ? 5 : 2);
-    setTimeout(() => { setPicked(null); setI(i + 1); }, 500);
+    onAnswer(q.itemId, correct ? 5 : 2);
+    setTimeout(() => { setPicked(null); setI(i + 1); }, 1100);
   };
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10]" dir="rtl">
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0"><button onClick={onDone} className="text-xs text-[#8a8aa0]">← חזרה</button><p className="text-xs font-bold text-[#eef0f6]">{i + 1}/{qs.length}</p></div>
       <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col">
         <div className="bg-[#16181c] rounded-lg p-3 mb-3">
-          <p className="text-[10px] font-bold text-[#8a8aa0] mb-1">איזו מנה מתאימה לתיאור?</p>
-          <p className="text-sm font-black text-[#eef0f6]">{q.it.desc}</p>
+          <p className="text-[10px] font-bold text-[#8a8aa0] mb-1">{q.prompt}</p>
+          <p className={`font-black text-[#eef0f6] ${q.subjectKind === "desc" ? "text-sm" : "text-lg"}`}>{q.subject}</p>
         </div>
         <div className="space-y-2">
-          {q.opts.map((opt, j) => {
-            const isCorrect = picked && opt === q.it.name;
-            const isWrong = picked === opt && opt !== q.it.name;
+          {q.options.map((opt, j) => {
+            const isCorrect = picked && opt === q.correct;
+            const isWrong = picked === opt && opt !== q.correct;
             return (
-              <button key={j} disabled={!!picked} onClick={() => next(opt)} className={`w-full py-2.5 px-3 rounded-lg font-bold text-xs text-right transition-colors ${isCorrect ? "bg-[#22c08c] text-white" : isWrong ? "bg-[#e0315a] text-white" : "bg-[#16181c] text-[#c4c4d4]"}`}>{opt}</button>
+              <button key={j} disabled={!!picked} onClick={() => next(opt)} className={`w-full py-2.5 px-3 rounded-lg font-bold text-xs text-right leading-snug transition-colors ${isCorrect ? "bg-[#22c08c] text-white" : isWrong ? "bg-[#e0315a] text-white" : "bg-[#16181c] text-[#c4c4d4]"}`}>{opt}</button>
             );
           })}
         </div>
@@ -873,24 +876,25 @@ function AllergenQuiz({ items, onAnswer, onDone }) {
 // (user feedback): the real menu's dish names are English/transliterated, so exact-match
 // free-text typing was mostly testing spelling, not menu knowledge. Tap-only removes that
 // friction entirely while keeping the grading objective (still can't self-report a lie).
+// Rebuilt 2026-08-12 on the smart question engine — the old version showed the raw
+// descriptions as options, so "סלמון אבוקדו" → "סלמון ואבוקדו…" answered itself. Now the
+// deck mixes masked-description matching with the modifications question ("אילו שינויים
+// ניתן לעשות?") and the ingredient trap, all with similarity-ranked near-miss traps.
 function NameCompletion({ items, onAnswer, onDone }) {
-  const pool = useMemo(() => (items || []).filter(it => it.desc), [items]);
-  const deck = useMemo(() => shuffle(pool).slice(0, 8).map(it => ({
-    it,
-    options: shuffle([it.desc, ...pickDistractors(pool, it, 2).map(x => x.desc)]),
-  })), [pool]);
+  const pool = useMemo(() => items || [], [items]);
+  const deck = useMemo(() => buildSmartDeck(pool, 8, [qDescMatch, qChanges, qNotIngredient]), [pool]);
   const [i, setI] = useState(0);
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState(null);
-  if (pool.length < 3) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>צריך לפחות 3 מנות עם תיאור</p></div>;
+  if (deck.length < 3) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>אין מספיק פרטים במנות כדי לבנות אתגר</p></div>;
   if (i >= deck.length) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Trophy size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">{score}/{deck.length}</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
   const q = deck[i];
   const answer = (opt) => {
     if (picked) return;
     setPicked(opt);
-    const correct = opt === q.it.desc;
+    const correct = opt === q.correct;
     if (correct) setScore(s => s + 1);
-    onAnswer(q.it.id, correct ? 5 : 2);
+    onAnswer(q.itemId, correct ? 5 : 2);
     setTimeout(() => { setPicked(null); setI(x => x + 1); }, 1400);
   };
   return (
@@ -898,12 +902,12 @@ function NameCompletion({ items, onAnswer, onDone }) {
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0"><button onClick={onDone} className="text-xs text-[#8a8aa0]">← חזרה</button><p className="text-xs font-bold">{i + 1}/{deck.length}</p></div>
       <div className="flex-1 flex flex-col items-center justify-center px-4">
         <div className="w-full text-center space-y-3">
-          <p className="text-[10px] font-bold text-[#8a8aa0]">איזה תיאור מתאים למנה?</p>
-          <p className="text-lg font-black mb-3">{q.it.name}</p>
+          <p className="text-[10px] font-bold text-[#8a8aa0]">{q.prompt}</p>
+          <p className="text-lg font-black mb-3">{q.subject}</p>
           <div className="flex flex-col gap-2">
             {q.options.map((opt, j) => {
-              const isCorrectOpt = picked && opt === q.it.desc;
-              const isWrongPick = picked === opt && opt !== q.it.desc;
+              const isCorrectOpt = picked && opt === q.correct;
+              const isWrongPick = picked === opt && opt !== q.correct;
               return (
                 <button key={j} disabled={!!picked} onClick={() => answer(opt)}
                   className={`py-3 px-3 rounded-lg font-bold text-sm text-right leading-snug transition-colors ${isCorrectOpt ? "bg-[#22c08c] text-white" : isWrongPick ? "bg-[#e0315a] text-white" : "bg-[#16181c] border border-[#22252b] text-[#eef0f6]"}`}>
@@ -1146,15 +1150,6 @@ function CategoryExam({ items, categoryLabel, onAnswer, onDone, onFinish }) {
 
 const shuffle = a => [...a].sort(() => Math.random() - 0.5);
 
-
-// Picks `count` distractors for a multiple-choice question, preferring dishes from the
-// SAME category as `it` first (e.g. another pasta for a pasta dish) — a random distractor
-// from a totally different category (a salad next to a pasta) is trivially eliminated by
-// elimination alone, which isn't testing menu knowledge. Falls back to any other item if
-// the category doesn't have enough dishes to fill the count.
-function pickDistractors(pool, it, count) {
-  const others = pool.filter(x => x.id !== it.id);
-  const sameCategory = shuffle(others.filter(x => x.category === it.category));
-  const rest = shuffle(others.filter(x => x.category !== it.category));
-  return [...sameCategory, ...rest].slice(0, count);
-}
+// pickDistractors moved to src/lib/questionEngine.js (2026-08-12) and upgraded: same
+// category first as before, but now the most-SIMILAR dishes first (shared ingredients/
+// description words) instead of random — near-misses are what make a question hard.
