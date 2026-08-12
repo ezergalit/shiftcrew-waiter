@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, Repeat, ChevronLeft, AlertTriangle, ListChecks, GraduationCap, Lock } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
-import { pickDistractors, buildSmartDeck, qChanges, qNotIngredient, qDescMatch, qWhichDish, qServingStyle, dishLabel } from "../lib/questionEngine";
+import { pickDistractors, buildWeightedDeck, availableFacets, dishLabel } from "../lib/questionEngine";
 import { pathState } from "../lib/learningPath";
 
 const db = supabase.schema("menu_app");
@@ -236,13 +236,15 @@ export default function MainApp({ session, onSignOut }) {
   // categories the waiter has actually opened — never quizzing desserts they haven't
   // reached (QUESTION-QUALITY.md #9).
   const gameItems = modeItems || path.gamePool;
+  // The owner's ranking, narrowed to what the open part of the menu can actually support.
+  const gameFacets = examConfig?.facets?.length ? examConfig.facets : availableFacets(gameItems);
 
   if (mode === "flashcards") return <Flashcards items={gameItems} onRate={learnItem} onDone={exitMode} />;
-  if (mode === "quiz") return <Quiz items={gameItems} onAnswer={learnItem} onDone={exitMode} />;
+  if (mode === "quiz") return <Quiz items={gameItems} facets={gameFacets} onAnswer={learnItem} onDone={exitMode} />;
   if (mode === "match") return <Matching items={gameItems} onAnswer={learnItem} onDone={exitMode} />;
   if (mode === "speed") return <Speed items={gameItems} onAnswer={learnItem} onDone={exitMode} onFinish={finishSpeed} />;
   if (mode === "allergens") return <AllergenQuiz items={gameItems} onAnswer={learnItem} onDone={exitMode} />;
-  if (mode === "namecomplete") return <NameCompletion items={gameItems} onAnswer={learnItem} onDone={exitMode} />;
+  if (mode === "namecomplete") return <NameCompletion items={gameItems} facets={gameFacets} onAnswer={learnItem} onDone={exitMode} />;
   if (mode === "exam") return <CategoryExam items={modeItems || cards} categoryLabel={examCategory?.label || "התפריט"} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />;
 
   // Success percentage = how much of the *available* score you've actually earned, not how
@@ -758,12 +760,14 @@ function Flashcards({ items, onRate, onDone }) {
 // distractors and name-leak masking. See the engine file for the full rationale.
 // 2026-08-12: added qServingStyle — asks which serving style a dish belongs to, with the
 // full category lines as options, so the unit counts they carry get tested too.
-function Quiz({ items, onAnswer, onDone }) {
+function Quiz({ items, facets, onAnswer, onDone }) {
   const [i, setI] = useState(0);
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState(null);
   const pool = useMemo(() => items || [], [items]);
-  const qs = useMemo(() => buildSmartDeck(pool, 8, [qWhichDish, qNotIngredient, qServingStyle, qChanges, qDescMatch]), [pool]);
+  // Weighted by what the owner said matters, not a fixed builder list — otherwise the
+  // ranking on their settings screen would quietly do nothing here.
+  const qs = useMemo(() => buildWeightedDeck(pool, 8, facets), [pool, facets]);
   if (qs.length < 3) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>אין מספיק פרטים במנות כדי לבנות חידון</p></div>;
   if (i >= qs.length) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Trophy size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">{score}/{qs.length}</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
   const q = qs[i];
@@ -1023,9 +1027,11 @@ function AllergenQuiz({ items, onAnswer, onDone }) {
 // descriptions as options, so "סלמון אבוקדו" → "סלמון ואבוקדו…" answered itself. Now the
 // deck mixes masked-description matching with the modifications question ("אילו שינויים
 // ניתן לעשות?") and the ingredient trap, all with similarity-ranked near-miss traps.
-function NameCompletion({ items, onAnswer, onDone }) {
+function NameCompletion({ items, facets, onAnswer, onDone }) {
   const pool = useMemo(() => items || [], [items]);
-  const deck = useMemo(() => buildSmartDeck(pool, 8, [qDescMatch, qChanges, qNotIngredient]), [pool]);
+  // Same owner-ranked weighting as the quiz; this mode differs by presentation, not by
+  // which aspects of the menu it is allowed to ask about.
+  const deck = useMemo(() => buildWeightedDeck(pool, 8, facets), [pool, facets]);
   const [i, setI] = useState(0);
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState(null);
