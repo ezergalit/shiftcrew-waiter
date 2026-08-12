@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
 import { pickDistractors, buildWeightedDeck, availableFacets, dishLabel } from "../lib/questionEngine";
 import { pathState } from "../lib/learningPath";
+import { useStudyTime } from "../lib/studyTime";
 
 const db = supabase.schema("menu_app");
 // Legacy seeded menus store these English keys. Menus built in the owner app (paste/AI
@@ -220,6 +221,19 @@ export default function MainApp({ session, onSignOut }) {
     if (error) console.error("exam_results insert failed:", error);
   };
 
+  // Time spent studying, and the periodic measurement points the owner's improvement
+  // chart is drawn from. Reads mastery through a getter so the hook doesn't re-subscribe
+  // on every single rating.
+  useStudyTime({
+    session,
+    ready: !!cards?.length,
+    getPct: () => {
+      const list = cards || [];
+      if (!list.length) return 0;
+      return Math.round((list.reduce((s, x) => s + (masteryById[x.id] || 0), 0) / (list.length * 5)) * 100);
+    },
+  });
+
   // Every unlock in the app is derived here rather than stored, so a menu change or a
   // mastery change re-derives correctly. See lib/learningPath.js for the rules.
   const path = useMemo(() => {
@@ -245,7 +259,8 @@ export default function MainApp({ session, onSignOut }) {
   if (mode === "speed") return <Speed items={gameItems} onAnswer={learnItem} onDone={exitMode} onFinish={finishSpeed} />;
   if (mode === "allergens") return <AllergenQuiz items={gameItems} onAnswer={learnItem} onDone={exitMode} />;
   if (mode === "namecomplete") return <NameCompletion items={gameItems} facets={gameFacets} onAnswer={learnItem} onDone={exitMode} />;
-  if (mode === "exam") return <CategoryExam items={modeItems || cards} categoryLabel={examCategory?.label || "התפריט"} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />;
+  // shortCat: the exam header reads "מבחן מאקי", not the category's whole explanatory line.
+  if (mode === "exam") return <CategoryExam items={modeItems || cards} categoryLabel={examCategory ? shortCat(examCategory.key) : "התפריט"} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />;
 
   // Success percentage = how much of the *available* score you've actually earned, not how
   // many dishes crossed the pass mark. 4/5 on every dish reads as 80%, which is what the
@@ -277,10 +292,7 @@ export default function MainApp({ session, onSignOut }) {
   // A challenge whose game is still locked shows what it takes to open it instead of a
   // button that would launch a mode the path hasn't reached.
   const gameLock = (mode) => path.games.find((g) => g.mode === mode);
-  const lockedNote = (mode) => {
-    const g = gameLock(mode);
-    return g && !g.unlocked ? `נפתח אחרי ${g.need} מבחני קטגוריה נוספים` : null;
-  };
+  const lockedNote = (mode) => gameLock(mode)?.needLabel || null;
   const gatedAction = (mode, label) =>
     gameLock(mode)?.unlocked === false ? null : { label, onClick: () => { setModeItems(null); setMode(mode); } };
   const challenges = cards ? [
@@ -438,7 +450,10 @@ export default function MainApp({ session, onSignOut }) {
               </div>
               {path.gated && path.games.some((g) => !g.unlocked) && (
                 <p className="text-[10px] text-[#8a8aa0] mt-2">
-                  משחקים נוספים נפתחים ככל שעוברים מבחנים — {path.passedCount} מבחנים עד כה
+                  משחקים נוספים נפתחים ככל שעוברים מבחנים — {
+                    path.passedCount === 0 ? "עוד לא עברתם מבחן"
+                      : path.passedCount === 1 ? "עברתם מבחן אחד"
+                      : `עברתם ${path.passedCount} מבחנים`}
                 </p>
               )}
             </div>
@@ -538,9 +553,12 @@ export default function MainApp({ session, onSignOut }) {
                       <div className="h-full transition-all" style={{ width: `${cat.pct}%`, background: cat.passed ? "#22c08c" : "#6d5efc" }} />
                     </div>
                     <p className="text-[10px] text-[#8a8aa0] mt-1">
+                      {/* shortCat, not the full label: imported categories carry their
+                          whole explanation ("מאקי — 6 יחידות, אצה בחוץ ואורז בפנים") and
+                          inlining that makes the sentence unreadable. */}
                       {cat.unlocked
                         ? `${cat.items.length} מנות · לחצו לתרגול`
-                        : `נפתח אחרי שעוברים את המבחן של ${catLabel(prev?.key)}`}
+                        : `נפתח אחרי שעוברים את המבחן של ${shortCat(prev?.key)}`}
                     </p>
                   </button>
                   {cat.unlocked && (
@@ -958,7 +976,10 @@ function Speed({ items, onAnswer, onDone, onFinish }) {
   );
 }
 
-const ALLERGENS = ["גלוטן", "חלב", "ביצים", "אגוזים", "בוטנים", "דגים", "רכיכות", "סויה", "שומשום", "סולפיטים"];
+// The same nine the owner app offers and the AI import is allowed to return. "סולפיטים"
+// used to be a tenth option here — an allergen no owner could ever tag, so selecting it
+// was always wrong for a reason the trainee had no way to learn.
+const ALLERGENS = ["גלוטן", "חלב", "ביצים", "אגוזים", "בוטנים", "דגים", "רכיכות", "סויה", "שומשום"];
 
 // Objective: pick every allergen the dish actually has (submitting with none selected
 // is itself the "no allergens" answer). Exact-set match required — no partial credit —

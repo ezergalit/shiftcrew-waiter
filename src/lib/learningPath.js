@@ -78,6 +78,9 @@ export function pathState(pool, masteryById, passedCats, config = {}) {
     // What still has to happen before this game opens — shown on the locked card so the
     // waiter always knows the next concrete step, never just "locked".
     need: gate && passedCount < g.afterPassed ? g.afterPassed - passedCount : 0,
+    needLabel: gate && passedCount < g.afterPassed
+      ? (g.afterPassed - passedCount === 1 ? "נפתח אחרי מבחן קטגוריה אחד" : `נפתח אחרי ${g.afterPassed - passedCount} מבחני קטגוריה`)
+      : null,
   }));
 
   // The single next action, so the home screen can point at one thing.
