@@ -5,7 +5,12 @@ import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
 import { pickDistractors, buildSmartDeck, qChanges, qNotIngredient, qDescMatch, qWhichDish } from "../lib/questionEngine";
 
 const db = supabase.schema("menu_app");
+// Legacy seeded menus store these English keys. Menus built in the owner app (paste/AI
+// import) use free-text Hebrew category names instead, which need no translation — hence
+// `catLabel` below rather than a bare lookup. Never filter on this list: see `cats`.
 const CAT_LABELS = { starters: "ראשונות", mains: "עיקריות", desserts: "קינוחים", drinks: "קוקטיילים" };
+const CAT_ORDER = ["starters", "mains", "desserts", "drinks"];
+const catLabel = (c) => CAT_LABELS[c] || c;
 const DAILY_TARGET = 3;
 const DAILY_BONUS = 50;
 
@@ -202,7 +207,19 @@ export default function MainApp({ session, onSignOut }) {
   const pct = scorePct(cards);
   const myRank = leaderboard.findIndex(r => r.team_member_id === session?.teamMemberId) + 1;
   const myStreak = leaderboard.find(r => r.team_member_id === session?.teamMemberId)?.streak || 0;
-  const cats = ["starters", "mains", "desserts", "drinks"].map(c => ({ c, items: cards?.filter(x => x.category === c) || [] })).filter(g => g.items.length > 0);
+  // Derived from the menu itself, not a fixed list. Hardcoding the four English keys meant
+  // any restaurant whose menu was built in the owner app — where categories are free-text
+  // Hebrew — got an empty "תפריט" tab, and with no category rows there was no way to reach
+  // an exam either. Known keys keep their canonical order; anything else follows in menu order.
+  const cats = (() => {
+    const seen = [...new Set((cards || []).map(x => x.category).filter(Boolean))];
+    const ordered = [
+      ...CAT_ORDER.filter(c => seen.includes(c)),
+      ...seen.filter(c => !CAT_ORDER.includes(c)),
+    ];
+    return ordered.map(c => ({ c, items: (cards || []).filter(x => x.category === c) }))
+      .filter(g => g.items.length > 0);
+  })();
 
   const dailyDone = daily.count >= DAILY_TARGET;
   const challenges = cards ? [
@@ -396,9 +413,12 @@ export default function MainApp({ session, onSignOut }) {
                     onClick={() => { setModeItems(items); setMode("flashcards"); }}
                     className="w-full text-right active:scale-[0.99] transition-transform"
                   >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <p className="text-xs font-black text-[#eef0f6]">{CAT_LABELS[c]}</p>
-                      <span className="text-[11px] font-bold text-[#6d5efc]">{catPct}%</span>
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      {/* Imported categories can carry their whole explanatory line
+                          ("מאקי — 6 יחידות, אצה בחוץ…"), so clamp instead of letting one
+                          row grow to four lines. */}
+                      <p className="text-xs font-black text-[#eef0f6] line-clamp-2 flex-1" title={catLabel(c)}>{catLabel(c)}</p>
+                      <span className="text-[11px] font-bold text-[#6d5efc] flex-shrink-0">{catPct}%</span>
                     </div>
                     <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden">
                       <div className="h-full bg-[#6d5efc]" style={{ width: `${catPct}%` }} />
@@ -407,13 +427,13 @@ export default function MainApp({ session, onSignOut }) {
                   </button>
                   <button
                     disabled={!examReady}
-                    onClick={() => { setModeItems(items); setExamCategory({ key: c, label: CAT_LABELS[c] }); setMode("exam"); }}
+                    onClick={() => { setModeItems(items); setExamCategory({ key: c, label: catLabel(c) }); setMode("exam"); }}
                     className={`w-full mt-2 py-2 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1.5 ${
                       examReady ? "bg-[#15302b] text-[#22c08c]" : "bg-[#1c1e22] text-[#8a8aa0]"
                     }`}
                   >
                     <GraduationCap size={13} />
-                    {examReady ? `מוכנים למבחן ${CAT_LABELS[c]}?` : `הגיעו ל-50% כדי להיבחן`}
+                    {examReady ? `מוכנים למבחן ${catLabel(c)}?` : `הגיעו ל-50% כדי להיבחן`}
                   </button>
                 </div>
               );
