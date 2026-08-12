@@ -61,7 +61,8 @@ export default function BaselineIntake({ session, onDone }) {
     let alive = true;
     (async () => {
       const [{ data: menu }, { data: cfg }] = await Promise.all([
-        db.from("published_menu").select("*").eq("restaurant_id", session.restaurantId),
+        db.from("published_menu").select("*").eq("restaurant_id", session.restaurantId)
+          .order("created_at", { ascending: true }).order("source_item_id", { ascending: true }),
         db.from("exam_config").select("*").eq("restaurant_id", session.restaurantId).maybeSingle(),
       ]);
       if (!alive) return;

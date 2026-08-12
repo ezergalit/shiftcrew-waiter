@@ -1,8 +1,9 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, Repeat, ChevronLeft, AlertTriangle, ListChecks, GraduationCap } from "lucide-react";
+import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, Repeat, ChevronLeft, AlertTriangle, ListChecks, GraduationCap, Lock } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
 import { pickDistractors, buildSmartDeck, qChanges, qNotIngredient, qDescMatch, qWhichDish, qServingStyle, dishLabel } from "../lib/questionEngine";
+import { pathState } from "../lib/learningPath";
 
 const db = supabase.schema("menu_app");
 // Legacy seeded menus store these English keys. Menus built in the owner app (paste/AI
@@ -65,6 +66,10 @@ export default function MainApp({ session, onSignOut }) {
   // Store the category key (e.g. "starters") for the DB record, and its Hebrew label for
   // display — the exam_results row keys off the former so it stays stable if labels change.
   const [examCategory, setExamCategory] = useState(null); // { key, label }
+  // The staged path: what the owner configured, and which category exams this member has
+  // already passed. Both feed learningPath.pathState, which derives every unlock.
+  const [examConfig, setExamConfig] = useState(null);
+  const [passedCats, setPassedCats] = useState([]);
   const [daily, setDaily] = useState(() => loadDaily(session?.teamMemberId));
   const [bonusTotal, setBonusTotal] = useState(() => loadNum("menu-app-bonus", session?.teamMemberId));
   const [bestSpeed, setBestSpeed] = useState(() => loadNum("menu-app-best-speed", session?.teamMemberId));
@@ -88,7 +93,12 @@ export default function MainApp({ session, onSignOut }) {
 
     let alive = true;
     (async () => {
-      const { data } = await db.from("published_menu").select("*").eq("restaurant_id", session?.restaurantId);
+      // Ordered, not incidental: the learning path teaches categories in menu order, and
+      // created_at is the order the menu was entered. Without this the path could
+      // reshuffle between loads. source_item_id breaks ties so the order is total.
+      const { data } = await db.from("published_menu").select("*")
+        .eq("restaurant_id", session?.restaurantId)
+        .order("created_at", { ascending: true }).order("source_item_id", { ascending: true });
       if (alive) setCards((data || []).map(pubToCard));
       const { data: m } = await db.from("menu_progress").select("source_item_id, mastery").eq("team_member_id", session?.teamMemberId);
       if (alive) {
@@ -97,6 +107,11 @@ export default function MainApp({ session, onSignOut }) {
       }
       const { data: l } = await db.from("leaderboard").select("*").eq("restaurant_id", session?.restaurantId).order("points", { ascending: false });
       if (alive) setLeaderboard(l || []);
+      const { data: cfg } = await db.from("exam_config").select("*").eq("restaurant_id", session?.restaurantId).maybeSingle();
+      if (alive) setExamConfig(cfg || {});
+      const { data: exams } = await db.from("exam_results")
+        .select("category").eq("team_member_id", session?.teamMemberId).eq("passed", true);
+      if (alive) setPassedCats([...new Set((exams || []).map(r => r.category))]);
       const today = new Date().toISOString().slice(0, 10);
       const { data: b } = await db.from("daily_brief").select("*").eq("restaurant_id", session?.restaurantId).eq("date", today).maybeSingle();
       if (alive) setBrief(b || {});
@@ -189,7 +204,11 @@ export default function MainApp({ session, onSignOut }) {
   // failures) rather than only the current mastery snapshot. Per-dish scores already
   // went to menu_progress via learnItem — this is the attempt-level record.
   const recordExam = async ({ score, passed, dishCount }) => {
-    if (!session?.teamMemberId || session.offline || !examCategory) return;
+    if (!examCategory) return;
+    // Unlock immediately and locally: the next category and its games should open on the
+    // results screen, not after a reload. The DB row below is the durable record.
+    if (passed) setPassedCats((prev) => prev.includes(examCategory.key) ? prev : [...prev, examCategory.key]);
+    if (!session?.teamMemberId || session.offline) return;
     const { error } = await db.from("exam_results").insert({
       restaurant_id: session.restaurantId,
       team_member_id: session.teamMemberId,
@@ -201,12 +220,29 @@ export default function MainApp({ session, onSignOut }) {
     if (error) console.error("exam_results insert failed:", error);
   };
 
-  if (mode === "flashcards") return <Flashcards items={modeItems || cards} onRate={learnItem} onDone={exitMode} />;
-  if (mode === "quiz") return <Quiz items={modeItems || cards} onAnswer={learnItem} onDone={exitMode} />;
-  if (mode === "match") return <Matching items={modeItems || cards} onAnswer={learnItem} onDone={exitMode} />;
-  if (mode === "speed") return <Speed items={modeItems || cards} onAnswer={learnItem} onDone={exitMode} onFinish={finishSpeed} />;
-  if (mode === "allergens") return <AllergenQuiz items={modeItems || cards} onAnswer={learnItem} onDone={exitMode} />;
-  if (mode === "namecomplete") return <NameCompletion items={modeItems || cards} onAnswer={learnItem} onDone={exitMode} />;
+  // Every unlock in the app is derived here rather than stored, so a menu change or a
+  // mastery change re-derives correctly. See lib/learningPath.js for the rules.
+  const path = useMemo(() => {
+    const list = cards || [];
+    const seen = [...new Set(list.map((x) => x.category).filter(Boolean))];
+    const defaultOrder = [...CAT_ORDER.filter((c) => seen.includes(c)), ...seen.filter((c) => !CAT_ORDER.includes(c))];
+    return pathState(list, masteryById, passedCats, {
+      ...examConfig,
+      category_order: examConfig?.category_order?.length ? examConfig.category_order : defaultOrder,
+    });
+  }, [cards, masteryById, passedCats, examConfig]);
+
+  // A game launched from a card carries its own scope; anything else draws only from the
+  // categories the waiter has actually opened — never quizzing desserts they haven't
+  // reached (QUESTION-QUALITY.md #9).
+  const gameItems = modeItems || path.gamePool;
+
+  if (mode === "flashcards") return <Flashcards items={gameItems} onRate={learnItem} onDone={exitMode} />;
+  if (mode === "quiz") return <Quiz items={gameItems} onAnswer={learnItem} onDone={exitMode} />;
+  if (mode === "match") return <Matching items={gameItems} onAnswer={learnItem} onDone={exitMode} />;
+  if (mode === "speed") return <Speed items={gameItems} onAnswer={learnItem} onDone={exitMode} onFinish={finishSpeed} />;
+  if (mode === "allergens") return <AllergenQuiz items={gameItems} onAnswer={learnItem} onDone={exitMode} />;
+  if (mode === "namecomplete") return <NameCompletion items={gameItems} onAnswer={learnItem} onDone={exitMode} />;
   if (mode === "exam") return <CategoryExam items={modeItems || cards} categoryLabel={examCategory?.label || "התפריט"} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />;
 
   // Success percentage = how much of the *available* score you've actually earned, not how
@@ -236,6 +272,15 @@ export default function MainApp({ session, onSignOut }) {
   })();
 
   const dailyDone = daily.count >= DAILY_TARGET;
+  // A challenge whose game is still locked shows what it takes to open it instead of a
+  // button that would launch a mode the path hasn't reached.
+  const gameLock = (mode) => path.games.find((g) => g.mode === mode);
+  const lockedNote = (mode) => {
+    const g = gameLock(mode);
+    return g && !g.unlocked ? `נפתח אחרי ${g.need} מבחני קטגוריה נוספים` : null;
+  };
+  const gatedAction = (mode, label) =>
+    gameLock(mode)?.unlocked === false ? null : { label, onClick: () => { setModeItems(null); setMode(mode); } };
   const challenges = cards ? [
     {
       id: "daily", icon: Sparkles, color: "#f3a712", title: "אתגר יומי",
@@ -245,13 +290,13 @@ export default function MainApp({ session, onSignOut }) {
     },
     {
       id: "allergens", icon: AlertTriangle, color: "#e0315a", title: "אתגר האלרגיות",
-      desc: "קראו את שם המנה וזהו את כל האלרגיות שבה", progress: null, target: null, done: false,
-      action: { label: "לאתגר האלרגיות", onClick: () => { setModeItems(null); setMode("allergens"); } },
+      desc: lockedNote("allergens") || "קראו את שם המנה וזהו את כל האלרגיות שבה", progress: null, target: null, done: false,
+      action: gatedAction("allergens", "לאתגר האלרגיות"),
     },
     {
       id: "namecomplete", icon: ListChecks, color: "#3a86ff", title: "התאימו תיאור למנה",
-      desc: "קראו את שם המנה ובחרו את התיאור הנכון מבין 3 אפשרויות", progress: null, target: null, done: false,
-      action: { label: "לאתגר", onClick: () => { setModeItems(null); setMode("namecomplete"); } },
+      desc: lockedNote("namecomplete") || "קראו את שם המנה ובחרו את התיאור הנכון מבין 3 אפשרויות", progress: null, target: null, done: false,
+      action: gatedAction("namecomplete", "לאתגר"),
     },
     {
       id: "full", icon: Trophy, color: "#22c08c", title: "שליטה מלאה בתפריט",
@@ -260,9 +305,9 @@ export default function MainApp({ session, onSignOut }) {
     },
     {
       id: "speed", icon: Zap, color: "#ff7a59", title: "שיא מהירות",
-      desc: bestSpeed > 0 ? `השיא שלכם: ${bestSpeed} תשובות נכונות ב-30 שניות` : "ענו נכון על כמה שיותר מנות תוך 30 שניות",
+      desc: lockedNote("speed") || (bestSpeed > 0 ? `השיא שלכם: ${bestSpeed} תשובות נכונות ב-30 שניות` : "ענו נכון על כמה שיותר מנות תוך 30 שניות"),
       progress: null, target: null, done: false,
-      action: { label: bestSpeed > 0 ? "נסו לשבור את השיא" : "התחילו אתגר מהירות", onClick: () => { setModeItems(null); setMode("speed"); } },
+      action: gatedAction("speed", bestSpeed > 0 ? "נסו לשבור את השיא" : "התחילו אתגר מהירות"),
     },
     {
       id: "streak", icon: Flame, color: "#e0315a", title: "רצף למידה",
@@ -293,16 +338,18 @@ export default function MainApp({ session, onSignOut }) {
       kicker: "בראש הטבלה", title: `${pointsLeader.name} מוביל/ה עם ${pointsLeader.points} נקודות`,
       subtitle: "הצטרפו לתחרות ותתפסו אותם", cta: "לדירוג המלא", onClick: () => setTab("leaderboard"),
     } : null,
-    {
+    // Only advertise a game the waiter can actually open — a carousel card that leads to a
+    // locked mode is worse than no card.
+    gameLock("match")?.unlocked ? {
       id: "match", gradient: "linear-gradient(135deg,#22c08c,#1aa376)", icon: Repeat,
       kicker: "משחק חדש", title: "משחק ההתאמה", subtitle: "התאימו מנות למרכיבים שלהן במהירות שיא",
       cta: "לשחק", onClick: () => { setModeItems(null); setMode("match"); },
-    },
-    {
+    } : null,
+    gameLock("speed")?.unlocked ? {
       id: "speed", gradient: "linear-gradient(135deg,#3a86ff,#6d5efc)", icon: Zap,
       kicker: "אתגר מהירות", title: bestSpeed > 0 ? `שברו את השיא של ${bestSpeed}!` : "כמה תשובות נכונות תספיקו?",
       subtitle: "30 שניות על השעון", cta: "לאתגר", onClick: () => { setModeItems(null); setMode("speed"); },
-    },
+    } : null,
   ].filter(Boolean) : [];
 
   return (
@@ -342,14 +389,56 @@ export default function MainApp({ session, onSignOut }) {
               </div>
             )}
             <PromoCarousel items={promos} />
-            <div className="rounded-xl p-4 text-white" style={{ background: "linear-gradient(135deg,#6d5efc,#9b7bff)" }}>
-              <p className="text-sm font-black mb-2">תרגול יומי</p>
+            {/* One concrete next action, so the home screen never asks the waiter to
+                decide what to do — the staged path already knows. */}
+            {path.nextStep && (
+              <button
+                onClick={() => {
+                  const cat = path.categories.find((c) => c.key === path.nextStep.category);
+                  setModeItems(cat?.items || null);
+                  if (path.nextStep.kind === "exam") { setExamCategory({ key: cat.key, label: catLabel(cat.key) }); setMode("exam"); }
+                  else setMode("flashcards");
+                }}
+                className="w-full rounded-xl p-4 text-white text-right"
+                style={{ background: "linear-gradient(135deg,#6d5efc,#9b7bff)" }}
+              >
+                <p className="text-[10px] font-bold opacity-80 mb-0.5">
+                  {path.nextStep.kind === "exam" ? "מוכנים לשלב הבא" : "השלב הנוכחי שלכם"}
+                </p>
+                <p className="text-base font-black mb-1">
+                  {path.nextStep.kind === "exam"
+                    ? `מבחן ${shortCat(path.nextStep.category)}`
+                    : `לימוד ${shortCat(path.nextStep.category)}`}
+                </p>
+                {path.nextStep.kind === "study" && (
+                  <>
+                    <div className="h-1.5 bg-white/25 rounded-full overflow-hidden mb-1">
+                      <div className="h-full bg-white" style={{ width: `${Math.min(100, (path.nextStep.pct / path.nextStep.threshold) * 100)}%` }} />
+                    </div>
+                    <p className="text-[10px] opacity-90">{path.nextStep.pct}% מתוך {path.nextStep.threshold}% שנדרשים כדי להיבחן</p>
+                  </>
+                )}
+              </button>
+            )}
+            <div className="bg-[#16181c] rounded-xl p-3">
+              <p className="text-xs font-black text-[#eef0f6] mb-2">תרגול</p>
               <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => setMode("flashcards")} className="bg-[#16181c] text-[#6d5efc] font-bold text-xs py-2.5 rounded-lg">כרטיסיות</button>
-                <button onClick={() => setMode("quiz")} className="bg-white/20 text-white font-bold text-xs py-2.5 rounded-lg">חידון</button>
-                <button onClick={() => setMode("match")} className="bg-white/20 text-white font-bold text-xs py-2.5 rounded-lg">התאמה</button>
-                <button onClick={() => setMode("speed")} className="bg-white/20 text-white font-bold text-xs py-2.5 rounded-lg">מהירות</button>
+                <button onClick={() => { setModeItems(null); setMode("flashcards"); }}
+                  className="bg-[#6d5efc] text-white font-bold text-xs py-2.5 rounded-lg">כרטיסיות</button>
+                {path.games.filter(g => g.mode !== "namecomplete").map((g) => (
+                  <button key={g.mode} disabled={!g.unlocked}
+                    onClick={() => { setModeItems(null); setMode(g.mode); }}
+                    className={`font-bold text-xs py-2.5 rounded-lg flex items-center justify-center gap-1 ${
+                      g.unlocked ? "bg-[#22252b] text-[#eef0f6]" : "bg-[#141619] text-[#5a5a6e]"}`}>
+                    {!g.unlocked && <Lock size={11} />}{g.label}
+                  </button>
+                ))}
               </div>
+              {path.gated && path.games.some((g) => !g.unlocked) && (
+                <p className="text-[10px] text-[#8a8aa0] mt-2">
+                  משחקים נוספים נפתחים ככל שעוברים מבחנים — {path.passedCount} מבחנים עד כה
+                </p>
+              )}
             </div>
             <div className="bg-[#16181c] rounded-lg p-3">
               <p className="text-xs font-bold text-[#8a8aa0] mb-2">התקדמות</p>
@@ -415,40 +504,58 @@ export default function MainApp({ session, onSignOut }) {
         )}
         {tab === "categories" && (
           <div className="space-y-2">
-            <p className="text-[10px] text-[#8a8aa0] px-1">לחצו על קטגוריה כדי לתרגל רק אותה</p>
-            {cats.map(({ c, items }) => {
-              const catPct = scorePct(items);
-              // The exam is the graduation step, so it stays locked until they've actually
-              // worked the category — otherwise it's just a wall of blank text boxes.
-              const examReady = catPct >= 50 && items.filter(x => x.ingredients?.length > 0).length >= 2;
+            <p className="text-[10px] text-[#8a8aa0] px-1">
+              {path.gated
+                ? "לומדים חלק אחרי חלק. כל מבחן שעוברים פותח את הבא ומשחקים נוספים."
+                : "לחצו על קטגוריה כדי לתרגל רק אותה"}
+            </p>
+            {path.categories.map((cat, idx) => {
+              // A category can't be examined on dishes with no ingredients to ask about.
+              const examinable = cat.items.filter((x) => x.ingredients?.length > 0).length >= 2;
+              const examReady = cat.examUnlocked && examinable;
+              const prev = path.categories[idx - 1];
               return (
-                <div key={c} className="bg-[#16181c] rounded-lg p-2.5">
+                <div key={cat.key} className={`rounded-lg p-2.5 ${cat.unlocked ? "bg-[#16181c]" : "bg-[#111316] opacity-60"}`}>
                   <button
-                    onClick={() => { setModeItems(items); setMode("flashcards"); }}
-                    className="w-full text-right active:scale-[0.99] transition-transform"
+                    disabled={!cat.unlocked}
+                    onClick={() => { setModeItems(cat.items); setMode("flashcards"); }}
+                    className="w-full text-right active:scale-[0.99] transition-transform disabled:active:scale-100"
                   >
                     <div className="flex items-start justify-between gap-2 mb-1.5">
                       {/* Imported categories can carry their whole explanatory line
                           ("מאקי — 6 יחידות, אצה בחוץ…"), so clamp instead of letting one
                           row grow to four lines. */}
-                      <p className="text-xs font-black text-[#eef0f6] line-clamp-2 flex-1" title={catLabel(c)}>{catLabel(c)}</p>
-                      <span className="text-[11px] font-bold text-[#6d5efc] flex-shrink-0">{catPct}%</span>
+                      <p className="text-xs font-black text-[#eef0f6] line-clamp-2 flex-1 flex items-center gap-1.5" title={catLabel(cat.key)}>
+                        {!cat.unlocked && <Lock size={11} className="text-[#8a8aa0] flex-shrink-0" />}
+                        {cat.passed && <Check size={12} className="text-[#22c08c] flex-shrink-0" />}
+                        {catLabel(cat.key)}
+                      </p>
+                      {cat.unlocked && <span className="text-[11px] font-bold text-[#6d5efc] flex-shrink-0">{cat.pct}%</span>}
                     </div>
                     <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden">
-                      <div className="h-full bg-[#6d5efc]" style={{ width: `${catPct}%` }} />
+                      <div className="h-full transition-all" style={{ width: `${cat.pct}%`, background: cat.passed ? "#22c08c" : "#6d5efc" }} />
                     </div>
-                    <p className="text-[10px] text-[#8a8aa0] mt-1">{items.length} מנות · לחצו לתרגול</p>
+                    <p className="text-[10px] text-[#8a8aa0] mt-1">
+                      {cat.unlocked
+                        ? `${cat.items.length} מנות · לחצו לתרגול`
+                        : `נפתח אחרי שעוברים את המבחן של ${catLabel(prev?.key)}`}
+                    </p>
                   </button>
-                  <button
-                    disabled={!examReady}
-                    onClick={() => { setModeItems(items); setExamCategory({ key: c, label: catLabel(c) }); setMode("exam"); }}
-                    className={`w-full mt-2 py-2 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1.5 ${
-                      examReady ? "bg-[#15302b] text-[#22c08c]" : "bg-[#1c1e22] text-[#8a8aa0]"
-                    }`}
-                  >
-                    <GraduationCap size={13} />
-                    {examReady ? `מוכנים למבחן ${catLabel(c)}?` : `הגיעו ל-50% כדי להיבחן`}
-                  </button>
+                  {cat.unlocked && (
+                    <button
+                      disabled={!examReady}
+                      onClick={() => { setModeItems(cat.items); setExamCategory({ key: cat.key, label: catLabel(cat.key) }); setMode("exam"); }}
+                      className={`w-full mt-2 py-2 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1.5 ${
+                        examReady ? "bg-[#15302b] text-[#22c08c]" : "bg-[#1c1e22] text-[#8a8aa0]"
+                      }`}
+                    >
+                      <GraduationCap size={13} />
+                      {cat.passed ? `עברתם! אפשר להיבחן שוב`
+                        : examReady ? `מוכנים למבחן ${shortCat(cat.key)}?`
+                        : !examinable ? `אין מספיק פרטים במנות למבחן`
+                        : `הגיעו ל-${cat.threshold}% כדי להיבחן`}
+                    </button>
+                  )}
                 </div>
               );
             })}
