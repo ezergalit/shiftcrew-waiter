@@ -29,7 +29,16 @@ const norm = (s) =>
     .split(/\s+/)
     .filter((w) => w.length >= 2 && !HEB_STOP.has(w));
 
-const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// Hebrew writes the same word with or without the mater lectionis vav/yod — לימון and
+// למון, סלמון and סלמן. String equality misses that, and it let a real leak through: a
+// description reading "מניפת לימון" pointed straight at the option "למון טוויסט".
+// Only ו and י are dropped; ה would collide genuinely different words (חלב / חלבה).
+export const hebKey = (w) => {
+  const k = String(w).replace(/[וי]/g, "");
+  return k.length >= 2 ? k : String(w);
+};
+const keySet = (s) => new Set(norm(s).map(hebKey));
+const sharesWord = (text, keys) => norm(text).some((w) => keys.has(hebKey(w)));
 
 // Split a description into base text + the owner-written modifications tail. The AI
 // menu import writes "… שינויים: …" as a convention; menus without it simply get
@@ -43,15 +52,19 @@ export function splitChanges(desc) {
   };
 }
 
-// Blank out every word of `name` that appears in `text` (allowing a single Hebrew
-// prefix letter), so a shown text can never spell out the dish it belongs to.
+// Blank out every word of `name` that appears in `text`, so a shown text can never spell
+// out the dish it belongs to. Token-wise rather than regex-per-word so it can compare on
+// hebKey and catch spelling variants, and it also strips one attached Hebrew prefix
+// (ואבוקדו, בסלמון).
 export function maskNameLeak(text, name) {
-  let out = text;
-  for (const w of new Set(norm(name))) {
-    const re = new RegExp(`(^|[\\s,.;:()\\-])([ובלהמשכ]?${escapeRe(w)})(?=$|[\\s,.;:()\\-])`, "giu");
-    out = out.replace(re, "$1▢▢▢");
-  }
-  return out;
+  const keys = keySet(name);
+  if (!keys.size) return text;
+  return String(text).replace(/[\p{L}\p{N}]+/gu, (tok) => {
+    const low = tok.toLowerCase();
+    if (keys.has(hebKey(low))) return "▢▢▢";
+    if (low.length > 2 && /^[ובלהמשכ]/.test(low) && keys.has(hebKey(low.slice(1)))) return "▢▢▢";
+    return tok;
+  });
 }
 
 // What the trainee reads for a dish. `name` stays bare because descriptions are masked
@@ -114,10 +127,9 @@ function nearDuplicateOptions(options) {
 // as the answer if it's correct, or as an obvious elimination if it isn't. Either way the
 // trainee doesn't need to know the menu. (Zero or several overlaps are both fine.)
 function singleOverlapGiveaway(subject, options) {
-  const subjWords = new Set(norm(subject));
-  if (!subjWords.size) return false;
-  const overlapping = options.filter((o) => norm(o).some((w) => subjWords.has(w)));
-  return overlapping.length === 1;
+  const keys = keySet(subject);
+  if (!keys.size) return false;
+  return options.filter((o) => sharesWord(o, keys)).length === 1;
 }
 
 // The longest option being correct is the oldest multiple-choice tell there is.

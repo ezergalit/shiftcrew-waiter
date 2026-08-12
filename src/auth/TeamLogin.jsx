@@ -57,6 +57,9 @@ export default function TeamLogin({ onGranted }) {
       // Drives the one-time welcome tutorial in MainApp — only for a brand-new profile,
       // not someone whose name we just matched back to an existing one.
       showTutorial: !!isNewMember,
+      // Same signal, read by App.jsx to send a first-timer to the baseline intake without
+      // a second round-trip. A restored profile is checked against the DB column instead.
+      isNew: !!isNewMember,
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     onGranted(session);

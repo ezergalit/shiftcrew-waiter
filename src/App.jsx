@@ -4,6 +4,7 @@ import { supabase } from "./lib/supabase";
 import TeamLogin from "./auth/TeamLogin";
 import MainApp from "./screens/MainApp";
 import WelcomeTutorial from "./screens/WelcomeTutorial";
+import BaselineIntake from "./screens/BaselineIntake";
 
 const SESSION_KEY = "menu-app-team-session";
 const db = supabase.schema("menu_app");
@@ -11,6 +12,10 @@ const db = supabase.schema("menu_app");
 export default function App() {
   const [phase, setPhase] = useState("loading"); // loading | login | app
   const [session, setSession] = useState(null);
+  // Whether this member still owes us a baseline. Unlike showTutorial (a local flag that
+  // reappears on a new device), this is derived from the DB column, so the intake happens
+  // exactly once per person no matter where they log in.
+  const [needsBaseline, setNeedsBaseline] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -28,8 +33,15 @@ export default function App() {
       try {
         // Verify team member still exists
         const { data, error } = await db.from("team_members")
-          .select("id, name, restaurant_id").eq("id", sess.teamMemberId).single();
+          .select("id, name, restaurant_id, baseline_taken_at").eq("id", sess.teamMemberId).single();
         if (error || !data) { localStorage.removeItem(SESSION_KEY); if (alive) setPhase("login"); return; }
+        if (!data.baseline_taken_at) {
+          const { data: cfg } = await db.from("exam_config")
+            .select("baseline_enabled").eq("restaurant_id", sess.restaurantId).maybeSingle();
+          // Enabled unless the owner explicitly turned it off — a restaurant that never
+          // opened the settings screen still gets the recommended flow.
+          if (alive && cfg?.baseline_enabled !== false) setNeedsBaseline(true);
+        }
         if (alive) { setSession(sess); setPhase("app"); }
       } catch {
         localStorage.removeItem(SESSION_KEY);
@@ -40,7 +52,14 @@ export default function App() {
   }, []);
 
   if (phase === "loading") return <Splash />;
-  if (phase === "login") return <TeamLogin onGranted={(sess) => { setSession(sess); setPhase("app"); }} />;
+  if (phase === "login") return (
+    <TeamLogin onGranted={(sess) => {
+      setSession(sess);
+      // A brand-new profile has no baseline by definition; a restored one was checked above.
+      if (sess.isNew && !sess.offline) setNeedsBaseline(true);
+      setPhase("app");
+    }} />
+  );
 
   if (session?.showTutorial) {
     const dismissTutorial = () => {
@@ -49,6 +68,12 @@ export default function App() {
       setSession(next);
     };
     return <WelcomeTutorial session={session} onDone={dismissTutorial} />;
+  }
+
+  // After the tutorial, before the app: locate the waiter so improvement has a baseline
+  // to be measured against. Skippable — a waiter mid-shift shouldn't be trapped here.
+  if (needsBaseline) {
+    return <BaselineIntake session={session} onDone={() => setNeedsBaseline(false)} />;
   }
 
   return <MainApp session={session} onSignOut={() => { localStorage.removeItem(SESSION_KEY); setPhase("login"); }} />;

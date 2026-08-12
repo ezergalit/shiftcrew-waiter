@@ -10,7 +10,7 @@
 import { readFileSync } from "node:fs";
 import {
   FACETS, RECOMMENDED_FACETS, availableFacets, buildWeightedDeck, buildSmartDeck,
-  validateQuestion, maskNameLeak, splitChanges, dishLabel,
+  validateQuestion, maskNameLeak, splitChanges, dishLabel, hebKey,
   qChanges, qNotIngredient, qDescMatch, qWhichDish, qServingStyle, qAllergenDish, qPrice,
 } from "../src/lib/questionEngine.js";
 import { MOCK_CARDS } from "../src/lib/mockMenu.js";
@@ -65,17 +65,22 @@ function checkQuestion(menu, pool, q) {
   // #1 leak: no option may contain a bare word of the answer dish's name, except where
   // the option IS a dish label (then the name is legitimately the answer text).
   const optionsAreDishNames = q.options.includes(dishLabel(it));
+  // Spelling-variant aware, same as the engine: לימון and למון are one word here.
+  const keys = (s) => new Set(norm(s).map(hebKey));
+  const shares = (text, k) => norm(text).some((w) => k.has(hebKey(w)));
+
   if (!optionsAreDishNames && q.facet !== "ingredients" && q.facet !== "serving") {
-    const nameWords = new Set(norm(it.name));
+    const nameKeys = keys(it.name);
     for (const opt of q.options)
-      if (norm(opt).some((w) => nameWords.has(w)))
+      if (shares(opt, nameKeys))
         fail(menu, `[${q.prompt}] option leaks dish name "${it.name}": ${opt.slice(0, 60)}`);
   }
 
-  // #4 single-overlap giveaway
-  const subjWords = new Set(norm(q.subject));
-  if (subjWords.size) {
-    const overlapping = q.options.filter((o) => norm(o).some((w) => subjWords.has(w)));
+  // #4 single-overlap giveaway — a description that says "מניפת לימון" next to an option
+  // called "למון טוויסט" is answerable without knowing the menu.
+  const subjKeys = keys(q.subject);
+  if (subjKeys.size) {
+    const overlapping = q.options.filter((o) => shares(o, subjKeys));
     if (overlapping.length === 1)
       fail(menu, `[${q.prompt}] exactly one option overlaps the subject "${q.subject}": ${overlapping[0].slice(0, 50)}`);
   }
@@ -192,6 +197,13 @@ for (const it of pricesInNames)
 if (maskNameLeak("סלמון ואבוקדו בציפוי שומשום", "סלמון אבוקדו") !== "▢▢▢ ▢▢▢ בציפוי שומשום")
   fail("MASK", "prefix-aware masking regressed");
 if (splitChanges("בסיס. שינויים: אין").changes !== "אין") fail("MASK", "splitChanges regressed");
+
+// spelling variants — the real leak found in the live baseline exam
+if (hebKey("לימון") !== hebKey("למון")) fail("MASK", "hebKey should fold לימון/למון");
+if (hebKey("חלב") === hebKey("חלבה")) fail("MASK", "hebKey must NOT fold חלב/חלבה");
+if (!maskNameLeak("ומניפת לימון מעל", "למון טוויסט").includes("▢"))
+  fail("MASK", 'description "מניפת לימון" must be masked against the dish "למון טוויסט"');
+if (maskNameLeak("רוטב טחינה", "חלב").includes("▢")) fail("MASK", "unrelated words must survive masking");
 
 console.log(failures ? `\n❌ ${failures} failures\n` : "\n✅ all quality gates passed\n");
 process.exit(failures ? 1 : 0);
