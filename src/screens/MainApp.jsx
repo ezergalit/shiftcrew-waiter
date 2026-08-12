@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, Repeat, ChevronLeft, AlertTriangle, ListChecks, GraduationCap } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
-import { pickDistractors, buildSmartDeck, qChanges, qNotIngredient, qDescMatch, qWhichDish } from "../lib/questionEngine";
+import { pickDistractors, buildSmartDeck, qChanges, qNotIngredient, qDescMatch, qWhichDish, qServingStyle, dishLabel } from "../lib/questionEngine";
 
 const db = supabase.schema("menu_app");
 // Legacy seeded menus store these English keys. Menus built in the owner app (paste/AI
@@ -11,12 +11,26 @@ const db = supabase.schema("menu_app");
 const CAT_LABELS = { starters: "ראשונות", mains: "עיקריות", desserts: "קינוחים", drinks: "קוקטיילים" };
 const CAT_ORDER = ["starters", "mains", "desserts", "drinks"];
 const catLabel = (c) => CAT_LABELS[c] || c;
+
+// Imported categories carry their explanation after an em dash
+// ("מאקי — 6 יחידות, אצה בחוץ ואורז בפנים"); the leading phrase is the serving style.
+const shortCat = (c) => catLabel(c || "").split(/\s*[—–]\s*/)[0].trim();
+
+// On a sushi menu the bare dish name isn't a dish: "סלמון אבוקדו" exists as both מאקי and
+// אינסייד אאוט, "בס" as both סשימי and ניגירי — six such collisions in one real menu.
+// Shown un-qualified, two options in the same question can read identically while only one
+// is correct. `name` stays bare (the engine masks descriptions against it, and a
+// description never contains the serving style); `displayName` is what people read.
+const qualifiedName = (name, category) => {
+  const c = shortCat(category);
+  return c && !String(name).startsWith(c) ? `${c} ${name}` : name;
+};
 const DAILY_TARGET = 3;
 const DAILY_BONUS = 50;
 
 function pubToCard(p) {
   const ing = (p.ingredients || []).filter(Boolean);
-  return { id: p.source_item_id, name: p.name, price: Number(p.price), category: p.category, desc: p.description || "", ingredients: ing, allergens: (p.allergens || []).filter(Boolean), isSpecial: !!p.is_special };
+  return { id: p.source_item_id, name: p.name, displayName: qualifiedName(p.name, p.category), price: Number(p.price), category: p.category, desc: p.description || "", ingredients: ing, allergens: (p.allergens || []).filter(Boolean), isSpecial: !!p.is_special };
 }
 
 const COLORS = ["#22c08c", "#ff7a59", "#e0315a", "#f3a712", "#3a86ff", "#6d5efc", "#9b7bff", "#1aa376"];
@@ -584,7 +598,7 @@ function Flashcards({ items, onRate, onDone }) {
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0"><button onClick={onDone} className="text-xs text-[#8a8aa0]">← חזרה</button><p className="text-xs font-bold">{i + 1}/{items.length}</p></div>
       <div className="flex-1 flex flex-col items-center justify-center px-4">
         <div className="bg-[#16181c] rounded-xl p-6 w-full text-center space-y-3">
-          <p className="text-2xl font-black text-[#eef0f6]">{it.name}</p>
+          <p className="text-2xl font-black text-[#eef0f6]">{dishLabel(it)}</p>
           {!revealed && (
             <>
               {(it.ingredients?.length > 0 || it.allergens?.length > 0) && (
@@ -635,12 +649,14 @@ function Flashcards({ items, onRate, onDone }) {
 // correct option). Now a mixed deck of 4 question kinds (masked description→name,
 // ingredient trap, allowed modifications, name→masked description) with similarity-ranked
 // distractors and name-leak masking. See the engine file for the full rationale.
+// 2026-08-12: added qServingStyle — asks which serving style a dish belongs to, with the
+// full category lines as options, so the unit counts they carry get tested too.
 function Quiz({ items, onAnswer, onDone }) {
   const [i, setI] = useState(0);
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState(null);
   const pool = useMemo(() => items || [], [items]);
-  const qs = useMemo(() => buildSmartDeck(pool, 8, [qWhichDish, qNotIngredient, qChanges, qDescMatch]), [pool]);
+  const qs = useMemo(() => buildSmartDeck(pool, 8, [qWhichDish, qNotIngredient, qServingStyle, qChanges, qDescMatch]), [pool]);
   if (qs.length < 3) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>אין מספיק פרטים במנות כדי לבנות חידון</p></div>;
   if (i >= qs.length) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Trophy size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">{score}/{qs.length}</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
   const q = qs[i];
@@ -683,7 +699,7 @@ function Matching({ items, onAnswer, onDone }) {
   const deck = useMemo(() => {
     const chosen = shuffle((items || []).filter(it => it.ingredients?.length > 0)).slice(0, 6);
     const tiles = chosen.flatMap(it => [
-      { key: `${it.id}-name`, pairId: it.id, kind: "name", label: it.name },
+      { key: `${it.id}-name`, pairId: it.id, kind: "name", label: dishLabel(it) },
       { key: `${it.id}-ing`, pairId: it.id, kind: "ing", label: it.ingredients.slice(0, 3).join(", ") },
     ]);
     return shuffle(tiles);
@@ -812,7 +828,7 @@ function Speed({ items, onAnswer, onDone, onFinish }) {
       <div className="flex-1 flex flex-col items-center justify-center px-4">
         <div className="text-center w-full">
           <p className="text-[10px] font-bold text-[#8a8aa0] mb-2">איזה מרכיב שייך למנה הזו?</p>
-          <p className="text-lg font-black mb-4">{q.it.name}</p>
+          <p className="text-lg font-black mb-4">{dishLabel(q.it)}</p>
           <div className="flex flex-col gap-2">
             {q.opts.map((opt, j) => {
               const isCorrectOpt = picked && opt === q.a;
@@ -860,7 +876,7 @@ function AllergenQuiz({ items, onAnswer, onDone }) {
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0"><button onClick={onDone} className="text-xs text-[#8a8aa0]">← חזרה</button><p className="text-xs font-bold">{i + 1}/{deck.length}</p></div>
       <div className="flex-1 overflow-y-auto px-4 py-3">
         <div className="bg-[#16181c] rounded-lg p-3 mb-3 text-center">
-          <p className="text-sm font-black mb-1">{it.name}</p>
+          <p className="text-sm font-black mb-1">{dishLabel(it)}</p>
           <p className="text-[10px] text-[#8a8aa0]">אילו אלרגיות יש במנה הזו?</p>
         </div>
         <div className="flex flex-wrap gap-1.5 mb-3">
@@ -1083,7 +1099,7 @@ function CategoryExam({ items, categoryLabel, onAnswer, onDone, onFinish }) {
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="bg-[#16181c] rounded-xl p-4 text-center mb-4">
-          <p className="text-xl font-black">{q.it.name}</p>
+          <p className="text-xl font-black">{dishLabel(q.it)}</p>
           {result && (
             <p className={`text-3xl font-black mt-2 ${result.score >= 70 ? "text-[#22c08c]" : "text-[#e0315a]"}`}>{result.score}%</p>
           )}

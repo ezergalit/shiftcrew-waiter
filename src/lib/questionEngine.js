@@ -54,6 +54,11 @@ export function maskNameLeak(text, name) {
   return out;
 }
 
+// What the trainee reads for a dish. `name` stays bare because descriptions are masked
+// against it and never contain the serving style; `displayName` (set in pubToCard) carries
+// the qualifier that makes "בס" into "סשימי בס". Falls back for offline mock cards.
+export const dishLabel = (it) => (it?.displayName || it?.name || "");
+
 // True when, after masking, the text still has enough substance to be a fair question —
 // "סלמון ואבוקדו" masked against "סלמון אבוקדו" leaves nothing, so skip that question.
 const survivesMasking = (masked) => norm(masked.replace(/▢/g, " ")).length >= 3;
@@ -120,7 +125,7 @@ export function qChanges(pool, it) {
   return {
     itemId: it.id,
     prompt: "אילו שינויים ניתן לעשות במנה?",
-    subject: it.name,
+    subject: dishLabel(it),
     subjectKind: "name",
     options,
     correct: mask(correct),
@@ -153,7 +158,7 @@ export function qNotIngredient(pool, it) {
   return {
     itemId: it.id,
     prompt: "איזה מרכיב לא נמצא במנה?",
-    subject: it.name,
+    subject: dishLabel(it),
     subjectKind: "name",
     options: shuffle([correct, ...shown]),
     correct,
@@ -177,7 +182,7 @@ export function qDescMatch(pool, it) {
   return {
     itemId: it.id,
     prompt: "איזה תיאור מתאים למנה?",
-    subject: it.name,
+    subject: dishLabel(it),
     subjectKind: "name",
     options: shuffle(options),
     correct,
@@ -189,11 +194,13 @@ export function qDescMatch(pool, it) {
 export function qWhichDish(pool, it) {
   const { base } = splitChanges(it.desc);
   if (!base) return null;
-  const names = pickDistractors(pool, it, 3).map((x) => x.name);
-  const options = [...new Set([it.name, ...names])];
+  const others = pickDistractors(pool, it, 3);
+  // Qualified labels keep two same-named dishes from collapsing into one option — on a
+  // sushi menu "בס" is both sashimi and nigiri, which used to silently drop the question.
+  const options = [...new Set([dishLabel(it), ...others.map(dishLabel)])];
   if (options.length < 4) return null;
   let subject = base;
-  for (const n of options) subject = maskNameLeak(subject, n);
+  for (const d of [it, ...others]) subject = maskNameLeak(subject, d.name);
   if (!survivesMasking(subject)) return null;
   return {
     itemId: it.id,
@@ -201,7 +208,7 @@ export function qWhichDish(pool, it) {
     subject,
     subjectKind: "desc",
     options: shuffle(options),
-    correct: it.name,
+    correct: dishLabel(it),
   };
 }
 
@@ -229,4 +236,29 @@ export function buildSmartDeck(pool, size, builders) {
     }
   }
   return shuffle(deck);
+}
+
+// "באיזו הגשה מוגשת המנה?" — the answer options are the FULL category lines, which on an
+// imported menu carry the unit count and preparation ("מאקי — 6 יחידות, אצה בחוץ ואורז
+// בפנים"). So getting it right means knowing how many pieces come in a maki vs an
+// inside-out vs a nigiri, without parsing those numbers out of free text.
+//
+// The subject is deliberately the BARE name: the qualified label would spell out the
+// answer. Only offered when the menu actually has several categories to choose between.
+export function qServingStyle(pool, it) {
+  const cats = [...new Set(pool.map((x) => x.category).filter(Boolean))];
+  if (cats.length < 3 || !it.category) return null;
+  // Same-name dishes across styles are exactly the confusable case worth asking about,
+  // but they'd make the question unanswerable — the prompt alone can't distinguish them.
+  if (pool.some((x) => x.id !== it.id && x.name === it.name)) return null;
+  const others = cats.filter((c) => c !== it.category);
+  if (others.length < 2) return null;
+  return {
+    itemId: it.id,
+    prompt: "באיזו הגשה מוגשת המנה?",
+    subject: it.name,
+    subjectKind: "name",
+    options: shuffle([it.category, ...shuffle(others).slice(0, 3)]),
+    correct: it.category,
+  };
 }
