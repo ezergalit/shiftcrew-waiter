@@ -68,9 +68,36 @@ export function maskNameLeak(text, name) {
 }
 
 // What the trainee reads for a dish. `name` stays bare because descriptions are masked
-// against it and never contain the serving style; `displayName` (set in pubToCard) carries
-// the qualifier that makes "בס" into "סשימי בס". Falls back for offline mock cards.
+// against it and never contain the serving style; `displayName` carries the qualifier
+// that makes "בס" into "סשימי בס". Falls back for offline mock cards.
 export const dishLabel = (it) => (it?.displayName || it?.name || "");
+
+/**
+ * Qualify ONLY the dish names that are ambiguous on their own.
+ *
+ * On a sushi menu "סלמון אבוקדו" exists as both מאקי and אינסייד אאוט, and showing both
+ * bare makes two options read identically while only one is correct. But qualifying
+ * everything turned the Greek menu into "mains Mykonos Tuna" — the raw category key
+ * pasted onto a name that was never ambiguous in the first place.
+ *
+ * So: prefix the serving style only where the same name appears under more than one
+ * category. Everywhere else the name stands as the owner wrote it.
+ */
+export function withDisplayNames(cards) {
+  const catsByName = new Map();
+  for (const c of cards) {
+    if (!c?.name) continue;
+    (catsByName.get(c.name) || catsByName.set(c.name, new Set()).get(c.name)).add(c.category || "");
+  }
+  return cards.map((c) => {
+    const ambiguous = (catsByName.get(c.name)?.size || 0) > 1;
+    const style = String(c.category || "").split(/\s*[—–]\s*/)[0].trim();
+    return {
+      ...c,
+      displayName: ambiguous && style && !String(c.name).startsWith(style) ? `${style} ${c.name}` : c.name,
+    };
+  });
+}
 
 // True when, after masking, the text still has enough substance to be a fair question —
 // "סלמון ואבוקדו" masked against "סלמון אבוקדו" leaves nothing, so skip that question.

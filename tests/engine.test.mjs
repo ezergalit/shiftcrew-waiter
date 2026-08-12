@@ -10,7 +10,7 @@
 import { readFileSync } from "node:fs";
 import {
   FACETS, RECOMMENDED_FACETS, availableFacets, buildWeightedDeck, buildSmartDeck,
-  validateQuestion, maskNameLeak, splitChanges, dishLabel, hebKey,
+  validateQuestion, maskNameLeak, splitChanges, dishLabel, hebKey, withDisplayNames,
   qChanges, qNotIngredient, qDescMatch, qWhichDish, qServingStyle, qAllergenDish, qPrice,
 } from "../src/lib/questionEngine.js";
 import { MOCK_CARDS } from "../src/lib/mockMenu.js";
@@ -22,20 +22,15 @@ const norm = (s) => (s || "").toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").sp
 
 // ---------------------------------------------------------------- menus
 
-const sushi = JSON.parse(
-  readFileSync("/Users/homestation/Desktop/menu-backups/salon-sushi-demo-2026-08-12.json", "utf8")
-).map((d, i) => ({
-  id: "s" + i, name: d.name, category: d.category, desc: d.description || "",
-  ingredients: d.ingredients || [], allergens: d.allergens || [], price: d.price,
-  displayName: qualify(d.name, d.category),
-}));
+const sushi = withDisplayNames(
+  JSON.parse(readFileSync("/Users/homestation/Desktop/menu-backups/salon-sushi-demo-2026-08-12.json", "utf8"))
+    .map((d, i) => ({
+      id: "s" + i, name: d.name, category: d.category, desc: d.description || "",
+      ingredients: d.ingredients || [], allergens: d.allergens || [], price: d.price,
+    }))
+);
 
-function qualify(name, category) {
-  const c = String(category || "").split(/\s*[—–]\s*/)[0].trim();
-  return c && !String(name).startsWith(c) ? `${c} ${name}` : name;
-}
-
-const greek = MOCK_CARDS.map((c) => ({ ...c, displayName: qualify(c.name, c.category) }));
+const greek = withDisplayNames(MOCK_CARDS.map((c) => ({ ...c })));
 
 // Course-name categories: the case where "which serving style?" degenerates into
 // "is a sea bass a fish or a vegetable?" — answerable with zero menu knowledge.

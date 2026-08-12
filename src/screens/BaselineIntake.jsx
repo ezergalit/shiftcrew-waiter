@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Timer, ClipboardCheck, ArrowLeft } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { buildWeightedDeck, availableFacets } from "../lib/questionEngine";
+import { buildWeightedDeck, availableFacets, withDisplayNames } from "../lib/questionEngine";
 
 const db = supabase.schema("menu_app");
 
@@ -32,12 +32,11 @@ const SELF_RATING_QUESTIONS = [
   },
 ];
 
+// displayName is added by withDisplayNames after the whole menu loads: only names that
+// are ambiguous across categories get their serving style prefixed.
 function pubToCard(p) {
-  const cat = String(p.category || "").split(/\s*[—–]\s*/)[0].trim();
-  const name = p.name || "";
   return {
-    id: p.source_item_id, name, category: p.category,
-    displayName: cat && !name.startsWith(cat) ? `${cat} ${name}` : name,
+    id: p.source_item_id, name: p.name || "", category: p.category,
     price: Number(p.price), desc: p.description || "",
     ingredients: (p.ingredients || []).filter(Boolean),
     allergens: (p.allergens || []).filter(Boolean),
@@ -66,7 +65,7 @@ export default function BaselineIntake({ session, onDone }) {
         db.from("exam_config").select("*").eq("restaurant_id", session.restaurantId).maybeSingle(),
       ]);
       if (!alive) return;
-      setPool((menu || []).map(pubToCard));
+      setPool(withDisplayNames((menu || []).map(pubToCard)));
       setConfig(cfg || {});
       setPhase("intro");
     })();

@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, Repeat, ChevronLeft, AlertTriangle, ListChecks, GraduationCap, Lock } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
-import { pickDistractors, buildWeightedDeck, availableFacets, dishLabel } from "../lib/questionEngine";
+import { pickDistractors, buildWeightedDeck, availableFacets, dishLabel, withDisplayNames } from "../lib/questionEngine";
 import { pathState } from "../lib/learningPath";
 import { useStudyTime } from "../lib/studyTime";
 
@@ -18,21 +18,14 @@ const catLabel = (c) => CAT_LABELS[c] || c;
 // ("מאקי — 6 יחידות, אצה בחוץ ואורז בפנים"); the leading phrase is the serving style.
 const shortCat = (c) => catLabel(c || "").split(/\s*[—–]\s*/)[0].trim();
 
-// On a sushi menu the bare dish name isn't a dish: "סלמון אבוקדו" exists as both מאקי and
-// אינסייד אאוט, "בס" as both סשימי and ניגירי — six such collisions in one real menu.
-// Shown un-qualified, two options in the same question can read identically while only one
-// is correct. `name` stays bare (the engine masks descriptions against it, and a
-// description never contains the serving style); `displayName` is what people read.
-const qualifiedName = (name, category) => {
-  const c = shortCat(category);
-  return c && !String(name).startsWith(c) ? `${c} ${name}` : name;
-};
 const DAILY_TARGET = 3;
 const DAILY_BONUS = 50;
 
 function pubToCard(p) {
   const ing = (p.ingredients || []).filter(Boolean);
-  return { id: p.source_item_id, name: p.name, displayName: qualifiedName(p.name, p.category), price: Number(p.price), category: p.category, desc: p.description || "", ingredients: ing, allergens: (p.allergens || []).filter(Boolean), isSpecial: !!p.is_special };
+  // displayName is filled in by withDisplayNames once the whole menu is loaded — whether a
+  // name needs its serving style depends on the other dishes, not on this row alone.
+  return { id: p.source_item_id, name: p.name, price: Number(p.price), category: p.category, desc: p.description || "", ingredients: ing, allergens: (p.allergens || []).filter(Boolean), isSpecial: !!p.is_special };
 }
 
 const COLORS = ["#22c08c", "#ff7a59", "#e0315a", "#f3a712", "#3a86ff", "#6d5efc", "#9b7bff", "#1aa376"];
@@ -100,7 +93,7 @@ export default function MainApp({ session, onSignOut }) {
       const { data } = await db.from("published_menu").select("*")
         .eq("restaurant_id", session?.restaurantId)
         .order("created_at", { ascending: true }).order("source_item_id", { ascending: true });
-      if (alive) setCards((data || []).map(pubToCard));
+      if (alive) setCards(withDisplayNames((data || []).map(pubToCard)));
       const { data: m } = await db.from("menu_progress").select("source_item_id, mastery").eq("team_member_id", session?.teamMemberId);
       if (alive) {
         setMastered(new Set((m || []).filter(r => (r.mastery ?? 0) >= 4).map(r => r.source_item_id)));
