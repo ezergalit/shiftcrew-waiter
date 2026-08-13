@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, ChevronLeft, AlertTriangle, ListChecks, GraduationCap, Lock } from "lucide-react";
+import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, ChevronLeft, AlertTriangle, ListChecks, GraduationCap } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import MetricsScreen from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
@@ -337,11 +337,11 @@ export default function MainApp({ session, onSignOut }) {
     return <MetricsScreen session={session} cards={cards} masteryById={masteryById} onDone={() => setShowMetrics(false)} />;
 
   if (mode === "flashcards") return <Flashcards items={studySession.deck} session={studySession} onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
-  if (mode === "quiz") return <Quiz items={gameItems} facets={gameFacets} onAnswer={learnItem} onDone={exitMode} />;
+  if (mode === "quiz") return <Quiz items={gameItems} facets={gameFacets} openKeys={path.openKeys} onAnswer={learnItem} onDone={exitMode} />;
   if (mode === "match") return <Matching items={gameItems} onAnswer={learnItem} onDone={exitMode} session={session} />;
   if (mode === "speed") return <Speed items={gameItems} onAnswer={learnItem} onDone={exitMode} onFinish={finishSpeed} />;
   if (mode === "allergens") return <AllergenQuiz items={gameItems} onAnswer={learnItem} onDone={exitMode} />;
-  if (mode === "namecomplete") return <NameCompletion items={gameItems} facets={gameFacets} onAnswer={learnItem} onDone={exitMode} />;
+  if (mode === "namecomplete") return <NameCompletion items={gameItems} facets={gameFacets} openKeys={path.openKeys} onAnswer={learnItem} onDone={exitMode} />;
   // Two graduation formats, same contract to recordExam.
   //
   // The chip exam (pick the exact ingredient set) is the better test, but it needs dishes
@@ -389,10 +389,11 @@ export default function MainApp({ session, onSignOut }) {
   const dailyDone = daily.count >= DAILY_TARGET;
   // A challenge whose game is still locked shows what it takes to open it instead of a
   // button that would launch a mode the path hasn't reached.
+  // Every mode is open now (see learningPath.js) — these stay only so the challenge cards
+  // keep one shape, and they never withhold anything.
   const gameLock = (mode) => path.games.find((g) => g.mode === mode);
-  const lockedNote = (mode) => gameLock(mode)?.needLabel || null;
-  const gatedAction = (mode, label) =>
-    gameLock(mode)?.unlocked === false ? null : { label, onClick: () => { setModeItems(null); setMode(mode); } };
+  const lockedNote = () => null;
+  const gatedAction = (mode, label) => ({ label, onClick: () => { setModeItems(null); setMode(mode); } });
   const challenges = cards ? [
     // Drops off the list once it is done for the day. A finished challenge with no action
     // left is just a spent row at the top of the page; the bonus was already awarded and
@@ -621,20 +622,20 @@ export default function MainApp({ session, onSignOut }) {
                 <button onClick={() => { setModeItems(null); setMode("flashcards"); }}
                   className="bg-[#6d5efc] text-white font-bold text-xs py-2.5 rounded-lg">כרטיסיות</button>
                 {path.games.filter(g => g.mode !== "namecomplete").map((g) => (
-                  <button key={g.mode} disabled={!g.unlocked}
+                  <button key={g.mode}
                     onClick={() => { setModeItems(null); setMode(g.mode); }}
-                    className={`font-bold text-xs py-2.5 rounded-lg flex items-center justify-center gap-1 ${
-                      g.unlocked ? "bg-[#22252b] text-[#eef0f6]" : "bg-[#141619] text-[#5a5a6e]"}`}>
-                    {!g.unlocked && <Lock size={11} />}{g.label}
+                    className="font-bold text-xs py-2.5 rounded-lg flex items-center justify-center gap-1 bg-[#22252b] text-[#eef0f6]">
+                    {g.label}
                   </button>
                 ))}
               </div>
-              {path.gated && path.games.some((g) => !g.unlocked) && (
-                <p className="text-[10px] text-[#8a8aa0] mt-2">
-                  משחקים נוספים נפתחים ככל שעוברים מבחנים — {
-                    path.passedCount === 0 ? "עוד לא עברתם מבחן"
-                      : path.passedCount === 1 ? "עברתם מבחן אחד"
-                      : `עברתם ${path.passedCount} מבחנים`}
+              {/* Nothing is locked, so the note explains SCOPE instead: practice draws
+                  from the categories already passed, and passing another widens it. */}
+              {path.scopedToOpen && path.openKeys?.length > 0 && (
+                <p className="text-[10px] text-[#8a8aa0] mt-2 leading-relaxed">
+                  {path.passedCount === 0
+                    ? `כל התרגול פתוח — כרגע על ${shortCat(path.openKeys[0])}. עברו מבחן כדי להוסיף עוד קטגוריות לתרגול.`
+                    : `התרגול כולל: ${path.openKeys.map(shortCat).join(" · ")}. כל מבחן שעוברים מוסיף קטגוריה.`}
                 </p>
               )}
             </div>
@@ -703,35 +704,33 @@ export default function MainApp({ session, onSignOut }) {
         )}
         {tab === "categories" && (
           <div className="space-y-2">
-            <p className="text-[10px] text-[#8a8aa0] px-1">
-              {path.gated
-                ? "לומדים חלק אחרי חלק. כל מבחן שעוברים פותח את הבא ומשחקים נוספים."
-                : "לחצו על קטגוריה כדי לתרגל רק אותה"}
+            <p className="text-[10px] text-[#8a8aa0] px-1 leading-relaxed">
+              {/* No order is imposed any more — say so, and steer without blocking. */}
+              כל הקטגוריות פתוחות — אפשר להתחיל מאיפה שרוצים.
+              {path.recommended ? ` ממליצים להתחיל ב${shortCat(path.recommended.key)}.` : ""}
+              {path.scopedToOpen ? " מבחן שעוברים מוסיף את הקטגוריה לתרגול." : ""}
             </p>
-            {path.categories.map((cat, idx) => {
+            {path.categories.map((cat) => {
               // A category can't be examined on dishes with no ingredients to ask about.
               // Reaching the threshold is the only condition. A category with thin data
               // gets the multiple-choice exam instead of the chip one, but it is never
               // unpassable — a locked graduation would stall every category behind it.
               const examReady = cat.examUnlocked;
-              const prev = path.categories[idx - 1];
               return (
-                <div key={cat.key} className={`rounded-lg p-2.5 ${cat.unlocked ? "bg-[#16181c]" : "bg-[#111316] opacity-60"}`}>
+                <div key={cat.key} className="rounded-lg p-2.5 bg-[#16181c]">
                   <button
-                    disabled={!cat.unlocked}
                     onClick={() => { setModeItems(cat.items); setMode("flashcards"); }}
-                    className="w-full text-right active:scale-[0.99] transition-transform disabled:active:scale-100"
+                    className="w-full text-right active:scale-[0.99] transition-transform"
                   >
                     <div className="flex items-start justify-between gap-2 mb-1.5">
                       {/* Imported categories can carry their whole explanatory line
                           ("מאקי — 6 יחידות, אצה בחוץ…"), so clamp instead of letting one
                           row grow to four lines. */}
                       <p className="text-xs font-black text-[#eef0f6] line-clamp-2 flex-1 flex items-center gap-1.5" title={catLabel(cat.key)}>
-                        {!cat.unlocked && <Lock size={11} className="text-[#8a8aa0] flex-shrink-0" />}
                         {cat.passed && <Check size={12} className="text-[#22c08c] flex-shrink-0" />}
                         {catLabel(cat.key)}
                       </p>
-                      {cat.unlocked && <span className="text-[11px] font-bold text-[#6d5efc] flex-shrink-0">{cat.pct}%</span>}
+                      <span className="text-[11px] font-bold text-[#6d5efc] flex-shrink-0">{cat.pct}%</span>
                     </div>
                     <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden">
                       <div className="h-full transition-all" style={{ width: `${cat.pct}%`, background: cat.passed ? "#22c08c" : "#6d5efc" }} />
@@ -740,12 +739,13 @@ export default function MainApp({ session, onSignOut }) {
                       {/* shortCat, not the full label: imported categories carry their
                           whole explanation ("מאקי — 6 יחידות, אצה בחוץ ואורז בפנים") and
                           inlining that makes the sentence unreadable. */}
-                      {cat.unlocked
-                        ? `${cat.items.length} מנות · לחצו לתרגול`
-                        : `נפתח אחרי שעוברים את המבחן של ${shortCat(prev?.key)}`}
+                      {cat.items.length} מנות · לחצו לתרגול
+                      {cat.passed
+                        ? " · נכלל בתרגול"
+                        : path.recommended?.key === cat.key ? " · מומלץ להתחיל כאן" : ""}
                     </p>
                   </button>
-                  {cat.unlocked && (
+                  {(
                     <button
                       disabled={!examReady}
                       onClick={() => { setModeItems(cat.items); setExamCategory({ key: cat.key, label: catLabel(cat.key) }); setMode("exam"); }}
@@ -906,6 +906,25 @@ function PromoCarousel({ items }) {
 // The one genuinely subjective mode — there's nothing to objectively check when you're
 // just looking at a card, so the player self-rates 1-5 after reveal. Every other mode
 // grades itself instead (see learnItem in MainApp).
+// Shown when a mode cannot build a fair round from the current pool. With practice scoped
+// to opened categories, that is usually because the scope is still narrow — so name the
+// scope and point at the way out rather than leaving a dead end.
+function NotEnoughData({ what, openKeys, onDone }) {
+  return (
+    <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-3 bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
+      <AlertTriangle size={34} className="text-[#f3c14b]" />
+      <p className="text-sm font-black">אין מספיק מידע כדי לבנות {what}</p>
+      {openKeys?.length > 0 && (
+        <p className="text-xs text-[#8a8aa0] leading-relaxed">
+          התרגול כרגע כולל רק {openKeys.map(shortCat).join(" · ")}.
+          <br />עברו מבחן בקטגוריה נוספת כדי להרחיב את התרגול.
+        </p>
+      )}
+      <button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white text-xs font-bold mt-1">חזרה</button>
+    </div>
+  );
+}
+
 function Flashcards({ items, session, onRate, onDone }) {
   const [i, setI] = useState(0);
   const [revealed, setRevealed] = useState(false);
@@ -998,7 +1017,7 @@ function Flashcards({ items, session, onRate, onDone }) {
 // distractors and name-leak masking. See the engine file for the full rationale.
 // 2026-08-12: added qServingStyle — asks which serving style a dish belongs to, with the
 // full category lines as options, so the unit counts they carry get tested too.
-function Quiz({ items, facets, onAnswer, onDone }) {
+function Quiz({ items, facets, openKeys, onAnswer, onDone }) {
   const [i, setI] = useState(0);
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState(null);
@@ -1009,7 +1028,7 @@ function Quiz({ items, facets, onAnswer, onDone }) {
   // array must never rebuild the deck the trainee is partway through.
   const facetKey = (facets || []).join(",");
   const qs = useMemo(() => buildWeightedDeck(pool, 8, facets), [pool, facetKey]);
-  if (qs.length < 3) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>אין מספיק פרטים במנות כדי לבנות חידון</p></div>;
+  if (qs.length < 3) return <NotEnoughData what="חידון" openKeys={openKeys} onDone={onDone} />;
   if (i >= qs.length) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Trophy size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">{score}/{qs.length}</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
   const q = qs[i];
   const next = (opt) => {
@@ -1456,7 +1475,7 @@ function AllergenQuiz({ items, onAnswer, onDone }) {
 // descriptions as options, so "סלמון אבוקדו" → "סלמון ואבוקדו…" answered itself. Now the
 // deck mixes masked-description matching with the modifications question ("אילו שינויים
 // ניתן לעשות?") and the ingredient trap, all with similarity-ranked near-miss traps.
-function NameCompletion({ items, facets, onAnswer, onDone }) {
+function NameCompletion({ items, facets, openKeys, onAnswer, onDone }) {
   const pool = useMemo(() => items || [], [items]);
   // Same owner-ranked weighting as the quiz; this mode differs by presentation, not by
   // which aspects of the menu it is allowed to ask about.
@@ -1465,7 +1484,7 @@ function NameCompletion({ items, facets, onAnswer, onDone }) {
   const [i, setI] = useState(0);
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState(null);
-  if (deck.length < 3) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>אין מספיק פרטים במנות כדי לבנות אתגר</p></div>;
+  if (deck.length < 3) return <NotEnoughData what="אתגר" openKeys={openKeys} onDone={onDone} />;
   if (i >= deck.length) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Trophy size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">{score}/{deck.length}</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
   const q = deck[i];
   const answer = (opt) => {
