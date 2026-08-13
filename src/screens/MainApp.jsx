@@ -1142,17 +1142,35 @@ function CategoryExam({ items, categoryLabel, onAnswer, onDone, onFinish }) {
   const [result, setResult] = useState(null);
   const [scores, setScores] = useState([]);
 
+  // A real exam is timed. Each dish here is two multi-selects (ingredients + allergens),
+  // heavier than a single multiple-choice, so it gets more room than the intake exam's 12s.
+  const SECONDS_PER_DISH = 45;
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const started = deck.length >= 2;
+  useEffect(() => {
+    if (!started) return;
+    setSecondsLeft(deck.length * SECONDS_PER_DISH);
+  }, [started, deck.length]);
+  useEffect(() => {
+    if (!started) return;
+    const t = setInterval(() => setSecondsLeft((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(t);
+  }, [started]);
+  const outOfTime = started && secondsLeft <= 0;
+
   // Record the attempt exactly once, when the last question is graded. Declared above the
   // early returns below because hooks can't run conditionally; the ref guards against
   // re-firing on every re-render of the finished screen.
-  const finished = deck.length >= 2 && i >= deck.length;
+  const finished = started && (i >= deck.length || outOfTime);
   const reportedRef = useRef(false);
   useEffect(() => {
-    if (!finished || reportedRef.current || scores.length === 0) return;
+    if (!finished || reportedRef.current) return;
     reportedRef.current = true;
-    const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-    onFinish?.({ score: avg, passed: avg >= 70, dishCount: scores.length });
-  }, [finished, scores, onFinish]);
+    // Average over the whole deck, not just what was answered — otherwise running out of
+    // time after one lucky question would score higher than finishing the exam.
+    const avg = Math.round(scores.reduce((a, b) => a + b, 0) / deck.length);
+    onFinish?.({ score: avg, passed: avg >= 70, dishCount: deck.length });
+  }, [finished, scores, deck.length, onFinish]);
 
   if (deck.length < 2)
     return (
@@ -1161,8 +1179,8 @@ function CategoryExam({ items, categoryLabel, onAnswer, onDone, onFinish }) {
       </div>
     );
 
-  if (i >= deck.length) {
-    const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+  if (finished) {
+    const avg = Math.round(scores.reduce((a, b) => a + b, 0) / deck.length);
     const passed = avg >= 70;
     return (
       <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
@@ -1236,8 +1254,14 @@ function CategoryExam({ items, categoryLabel, onAnswer, onDone, onFinish }) {
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0">
         <button onClick={onDone} className="text-xs text-[#8a8aa0]">← יציאה</button>
-        <p className="text-xs font-bold">מבחן {categoryLabel}</p>
-        <p className="text-xs font-bold text-[#8a8aa0]">{i + 1}/{deck.length}</p>
+        <p className="text-xs font-bold truncate px-2">מבחן {shortCat(categoryLabel)}</p>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Red for the last 30s — enough warning to finish the dish in hand. */}
+          <span className={`text-xs font-black ${secondsLeft <= 30 ? "text-[#e0315a]" : "text-[#f3c14b]"}`}>
+            ⏱ {String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:{String(secondsLeft % 60).padStart(2, "0")}
+          </span>
+          <p className="text-xs font-bold text-[#8a8aa0]">{i + 1}/{deck.length}</p>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4">

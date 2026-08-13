@@ -474,12 +474,44 @@ export function qServingStyle(pool, it) {
 // at a table. Exactly one option carries the allergen; the rest are verified clean, so
 // there is no ambiguity to argue with. Distractors come from the same category, which is
 // where a real mix-up happens.
+// Ingredients the menu ITSELF ties to an allergen: if the dishes containing ingredient X
+// are mostly tagged with allergen A, then a dish with X and no A tag is more likely
+// mis-tagged than genuinely safe. Derived per menu, so it needs no food knowledge and
+// adapts to whatever the owner actually wrote.
+//
+// Used ONLY to disqualify a dish from being offered as a safe option — never to add an
+// allergen to a dish. Over-excluding costs a question; under-excluding tells a waiter a
+// salmon roll is fish-free.
+function ingredientsImplying(pool, allergen) {
+  const stats = new Map(); // ingredient key -> [dishes with it, of those tagged]
+  for (const d of pool) {
+    const tagged = (d.allergens || []).includes(allergen);
+    for (const ing of new Set((d.ingredients || []).map((x) => hebKey(String(x).trim())))) {
+      const e = stats.get(ing) || [0, 0];
+      e[0]++;
+      if (tagged) e[1]++;
+      stats.set(ing, e);
+    }
+  }
+  const implying = new Set();
+  for (const [ing, [total, tagged]] of stats) {
+    if (tagged >= 2 && tagged / total >= 0.6) implying.add(ing);
+  }
+  return implying;
+}
+
 export function qAllergenDish(pool, it) {
   const mine = (it.allergens || []).filter(Boolean);
   if (!mine.length) return null;
   const allergen = shuffle(mine)[0];
+  const implying = ingredientsImplying(pool, allergen);
+  const looksUnsafe = (x) =>
+    (x.ingredients || []).some((i) => implying.has(hebKey(String(i).trim())));
   const clean = pickDistractors(pool, it, 12).filter(
-    (x) => !(x.allergens || []).includes(allergen) && dishLabel(x) !== dishLabel(it)
+    (x) =>
+      !(x.allergens || []).includes(allergen) &&
+      !looksUnsafe(x) &&
+      dishLabel(x) !== dishLabel(it)
   );
   if (clean.length < 3) return null;
   const options = [...new Set([dishLabel(it), ...clean.slice(0, 3).map(dishLabel)])];

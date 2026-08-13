@@ -73,14 +73,19 @@ export default function BaselineIntake({ session, onDone }) {
   }, [session.restaurantId]);
 
   const minutes = config?.baseline_minutes ?? 7;
-  // ~3 questions a minute: enough to read the options without rushing.
+  // The owner's setting sizes the exam; the clock is derived from the question count so
+  // it matches the work actually being asked. These are multiple choice — read four short
+  // options and pick — which measured out at roughly a quarter of the old 20s allowance.
   const targetCount = Math.max(10, Math.min(30, Math.round(minutes * 3)));
+  const SECONDS_PER_QUESTION = 12;
+  const examSeconds = targetCount * SECONDS_PER_QUESTION;
+  const examMinutes = Math.max(1, Math.round(examSeconds / 60));
 
   const startExam = () => {
     const facets = config?.facets?.length ? config.facets : availableFacets(pool);
     const built = buildWeightedDeck(pool, targetCount, facets);
     setDeck(built);
-    setSecondsLeft(minutes * 60);
+    setSecondsLeft(examSeconds);
     startedRef.current = Date.now();
     setPhase("exam");
   };
@@ -183,7 +188,7 @@ export default function BaselineIntake({ session, onDone }) {
           <h1 className="text-xl font-black text-[#eef0f6]">בוא/י נראה איפה את/ה עומד/ת</h1>
           <p className="text-sm text-[#b4b4c4] leading-relaxed">
             {enough
-              ? <>כמה שאלות קצרות עלייך, ואז מבחן היכרות של כ-{minutes} דקות על התפריט.
+              ? <>כמה שאלות קצרות עלייך, ואז מבחן היכרות של כ-{examMinutes} דקות על התפריט.
                   אין פה ציון עובר — זו נקודת ההתחלה שממנה נמדוד את ההתקדמות שלך.</>
               : <>התפריט של המסעדה עדיין לא מוכן לבוחן. אפשר להתחיל ללמוד ולחזור לזה אחר כך.</>}
           </p>

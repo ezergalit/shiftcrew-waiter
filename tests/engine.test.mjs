@@ -105,9 +105,43 @@ function checkQuestion(menu, pool, q) {
       const other = pool.find((d) => dishLabel(d) === opt);
       if (other && (other.allergens || []).includes(allergen))
         fail(menu, `allergenDish: distractor "${opt}" ALSO contains ${allergen} — two right answers`);
+      // Row 13: the tag alone isn't enough. A distractor whose ingredients the rest of the
+      // menu ties to this allergen is mis-tagged, not safe — and the trainee can see it.
+      if (other && looksMisTagged(pool, other, allergen))
+        fail(menu, `allergenDish: distractor "${opt}" visibly contains ${allergen} (untagged) — unanswerable`);
     }
   }
 }
+
+// Mirror of the engine's menu-derived inference, kept independent on purpose: if the
+// engine's own helper were reused, a bug in it would hide itself.
+function looksMisTagged(pool, dish, allergen) {
+  if ((dish.allergens || []).includes(allergen)) return false;
+  const key = (x) => String(x).trim().replace(/[וי]/g, "");
+  const stats = new Map();
+  for (const d of pool) {
+    const tagged = (d.allergens || []).includes(allergen);
+    for (const i of new Set((d.ingredients || []).map(key))) {
+      const e = stats.get(i) || [0, 0];
+      e[0]++; if (tagged) e[1]++; stats.set(i, e);
+    }
+  }
+  return (dish.ingredients || []).some((i) => {
+    const e = stats.get(key(i));
+    return e && e[1] >= 2 && e[1] / e[0] >= 0.6;
+  });
+}
+
+// Row 13 reproduction: a real sushi menu where one salmon roll lost its דגים tag. Every
+// other salmon dish carries it, so the menu itself says salmon ⇒ fish.
+const misTagged = withDisplayNames([
+  { id: "m1", name: "סלמון אבוקדו", category: "מאקי — 6 יחידות", desc: "סלמון ואבוקדו", ingredients: ["סלמון", "אבוקדו"], allergens: ["דגים"], price: 32 },
+  { id: "m2", name: "סלמון חם", category: "מאקי — 6 יחידות", desc: "סלמון עם טמפורה וטריאקי", ingredients: ["סלמון", "אבוקדו", "טמפורה", "טריאקי"], allergens: ["גלוטן"], price: 38 },
+  { id: "m3", name: "סלמון", category: "ניגירי — 2 יחידות", desc: "פרוסת סלמון על אורז", ingredients: ["סלמון"], allergens: ["דגים"], price: 18 },
+  { id: "m4", name: "סלמון", category: "סשימי — 5 פרוסות", desc: "פילה סלמון חתוך דק", ingredients: ["סלמון"], allergens: ["דגים"], price: 44 },
+  { id: "m5", name: "בטה קריספית", category: "מאקי — 6 יחידות", desc: "בטטה בטמפורה", ingredients: ["בטטה", "טמפורה"], allergens: ["גלוטן"], price: 28 },
+  { id: "m6", name: "צמחוני", category: "מאקי — 6 יחידות", desc: "מלפפון וגזר", ingredients: ["מלפפון", "גזר"], allergens: [], price: 26 },
+]);
 
 // ---------------------------------------------------------------- suites
 
@@ -133,6 +167,7 @@ suiteDecks("GREEK", greek);
 suiteDecks("TINY-3", greek.slice(0, 3));
 suiteDecks("SEMANTIC-CATS", semanticCats);
 suiteDecks("PRICES-IN-NAMES", pricesInNames);
+suiteDecks("MIS-TAGGED-ALLERGEN", misTagged);
 
 console.log("\n=== targeted regressions ===");
 
