@@ -1,8 +1,9 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, Repeat, ChevronLeft, AlertTriangle, ListChecks, GraduationCap, Lock } from "lucide-react";
+import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, ChevronLeft, AlertTriangle, ListChecks, GraduationCap, Lock } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import MetricsScreen from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
+import { buildStudySession, nextConsecutiveFives, isRetired } from "../lib/studySession";
 import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
 import { pickDistractors, buildWeightedDeck, availableFacets, dishLabel, withDisplayNames } from "../lib/questionEngine";
 import { pathState } from "../lib/learningPath";
@@ -71,6 +72,7 @@ export default function MainApp({ session, onSignOut }) {
   // that drives points/daily-challenge/leaderboard; this map is what the *percentages*
   // are built from, so "4 out of 5 on every dish" reads as 80% instead of 100%.
   const [masteryById, setMasteryById] = useState({});
+  const [fivesById, setFivesById] = useState({});
   const [leaderboard, setLeaderboard] = useState([]);
   const [brief, setBrief] = useState(null);
   const [briefAck, setBriefAck] = useState(null);
@@ -122,10 +124,12 @@ export default function MainApp({ session, onSignOut }) {
       // forget — a failure here must not affect the session.
       db.from("team_members").update({ last_seen_at: new Date().toISOString() })
         .eq("id", session?.teamMemberId).then(() => {}, () => {});
-      const { data: m } = await db.from("menu_progress").select("source_item_id, mastery").eq("team_member_id", session?.teamMemberId);
+      const { data: m } = await db.from("menu_progress").select("source_item_id, mastery, consecutive_fives").eq("team_member_id", session?.teamMemberId);
       if (alive) {
         setMastered(new Set((m || []).filter(r => (r.mastery ?? 0) >= 4).map(r => r.source_item_id)));
         setMasteryById(Object.fromEntries((m || []).map(r => [r.source_item_id, r.mastery ?? 0])));
+        // Consecutive perfect ratings, for retiring a dish from the study rotation.
+        setFivesById(Object.fromEntries((m || []).map(r => [r.source_item_id, r.consecutive_fives ?? 0])));
       }
       const { data: l } = await db.from("leaderboard").select("*").eq("restaurant_id", session?.restaurantId).order("points", { ascending: false });
       if (alive) setLeaderboard(l || []);
@@ -172,6 +176,8 @@ export default function MainApp({ session, onSignOut }) {
     const nowMastered = rating >= 4;
     const crossed = wasMastered !== nowMastered;
     setMasteryById(prev => ({ ...prev, [id]: rating }));
+    const nextFives = nextConsecutiveFives(fivesById[id], rating);
+    setFivesById(prev => ({ ...prev, [id]: nextFives }));
 
     let nextMasteredSize = mastered.size;
     if (crossed) {
@@ -207,7 +213,7 @@ export default function MainApp({ session, onSignOut }) {
     }
 
     if (session.offline) return; // TEMP DEV FALLBACK — local-only, nothing to persist.
-    await db.from("menu_progress").upsert({ team_member_id: session.teamMemberId, source_item_id: id, mastery: rating, last_reviewed: new Date().toISOString() }, { onConflict: "team_member_id,source_item_id" });
+    await db.from("menu_progress").upsert({ team_member_id: session.teamMemberId, source_item_id: id, mastery: rating, consecutive_fives: nextFives, last_reviewed: new Date().toISOString() }, { onConflict: "team_member_id,source_item_id" });
     // Server-side visibility for the owner's team-activity dashboard (today_count/last_study_date
     // on leaderboard) — separate from the localStorage-based daily-bonus tracking above.
     if (justMasteredFresh) {
@@ -277,6 +283,19 @@ export default function MainApp({ session, onSignOut }) {
   // moment you paired two tiles. Depending only on mode/scope pins the pool for the round.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const gameItems = useMemo(() => modeItems || path.gamePool, [mode, modeItems]);
+  // The flashcard deck for THIS session: a short, weakness-weighted slice of the scope
+  // rather than every dish in it. Frozen for the round for the same reason gameItems is —
+  // rating a card changes the progress map, and rebuilding mid-session would reshuffle the
+  // deck under the waiter's hands.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const studySession = useMemo(() => {
+    const progress = {};
+    for (const it of gameItems || []) {
+      progress[it.id] = { mastery: masteryById?.[it.id] ?? null, consecutiveFives: fivesById?.[it.id] || 0 };
+    }
+    return buildStudySession(gameItems, progress);
+  }, [gameItems]);
+
   // The owner's ranking, narrowed to what the open part of the menu can actually support.
   // Memoised because availableFacets builds a fresh array: an unstable reference here
   // invalidated the decks' useMemo on every render, so answering a question rebuilt and
@@ -299,7 +318,7 @@ export default function MainApp({ session, onSignOut }) {
   if (showMetrics)
     return <MetricsScreen session={session} cards={cards} masteryById={masteryById} onDone={() => setShowMetrics(false)} />;
 
-  if (mode === "flashcards") return <Flashcards items={gameItems} onRate={learnItem} onDone={exitMode} />;
+  if (mode === "flashcards") return <Flashcards items={studySession.deck} session={studySession} onRate={learnItem} onDone={exitMode} />;
   if (mode === "quiz") return <Quiz items={gameItems} facets={gameFacets} onAnswer={learnItem} onDone={exitMode} />;
   if (mode === "match") return <Matching items={gameItems} onAnswer={learnItem} onDone={exitMode} session={session} />;
   if (mode === "speed") return <Speed items={gameItems} onAnswer={learnItem} onDone={exitMode} onFinish={finishSpeed} />;
@@ -357,11 +376,14 @@ export default function MainApp({ session, onSignOut }) {
   const gatedAction = (mode, label) =>
     gameLock(mode)?.unlocked === false ? null : { label, onClick: () => { setModeItems(null); setMode(mode); } };
   const challenges = cards ? [
-    {
+    // Drops off the list once it is done for the day. A finished challenge with no action
+    // left is just a spent row at the top of the page; the bonus was already awarded and
+    // announced, and it comes back on its own tomorrow.
+    dailyDone ? null : {
       id: "daily", icon: Sparkles, color: "#f3a712", title: "אתגר יומי",
-      desc: dailyDone ? `הושלם! זכיתם ב-${DAILY_BONUS} נקודות בונוס` : `למדו ${DAILY_TARGET} מנות חדשות היום`,
-      progress: Math.min(daily.count, DAILY_TARGET), target: DAILY_TARGET, done: dailyDone,
-      action: dailyDone ? null : { label: "התחילו ללמוד", onClick: () => { setModeItems(null); setMode("flashcards"); } },
+      desc: `למדו ${DAILY_TARGET} מנות חדשות היום`,
+      progress: Math.min(daily.count, DAILY_TARGET), target: DAILY_TARGET, done: false,
+      action: { label: "התחילו ללמוד", onClick: () => { setModeItems(null); setMode("flashcards"); } },
     },
     {
       // Not "challenge": allergies are the one thing on this menu that can put a guest in
@@ -377,9 +399,12 @@ export default function MainApp({ session, onSignOut }) {
       action: gatedAction("namecomplete", "לאתגר"),
     },
     {
+      // No action button — this one is a status card, so the whole card is the target and
+      // it opens the menu itself, where the remaining dishes actually are.
       id: "full", icon: Trophy, color: "#22c08c", title: "שליטה מלאה בתפריט",
       desc: "למדו את כל המנות בתפריט", progress: mastered.size, target: cards.length,
       done: cards.length > 0 && mastered.size >= cards.length, action: null,
+      onCardClick: () => setTab("categories"),
     },
     {
       id: "speed", icon: Zap, color: "#ff7a59", title: "שיא מהירות",
@@ -392,12 +417,12 @@ export default function MainApp({ session, onSignOut }) {
       desc: myStreak > 0 ? `${myStreak} ימים ברצף — כל הכבוד!` : "תרגלו יום אחרי יום כדי לפתוח רצף",
       progress: Math.min(myStreak, 3), target: 3, done: myStreak >= 3, action: null,
     },
-  ] : [];
+  ].filter(Boolean) : [];
 
-  // Home-page promo carousel — "ad"-style banners for the daily challenge and other
-  // team members' live achievements (streak/points leaders), so the home screen hypes
-  // up what's actually happening in the team, not just static shortcuts.
-  const streakLeader = [...leaderboard].filter(r => (r.streak || 0) > 1).sort((a, b) => (b.streak || 0) - (a.streak || 0))[0];
+  // Home-page carousel. Leads with the three things a waiter needs before a shift —
+  // today's briefing, what is new to learn, where they stand — then the daily challenge
+  // and the points leader. Game-mode teasers and the streak banner were dropped: the
+  // games already have their own tiles below, so advertising them here was noise.
   const pointsLeader = leaderboard[0];
   // Dishes started but not yet solid — the fallback for slide 2 on a menu with nothing new.
   const reviewDishes = (cards || [])
@@ -489,27 +514,10 @@ export default function MainApp({ session, onSignOut }) {
       subtitle: dailyDone ? "חזרו מחר לאתגר חדש" : `עוד ${DAILY_TARGET - daily.count} ותקבלו ${DAILY_BONUS} נקודות בונוס`,
       cta: dailyDone ? "לכל האתגרים" : "בואו נתחיל", onClick: () => { if (dailyDone) setTab("challenges"); else { setModeItems(null); setMode("flashcards"); } },
     },
-    streakLeader && streakLeader.team_member_id !== session?.teamMemberId ? {
-      id: "streak-leader", gradient: "linear-gradient(135deg,#e0315a,#ff7a59)", icon: Flame,
-      kicker: "בשרשרת חמה", title: `${streakLeader.name} ברצף של ${streakLeader.streak} ימים! 🔥`,
-      subtitle: "מי מצליח/ה להדביק אותם?", cta: "לדירוג", onClick: () => setTab("leaderboard"),
-    } : null,
     pointsLeader && pointsLeader.team_member_id !== session?.teamMemberId ? {
       id: "points-leader", gradient: "linear-gradient(135deg,#6d5efc,#9b7bff)", icon: Trophy,
       kicker: "בראש הטבלה", title: `${pointsLeader.name} מוביל/ה עם ${pointsLeader.points} נקודות`,
       subtitle: "הצטרפו לתחרות ותתפסו אותם", cta: "לדירוג המלא", onClick: () => setTab("leaderboard"),
-    } : null,
-    // Only advertise a game the waiter can actually open — a carousel card that leads to a
-    // locked mode is worse than no card.
-    gameLock("match")?.unlocked ? {
-      id: "match", gradient: "linear-gradient(135deg,#22c08c,#1aa376)", icon: Repeat,
-      kicker: "משחק חדש", title: "משחק ההתאמה", subtitle: "התאימו מנות למרכיבים שלהן במהירות שיא",
-      cta: "לשחק", onClick: () => { setModeItems(null); setMode("match"); },
-    } : null,
-    gameLock("speed")?.unlocked ? {
-      id: "speed", gradient: "linear-gradient(135deg,#3a86ff,#6d5efc)", icon: Zap,
-      kicker: "אתגר מהירות", title: bestSpeed > 0 ? `שברו את השיא של ${bestSpeed}!` : "כמה תשובות נכונות תספיקו?",
-      subtitle: "30 שניות על השעון", cta: "לאתגר", onClick: () => { setModeItems(null); setMode("speed"); },
     } : null,
   ].filter(Boolean) : [];
 
@@ -741,8 +749,15 @@ export default function MainApp({ session, onSignOut }) {
         )}
         {tab === "challenges" && (
           <div className="space-y-2">
-            {challenges.map(ch => (
-              <div key={ch.id} className="bg-[#16181c] rounded-lg p-3">
+            {challenges.map(ch => {
+              // A card with a destination becomes the button itself; the rest stay static.
+              const Tag = ch.onCardClick ? "button" : "div";
+              return (
+              <Tag
+                key={ch.id}
+                onClick={ch.onCardClick}
+                className={`bg-[#16181c] rounded-lg p-3 block w-full text-right ${ch.onCardClick ? "cursor-pointer active:bg-[#191b1f]" : ""}`}
+              >
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${ch.color}22` }}>
                     <ch.icon size={16} style={{ color: ch.color }} />
@@ -766,8 +781,12 @@ export default function MainApp({ session, onSignOut }) {
                 {ch.action && !ch.done && (
                   <button onClick={ch.action.onClick} className="w-full mt-2 py-2 rounded-lg text-[11px] font-bold text-white" style={{ background: ch.color }}>{ch.action.label}</button>
                 )}
-              </div>
-            ))}
+                {ch.onCardClick && (
+                  <p className="text-[10px] font-bold mt-2" style={{ color: ch.color }}>לצפייה בתפריט ←</p>
+                )}
+              </Tag>
+              );
+            })}
           </div>
         )}
       </div>
@@ -870,11 +889,32 @@ function PromoCarousel({ items }) {
 // The one genuinely subjective mode — there's nothing to objectively check when you're
 // just looking at a card, so the player self-rates 1-5 after reveal. Every other mode
 // grades itself instead (see learnItem in MainApp).
-function Flashcards({ items, onRate, onDone }) {
+function Flashcards({ items, session, onRate, onDone }) {
   const [i, setI] = useState(0);
   const [revealed, setRevealed] = useState(false);
   if (!items?.length) return <div className="h-screen flex items-center justify-center"><p>אין פריטים</p></div>;
-  if (i >= items.length) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Trophy size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">סיימת!</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
+  if (i >= items.length) return (
+    <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-3 bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
+      <Trophy size={40} className="text-[#f3c14b]" />
+      <p className="font-black text-lg">סיימתם את הסבב!</p>
+      {/* The session is a slice, so say what is left — otherwise "done" reads as "done
+          with the whole category", which it usually is not. */}
+      {session?.retiredCount > 0 && (
+        <p className="text-xs text-[#22c08c] font-bold">
+          {countLabel([...Array(session.retiredCount)], "מנה שאתם כבר שולטים בה", "מנות שאתם כבר שולטים בהן")} — דילגנו עליהן
+        </p>
+      )}
+      {session?.poolCount > items.length && (
+        <p className="text-xs text-[#8a8aa0]">
+          נשארו עוד {session.poolCount - new Set(items.map((x) => x.id)).size} מנות בקטגוריה — סבב נוסף?
+        </p>
+      )}
+      {session?.allRetired && (
+        <p className="text-xs text-[#8a8aa0]">שולטים בכל הקטגוריה — זה היה רענון</p>
+      )}
+      <button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white font-bold text-sm mt-1">חזור</button>
+    </div>
+  );
   const it = items[i];
   const rate = (v) => { onRate(it.id, v); setRevealed(false); setI(i + 1); };
   const RATING_STYLE = { 1: "bg-[#3a1d22] text-[#e0315a]", 2: "bg-[#3a1d22] text-[#e0315a]", 3: "bg-[#33290f] text-[#f3a712]", 4: "bg-[#15302b] text-[#22c08c]", 5: "bg-[#15302b] text-[#22c08c]" };
