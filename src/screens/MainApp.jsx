@@ -988,7 +988,7 @@ function Speed({ items, onAnswer, onDone, onFinish }) {
 // The same nine the owner app offers and the AI import is allowed to return. "סולפיטים"
 // used to be a tenth option here — an allergen no owner could ever tag, so selecting it
 // was always wrong for a reason the trainee had no way to learn.
-const ALLERGENS = ["גלוטן", "חלב", "ביצים", "אגוזים", "בוטנים", "דגים", "רכיכות", "סויה", "שומשום"];
+const ALLERGENS = ["גלוטן", "חלב", "ביצים", "אגוזים", "בוטנים", "דגים", "רכיכות", "סויה", "שומשום", "דג נא"];
 
 // Objective: pick every allergen the dish actually has (submitting with none selected
 // is itself the "no allergens" answer). Exact-set match required — no partial credit —

@@ -12,6 +12,7 @@ import {
   FACETS, RECOMMENDED_FACETS, availableFacets, buildWeightedDeck, buildSmartDeck,
   validateQuestion, maskNameLeak, splitChanges, dishLabel, hebKey, withDisplayNames,
   qChanges, qNotIngredient, qDescMatch, qWhichDish, qServingStyle, qAllergenDish, qPrice,
+  qServingCount, servingCounts,
 } from "../src/lib/questionEngine.js";
 import { MOCK_CARDS } from "../src/lib/mockMenu.js";
 
@@ -49,7 +50,7 @@ const pricesInNames = [
   { id: "p4", name: "Full Sea Bass 600", category: "mains", desc: "בס גדול לשולחן", ingredients: ["בס", "עשבים", "שמן"], allergens: ["דגים"], price: 600 },
 ].map((d) => ({ ...d, displayName: d.name }));
 
-const ALL_BUILDERS = [qChanges, qNotIngredient, qDescMatch, qWhichDish, qServingStyle, qAllergenDish, qPrice];
+const ALL_BUILDERS = [qChanges, qNotIngredient, qDescMatch, qWhichDish, qServingStyle, qServingCount, qAllergenDish, qPrice];
 
 // ---------------------------------------------------------------- generic checks
 
@@ -234,6 +235,36 @@ if (hebKey("חלב") === hebKey("חלבה")) fail("MASK", "hebKey must NOT fold 
 if (!maskNameLeak("ומניפת לימון מעל", "למון טוויסט").includes("▢"))
   fail("MASK", 'description "מניפת לימון" must be masked against the dish "למון טוויסט"');
 if (maskNameLeak("רוטב טחינה", "חלב").includes("▢")) fail("MASK", "unrelated words must survive masking");
+
+// Row 14: counts parsed off the category line, and numeric options surviving the gates.
+{
+  const SASHIMI = "סשימי — פילה דג בחיתוך דק (5 פרוסות) / עבה (3 פרוסות)";
+  const counts = servingCounts(SASHIMI);
+  if (counts.length !== 2) fail("COUNT", `servingCounts found ${counts.length} counts, expected 2`);
+  if (!counts.some((c) => c.n === 5 && c.label === "דק")) fail("COUNT", "thin cut should be 5");
+  if (!counts.some((c) => c.n === 3 && c.label === "עבה")) fail("COUNT", "thick cut should be 3");
+  if (servingCounts("starters").length) fail("COUNT", "a plain category must yield no counts");
+
+  // A single-ingredient sashimi menu: the ingredient question is free ("what's in סשימי
+  // בס"), so the count question is the only real one — it must actually be produced.
+  const sashimiOnly = withDisplayNames(
+    ["בס", "טונה אדומה", "ילו טייל", "סלמון"].map((n, i) => ({
+      id: "sc" + i, name: n, category: SASHIMI, desc: `פילה ${n} חתוך דק`,
+      ingredients: [n], allergens: ["דגים"], price: 40 + i,
+    }))
+  );
+  let produced = 0;
+  for (let r = 0; r < 30; r++)
+    for (const it of sashimiOnly) if (qServingCount(sashimiOnly, it)) produced++;
+  if (!produced) fail("COUNT", "qServingCount produced nothing on a menu whose category carries counts");
+
+  // The gate that silently blocked this: single-digit options normalise to empty word
+  // sets, and jaccard calls two empty sets identical.
+  if (!validateQuestion({ itemId: "x", subject: "סשימי דק", options: ["5", "3", "7", "4"], correct: "5" }))
+    fail("COUNT", "numeric options must survive the near-duplicate gate");
+  if (validateQuestion({ itemId: "x", subject: "סשימי דק", options: ["5", "5", "7"], correct: "5" }))
+    fail("COUNT", "genuinely identical numeric options must still be rejected");
+}
 
 console.log(failures ? `\n❌ ${failures} failures\n` : "\n✅ all quality gates passed\n");
 process.exit(failures ? 1 : 0);

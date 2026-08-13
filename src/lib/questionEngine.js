@@ -145,8 +145,17 @@ const jaccard = (a, b) => {
 // other is equally defensible.
 function nearDuplicateOptions(options) {
   for (let i = 0; i < options.length; i++)
-    for (let j = i + 1; j < options.length; j++)
-      if (jaccard(norm(options[i]), norm(options[j])) >= 0.85) return true;
+    for (let j = i + 1; j < options.length; j++) {
+      const a = norm(options[i]), b = norm(options[j]);
+      // Options with no content words — counts like "5" and "3" — carry no overlap to
+      // measure, and jaccard treats two empty sets as identical. Compare them literally
+      // instead; distinct strings are distinct answers.
+      if (!a.length && !b.length) {
+        if (String(options[i]).trim() === String(options[j]).trim()) return true;
+        continue;
+      }
+      if (jaccard(a, b) >= 0.85) return true;
+    }
   return false;
 }
 
@@ -347,10 +356,13 @@ export const FACETS = {
   serving: {
     label: "אופן ההגשה",
     hint: "כמות יחידות וצורת הגשה",
-    builders: [qServingStyle],
+    // qServingCount needs only ONE category to carry a count, so it stays available in a
+    // single-category exam where qServingStyle (which compares categories) cannot run.
+    builders: [qServingStyle, qServingCount],
     requires: (pool) => {
       const cats = [...new Set(pool.map((x) => x.category).filter(Boolean))];
-      return cats.length >= 3 && cats.every(isStructuralCategory);
+      return (cats.length >= 3 && cats.every(isStructuralCategory)) ||
+             cats.some((c) => servingCounts(c).length > 0);
     },
   },
   price: {
@@ -549,5 +561,56 @@ export function qPrice(pool, it) {
     subjectKind: "name",
     options: shuffle([price, ...uniq.slice(0, 3)]).map(fmt),
     correct: fmt(price),
+  });
+}
+
+// Imported category lines carry the serving size — "מאקי — 6 יחידות, אצה בחוץ…",
+// "סשימי — פילה דג בחיתוך דק (5 פרוסות) / עבה (3 פרוסות)". Each number+unit in the line
+// becomes a question, labelled by the word right before it so thin and thick stay
+// distinct. Returns [] when the line has no count, so menus without this convention
+// simply never get the question.
+// The serving style, i.e. the part before the em dash. Kept here so the engine doesn't
+// depend on the app's category-label table.
+const shortCatOf = (c) => String(c || "").split(/\s*[—–]\s*/)[0].trim();
+
+export function servingCounts(category) {
+  const tail = String(category || "").split(/\s*[—–]\s*/).slice(1).join(" ");
+  if (!tail) return [];
+  const out = [];
+  for (const seg of tail.split("/")) {
+    const m = seg.match(/(\d+)\s*(יחידות|פרוסות|חתיכות)/);
+    if (!m) continue;
+    const before = seg.slice(0, m.index).replace(/[()]/g, " ").trim().split(/\s+/).filter(Boolean);
+    out.push({ n: Number(m[1]), unit: m[2], label: before.length ? before[before.length - 1] : "" });
+  }
+  return out;
+}
+
+// "כמה פרוסות יש בסשימי דק?" — the count a waiter is actually asked at the table, and the
+// one thing a single-ingredient dish like "סשימי בס" can meaningfully be tested on.
+// Distractors are counts used elsewhere on the same menu, so they are all plausible.
+export function qServingCount(pool, it) {
+  const mine = servingCounts(it.category);
+  if (!mine.length) return null;
+  const pick = shuffle(mine)[0];
+  const all = [...new Set(
+    [...new Set(pool.map((x) => x.category))]
+      .flatMap((c) => servingCounts(c).map((s) => s.n))
+      .filter((n) => n !== pick.n)
+  )];
+  // Pad from neighbouring numbers when the menu itself doesn't offer enough alternatives.
+  const pool2 = [...all, pick.n + 2, pick.n - 1, pick.n + 4].filter((n) => n > 0 && n !== pick.n);
+  const distractors = [...new Set(pool2)].slice(0, 3);
+  if (distractors.length < 3) return null;
+  const style = shortCatOf(it.category);
+  const where = pick.label ? `${style} ${pick.label}` : style;
+  return validateQuestion({
+    itemId: it.id,
+    facet: "serving",
+    prompt: `כמה ${pick.unit} מוגשות ב${where}?`,
+    subject: where,
+    subjectKind: "name",
+    options: shuffle([String(pick.n), ...distractors.map(String)]),
+    correct: String(pick.n),
   });
 }
