@@ -599,14 +599,16 @@ export default function MainApp({ session, onSignOut }) {
       kicker: "עדכון יומי",
       title: hasBrief
         ? (briefItems[0] || "יש הודעה מהמנהל")
-        : "אין עדכונים חדשים",
+        : "אין כרגע עדכון יומי",
       subtitle: hasBrief
         ? (briefItems.length > 1
             ? `${countLabel(briefItems.slice(1), "עדכון נוסף", "עדכונים נוספים")}${brief?.notes ? " + הודעה מהמנהל" : ""}`
             : (brief?.notes || "לפני שמתחילים את המשמרת"))
-        : "הכל כרגיל — משמרת טובה!",
-      cta: hasBrief ? "לעדכון המלא" : "לעדכון היומי",
-      onClick: () => setTab("daily"),
+        : "אבל תמיד כדאי לחזור על התפריט — בואו נלמד",
+      cta: hasBrief ? "לעדכון המלא" : "ללמידה",
+      onClick: hasBrief
+        ? () => setTab("daily")
+        : () => { setModeItems(null); setMode("quick"); },
     },
     // Slide 2 always exists: new dishes if there are any, otherwise what needs review.
     newDishes.length > 0 ? {
@@ -812,7 +814,16 @@ export default function MainApp({ session, onSignOut }) {
             {brief?.oven_items?.length > 0 && <div><span className="text-[10px] font-bold text-[#6d5efc]">📦 מעלה:</span><p className="text-xs text-[#6d5efc] mt-0.5">{brief.oven_items.join(", ")}</p></div>}
             {brief?.notes && <div><span className="text-[11px] font-bold text-[#8a8aa0]">הערה:</span><p className="text-xs text-[#8a8aa0] mt-0.5">{brief.notes}</p></div>}
             {!brief?.missing_items?.length && !brief?.new_items?.length && !brief?.oven_items?.length && !brief?.notes && (
-              <p className="text-xs text-[#8a8aa0]">אין עדכונים היום</p>
+              <div className="text-center py-3 space-y-2">
+                <p className="text-sm font-bold text-[#eef0f6]">אין כרגע עדכון יומי</p>
+                <p className="text-xs text-[#8a8aa0]">אבל תמיד כדאי לנצל את הזמן לחזרה על התפריט</p>
+                <button
+                  onClick={() => { setModeItems(null); setMode("quick"); }}
+                  className="px-5 py-2.5 min-h-[44px] rounded-lg bg-[#6d5efc] text-white text-xs font-black"
+                >
+                  ללמידה — 5 דקות לפני משמרת ←
+                </button>
+              </div>
             )}
             {/* Acknowledgement lives here, under the full text — it should only be
                 answerable after the brief itself is on screen. */}
