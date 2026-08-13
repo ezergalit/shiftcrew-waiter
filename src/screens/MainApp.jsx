@@ -61,7 +61,10 @@ function pubToCard(p) {
   // Four separate warning groups, never merged: "fish" is an allergy, "raw fish" is a
   // pregnancy warning, "coriander" is a preference. A waiter reading one combined list
   // can't tell which one could put a guest in hospital. See src/lib/dishFlags.js.
-  return { id: p.source_item_id, name: p.name, price: Number(p.price), category: p.category, desc: p.description || "", ingredients: ing, allergens: (p.allergens || []).filter(Boolean), pregnancy: (p.pregnancy || []).filter(Boolean), pitfalls: (p.pitfalls || []).filter(Boolean), kashrut: (p.kashrut || []).filter(Boolean), menuPosition: p.menu_position, createdAt: p.created_at, isSpecial: !!p.is_special };
+  return { id: p.source_item_id, name: p.name, price: Number(p.price), category: p.category, desc: p.description || "", ingredients: ing, allergens: (p.allergens || []).filter(Boolean), pregnancy: (p.pregnancy || []).filter(Boolean), pitfalls: (p.pitfalls || []).filter(Boolean), kashrut: (p.kashrut || []).filter(Boolean), menuPosition: p.menu_position, createdAt: p.created_at, // `starred` is the manager's emphasis toggle (owner app, 2026-08-13); `is_special` is
+  // the older flag some seeded dishes still carry. Either one lights the star — reading
+  // only the old column silently disconnected the manager's button from the waiter side.
+  isSpecial: !!(p.starred || p.is_special) };
 }
 
 const COLORS = ["#22c08c", "#ff7a59", "#e0315a", "#f3a712", "#3a86ff", "#6d5efc", "#9b7bff", "#1aa376"];
