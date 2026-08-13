@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, Repeat, ChevronLeft, AlertTriangle, ListChecks, GraduationCap, Lock } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import MetricsScreen from "../components/MetricsScreen";
 import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
 import { pickDistractors, buildWeightedDeck, availableFacets, dishLabel, withDisplayNames } from "../lib/questionEngine";
 import { pathState } from "../lib/learningPath";
@@ -67,7 +68,8 @@ export default function MainApp({ session, onSignOut }) {
   const [masteryById, setMasteryById] = useState({});
   const [leaderboard, setLeaderboard] = useState([]);
   const [brief, setBrief] = useState(null);
-  const [mode, setMode] = useState(null); // flashcards | quiz | match | speed | exam | …
+  const [mode, setMode] = useState(null);
+  const [showMetrics, setShowMetrics] = useState(false); // flashcards | quiz | match | speed | exam | …
   const [modeItems, setModeItems] = useState(null); // scoped items for a challenge round; null = full menu
   // Store the category key (e.g. "starters") for the DB record, and its Hebrew label for
   // display — the exam_results row keys off the former so it stays stable if labels change.
@@ -272,6 +274,10 @@ export default function MainApp({ session, onSignOut }) {
     [examConfig, gameItems]
   );
 
+  // Full-screen, above the tabs: it is a place you go to, not a tab you live in.
+  if (showMetrics)
+    return <MetricsScreen session={session} cards={cards} masteryById={masteryById} onDone={() => setShowMetrics(false)} />;
+
   if (mode === "flashcards") return <Flashcards items={gameItems} onRate={learnItem} onDone={exitMode} />;
   if (mode === "quiz") return <Quiz items={gameItems} facets={gameFacets} onAnswer={learnItem} onDone={exitMode} />;
   if (mode === "match") return <Matching items={gameItems} onAnswer={learnItem} onDone={exitMode} session={session} />;
@@ -409,7 +415,16 @@ export default function MainApp({ session, onSignOut }) {
           <p className="text-sm font-black">{session?.name}</p>
           {session?.restaurantName && <p className="text-[10px] text-[#8a8aa0] font-semibold">{session.restaurantName}</p>}
         </div>
-        {myRank > 0 && <span className="text-[11px] font-bold text-[#f3c14b] bg-[#33290f] px-2 py-1 rounded-md">מקום {myRank}</span>}
+        <div className="flex items-center gap-1.5">
+          {myRank > 0 && <span className="text-[11px] font-bold text-[#f3c14b] bg-[#33290f] px-2 py-1 rounded-md">מקום {myRank}</span>}
+          <button
+            onClick={() => setShowMetrics(true)}
+            title="המדדים שלי"
+            className="w-8 h-8 rounded-lg bg-[#191b1f] flex items-center justify-center text-[#8a8aa0]"
+          >
+            <BarChart3 size={16} />
+          </button>
+        </div>
       </div>
       {session?.offline && (
         <div className="bg-[#33290f] border-b border-[#664400] px-4 py-1.5 flex items-center gap-1.5 flex-shrink-0">
@@ -1168,13 +1183,19 @@ function AllergenQuiz({ items, onAnswer, onDone }) {
   const it = deck[i];
   const actual = new Set(it.allergens || []);
   const toggle = (a) => { if (submitted) return; setSelected(prev => { const n = new Set(prev); n.has(a) ? n.delete(a) : n.add(a); return n; }); };
+  // Kept as state rather than recomputed on render: after `submitted` flips, the verdict
+  // must describe the answer that was actually sent.
+  const wasCorrect = submitted && selected.size === actual.size && [...selected].every(a => actual.has(a));
+  const missed = [...actual].filter((a) => !selected.has(a));
+  const overPicked = [...selected].filter((a) => !actual.has(a));
   const submit = () => {
     if (submitted) return;
     const correct = selected.size === actual.size && [...selected].every(a => actual.has(a));
     if (correct) setScore(s => s + 1);
     onAnswer(it.id, correct ? 5 : 2);
     setSubmitted(true);
-    setTimeout(() => { setSubmitted(false); setSelected(new Set()); setI(x => x + 1); }, 1400);
+    // A wrong answer needs longer on screen than a right one — there is something to read.
+    setTimeout(() => { setSubmitted(false); setSelected(new Set()); setI(x => x + 1); }, correct ? 1400 : 2600);
   };
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
@@ -1184,19 +1205,49 @@ function AllergenQuiz({ items, onAnswer, onDone }) {
           <p className="text-sm font-black mb-1">{dishLabel(it)}</p>
           <p className="text-[10px] text-[#8a8aa0]">אילו אלרגיות יש במנה הזו?</p>
         </div>
+        {/* The verdict has to be stated, not inferred from chip colours. Answering "no
+            allergies" on a dish that has them used to paint every real allergen green and
+            nothing red, so a wrong answer looked exactly like a right one. */}
+        {submitted && (
+          <div className={`rounded-lg p-3 mb-3 text-center border ${
+            wasCorrect ? "bg-[#15302b] border-[#22c08c]" : "bg-[#3a1d22] border-[#e0315a]"
+          }`}>
+            <p className={`text-sm font-black ${wasCorrect ? "text-[#22c08c]" : "text-[#e0315a]"}`}>
+              {wasCorrect ? "✓ נכון" : "✗ טעית"}
+            </p>
+            {!wasCorrect && (
+              <p className="text-[11px] font-bold text-[#eef0f6] mt-1">
+                {missed.length > 0 && (
+                  selected.size === 0
+                    ? `יש אלרגיות במנה: ${missed.join(", ")}`
+                    : `פספסתם: ${missed.join(", ")}`
+                )}
+                {missed.length > 0 && overPicked.length > 0 && " · "}
+                {overPicked.length > 0 && `אין במנה: ${overPicked.join(", ")}`}
+              </p>
+            )}
+            {wasCorrect && actual.size === 0 && (
+              <p className="text-[11px] text-[#8a8aa0] mt-1">אין אלרגיות במנה זו</p>
+            )}
+          </div>
+        )}
         <div className="flex flex-wrap gap-1.5 mb-3">
           {ALLERGENS.map(a => {
             const on = selected.has(a);
-            const showCorrect = submitted && actual.has(a);
+            // Three distinct post-answer states, not two: picked-and-right, picked-and-wrong,
+            // and right-but-missed. The last one used to be indistinguishable from the first.
+            const gotIt = submitted && on && actual.has(a);
+            const wasMissed = submitted && !on && actual.has(a);
             const showWrongPick = submitted && on && !actual.has(a);
             return (
               <button key={a} disabled={submitted} onClick={() => toggle(a)}
                 className={`text-[11px] font-bold px-2.5 py-1.5 rounded-lg border transition-colors ${
-                  showCorrect ? "bg-[#22c08c] text-white border-[#22c08c]" :
-                  showWrongPick ? "bg-[#e0315a] text-white border-[#e0315a]" :
+                  gotIt ? "bg-[#22c08c] text-white border-[#22c08c]" :
+                  wasMissed ? "bg-[#3a1d22] text-[#22c08c] border-[#22c08c] border-dashed" :
+                  showWrongPick ? "bg-[#e0315a] text-white border-[#e0315a] line-through" :
                   on ? "bg-[#6d5efc] text-white border-[#6d5efc]" : "bg-[#16181c] text-[#c4c4d4] border-[#22252b]"
                 }`}>
-                {a}
+                {wasMissed ? `${a} ←` : a}
               </button>
             );
           })}
@@ -1206,7 +1257,6 @@ function AllergenQuiz({ items, onAnswer, onDone }) {
             {selected.size === 0 ? "אין אלרגיות / שליחה" : "שליחה"}
           </button>
         )}
-        {submitted && actual.size === 0 && <p className="text-[11px] text-center text-[#8a8aa0] mt-2">אין אלרגיות במנה זו</p>}
       </div>
     </div>
   );

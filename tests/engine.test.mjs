@@ -12,7 +12,7 @@ import {
   FACETS, RECOMMENDED_FACETS, availableFacets, buildWeightedDeck, buildSmartDeck,
   validateQuestion, maskNameLeak, splitChanges, dishLabel, hebKey, withDisplayNames,
   qChanges, qNotIngredient, qDescMatch, qWhichDish, qServingStyle, qAllergenDish, qPrice,
-  qServingCount, servingCounts,
+  qServingCount, servingCounts, qPitfallDish,
 } from "../src/lib/questionEngine.js";
 import { MOCK_CARDS } from "../src/lib/mockMenu.js";
 
@@ -264,6 +264,55 @@ if (maskNameLeak("רוטב טחינה", "חלב").includes("▢")) fail("MASK", 
     fail("COUNT", "numeric options must survive the near-duplicate gate");
   if (validateQuestion({ itemId: "x", subject: "סשימי דק", options: ["5", "5", "7"], correct: "5" }))
     fail("COUNT", "genuinely identical numeric options must still be rejected");
+}
+
+// Row 16: MORE THAN ONE TRUE ANSWER. The existing gates measure how alike options *look*;
+// they cannot see that a second option is simply also true. Two real cases from the live
+// sushi menu, both of which shipped:
+//   · "מאקי סלמון חם" (has טמפורה) was asked which ingredient is NOT in it, with both
+//     "טמפורה" and "שבבי טמפורה" among the options.
+//   · Two rolls whose descriptions differ by a single word scored 0.833 on jaccard —
+//     under the 0.85 threshold — so both appeared as options.
+// This suite re-derives the truth independently of the builders: an option counts as
+// "in the dish" when its words overlap a real ingredient, which is how a waiter reads it.
+{
+  const wordsOf = (x) =>
+    new Set(String(x || "").toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .split(/\s+/).filter((w) => w.length >= 2).map(hebKey));
+  const overlaps = (a, b) => { const A = wordsOf(a); return [...wordsOf(b)].some((w) => A.has(w)); };
+  const strip = (x) => String(x).replace(/▢+/g, "").replace(/\s+/g, " ").trim();
+
+  const trueAnswers = (pool, q, it) => {
+    if (q.facet === "ingredients")
+      return q.options.filter((o) => !(it.ingredients || []).some((r) => overlaps(r, o))).length;
+    if (q.facet === "description" && q.subjectKind === "name") {
+      const mine = strip(maskNameLeak(splitChanges(it.desc).base, it.name));
+      return q.options.filter((o) => strip(o) === mine).length;
+    }
+    if (q.facet === "allergens" || q.facet === "pitfalls")
+      return q.options.filter((o) => {
+        const d = pool.find((x) => dishLabel(x) === o);
+        return d && (d[q.facet] || []).includes(q.subject);
+      }).length;
+    return 1;
+  };
+
+  for (const [label, pool] of [["SUSHI", sushi], ["GREEK", greek]])
+    for (let rep = 0; rep < 25; rep++)
+      for (const it of pool)
+        for (const fn of [qNotIngredient, qDescMatch, qWhichDish, qAllergenDish, qPitfallDish]) {
+          const q = fn(pool, it);
+          if (!q) continue;
+          const n = trueAnswers(pool, q, it);
+          if (n !== 1)
+            fail("AMBIGUOUS", `[${label}] ${fn.name} on "${q.subject}" has ${n} true answers: ${q.options.join(" | ")}`);
+        }
+
+  // The specific shape that slipped through: one differing word out of six.
+  if (!validateQuestion({
+    itemId: "x", subject: "מאקי", correct: "סלמון ואבוקדו בטמפורה, פסי טריאקי מעל",
+    options: ["סלמון ואבוקדו בטמפורה, פסי טריאקי מעל", "בטטה ואבוקדו בטמפורה, פסי טריאקי מעל", "חזה עוף בפירורי לחם וחסה", "אספרגוס וגבינת שמנת בשומשום"],
+  }) === false) fail("AMBIGUOUS", "two descriptions differing by one word must be rejected");
 }
 
 console.log(failures ? `\n❌ ${failures} failures\n` : "\n✅ all quality gates passed\n");

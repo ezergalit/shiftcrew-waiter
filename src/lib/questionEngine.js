@@ -155,6 +155,18 @@ function nearDuplicateOptions(options) {
         continue;
       }
       if (jaccard(a, b) >= 0.85) return true;
+      // Jaccard alone was too permissive at the short end. On the real sushi menu
+      // "סלמון ואבוקדו בטמפורה, פסי טריאקי מעל" and "בטטה ואבוקדו בטמפורה, פסי טריאקי מעל"
+      // score 0.833 — under the threshold, so both shipped as options even though they
+      // differ by a single word. Two options that differ by ≤1 content word are not two
+      // answers, they are one answer asked twice.
+      const A = new Set(a), B = new Set(b);
+      const onlyA = a.filter((w) => !B.has(w)).length;
+      const onlyB = b.filter((w) => !A.has(w)).length;
+      if (onlyA <= 1 && onlyB <= 1 && Math.min(A.size, B.size) >= 3) return true;
+      // A strict subset reads as the same answer with less detail — "סלמון, אבוקדו" against
+      // "סלמון, אבוקדו, שומשום" gives the trainee no basis to choose.
+      if ((onlyA === 0 || onlyB === 0) && A.size !== B.size) return true;
     }
   return false;
 }
@@ -246,12 +258,22 @@ export function qNotIngredient(pool, it) {
   const real = [...new Set((it.ingredients || []).map((x) => x.trim()).filter(Boolean))];
   if (real.length < 3) return null;
   const realSet = new Set(real);
+  // Exact-string absence is not the same as "not in the dish". A roll listing "טמפורה"
+  // was offered "שבבי טמפורה" as the thing it does NOT contain — technically a different
+  // ingredient, but no waiter reads it as a clean wrong answer. Anything whose words
+  // overlap a real ingredient is disqualified as the intruder.
+  const realKeys = real.map((x) => new Set(norm(x).map(hebKey)));
+  const overlapsReal = (cand) => {
+    const k = new Set(norm(cand).map(hebKey));
+    if (!k.size) return false;
+    return realKeys.some((rk) => [...k].some((w) => rk.has(w)));
+  };
   const foreign = [
     ...new Set(
       pickDistractors(pool, it, 6)
         .flatMap((s) => s.ingredients || [])
         .map((x) => x.trim())
-        .filter((x) => x && !realSet.has(x))
+        .filter((x) => x && !realSet.has(x) && !overlapsReal(x))
     ),
   ];
   if (!foreign.length) return null;
