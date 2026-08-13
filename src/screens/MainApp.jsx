@@ -34,7 +34,10 @@ function pubToCard(p) {
   const ing = (p.ingredients || []).filter(Boolean);
   // displayName is filled in by withDisplayNames once the whole menu is loaded — whether a
   // name needs its serving style depends on the other dishes, not on this row alone.
-  return { id: p.source_item_id, name: p.name, price: Number(p.price), category: p.category, desc: p.description || "", ingredients: ing, allergens: (p.allergens || []).filter(Boolean), pitfalls: (p.pitfalls || []).filter(Boolean), isSpecial: !!p.is_special };
+  // Four separate warning groups, never merged: "fish" is an allergy, "raw fish" is a
+  // pregnancy warning, "coriander" is a preference. A waiter reading one combined list
+  // can't tell which one could put a guest in hospital. See src/lib/dishFlags.js.
+  return { id: p.source_item_id, name: p.name, price: Number(p.price), category: p.category, desc: p.description || "", ingredients: ing, allergens: (p.allergens || []).filter(Boolean), pregnancy: (p.pregnancy || []).filter(Boolean), pitfalls: (p.pitfalls || []).filter(Boolean), kashrut: (p.kashrut || []).filter(Boolean), menuPosition: p.menu_position, isSpecial: !!p.is_special };
 }
 
 const COLORS = ["#22c08c", "#ff7a59", "#e0315a", "#f3a712", "#3a86ff", "#6d5efc", "#9b7bff", "#1aa376"];
@@ -97,10 +100,13 @@ export default function MainApp({ session, onSignOut }) {
     let alive = true;
     (async () => {
       // Ordered, not incidental: the learning path teaches categories in menu order, and
-      // created_at is the order the menu was entered. Without this the path could
-      // reshuffle between loads. source_item_id breaks ties so the order is total.
+      // menu_position is the dish's place in the restaurant's own printed menu — the
+      // order they think about their food, and so the order to learn it in. created_at
+      // covers dishes added by hand since the import; source_item_id makes it total, so
+      // the learning path can't reshuffle between loads.
       const { data } = await db.from("published_menu").select("*")
         .eq("restaurant_id", session?.restaurantId)
+        .order("menu_position", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: true }).order("source_item_id", { ascending: true });
       if (alive) setCards(withDisplayNames((data || []).map(pubToCard)));
       const { data: m } = await db.from("menu_progress").select("source_item_id, mastery").eq("team_member_id", session?.teamMemberId);
@@ -268,7 +274,7 @@ export default function MainApp({ session, onSignOut }) {
 
   if (mode === "flashcards") return <Flashcards items={gameItems} onRate={learnItem} onDone={exitMode} />;
   if (mode === "quiz") return <Quiz items={gameItems} facets={gameFacets} onAnswer={learnItem} onDone={exitMode} />;
-  if (mode === "match") return <Matching items={gameItems} onAnswer={learnItem} onDone={exitMode} />;
+  if (mode === "match") return <Matching items={gameItems} onAnswer={learnItem} onDone={exitMode} session={session} />;
   if (mode === "speed") return <Speed items={gameItems} onAnswer={learnItem} onDone={exitMode} onFinish={finishSpeed} />;
   if (mode === "allergens") return <AllergenQuiz items={gameItems} onAnswer={learnItem} onDone={exitMode} />;
   if (mode === "namecomplete") return <NameCompletion items={gameItems} facets={gameFacets} onAnswer={learnItem} onDone={exitMode} />;
@@ -859,8 +865,11 @@ function Quiz({ items, facets, onAnswer, onDone }) {
 // Objective — a pair matched with zero wrong attempts grades 5, one wrong attempt 4,
 // two 3, three+ 2. No self-report; guessing wrong repeatedly costs you the rating.
 const BOARDS_PER_GAME = 2;
+// A wrong match costs 5 seconds. Without it the fastest strategy is to tap pairs at random
+// until something sticks, which is the opposite of what the game is meant to train.
+const WRONG_MATCH_PENALTY_S = 5;
 
-function Matching({ items, onAnswer, onDone }) {
+function Matching({ items, onAnswer, onDone, session }) {
   // `board` advances only when the player clears the current grid. It is the ONLY thing
   // the deck depends on besides the (now frozen) item pool, so a grid can never be
   // rebuilt in the middle of play — matching a pair used to swap the whole board.
@@ -880,7 +889,10 @@ function Matching({ items, onAnswer, onDone }) {
   const [wrongPair, setWrongPair] = useState([]);
   const [seconds, setSeconds] = useState(0);
   const [running, setRunning] = useState(true);
+  const [penalty, setPenalty] = useState(0);
   const [stats, setStats] = useState({ pairs: 0, clean: 0, seconds: 0 });
+  // Top-3 fastest for this restaurant, loaded once the game ends.
+  const [records, setRecords] = useState(null);
   const startedRef = useRef(Date.now());
   const wrongAttemptsRef = useRef(new Map()); // pairId -> count, for objective grading
 
@@ -897,9 +909,41 @@ function Matching({ items, onAnswer, onDone }) {
     wrongAttemptsRef.current = new Map();
     startedRef.current = Date.now();
     setSeconds(0);
+    setPenalty(0);
     setRunning(true);
     setBoard(nextBoard);
   };
+
+  // Record the run and read back the restaurant's fastest three. Runs once per finished
+  // game (`finished` only flips on the last board), and only for a real session — an
+  // offline fallback session has no restaurant to compare against.
+  useEffect(() => {
+    if (!finished || records !== null) return;
+    let alive = true;
+    (async () => {
+      if (session?.offline || !session?.restaurantId) { if (alive) setRecords([]); return; }
+      // A failed insert must not cost the player their result screen, so the podium is
+      // read back regardless of whether the write landed.
+      await db.from("match_times").insert({
+        restaurant_id: session.restaurantId,
+        team_member_id: session.teamMemberId,
+        name: session.name,
+        seconds: stats.seconds,
+        boards: BOARDS_PER_GAME,
+        pairs: stats.pairs,
+        clean: stats.clean,
+      });
+      const { data } = await db
+        .from("match_times")
+        .select("name, seconds, created_at")
+        .eq("restaurant_id", session.restaurantId)
+        .eq("boards", BOARDS_PER_GAME)   // only compare runs of the same length
+        .order("seconds", { ascending: true })
+        .limit(3);
+      if (alive) setRecords(data || []);
+    })();
+    return () => { alive = false; };
+  }, [finished, records, session, stats]);
 
   if (!deck.length) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>אין מספיק פריטים</p></div>;
 
@@ -915,9 +959,38 @@ function Matching({ items, onAnswer, onDone }) {
           </p>
         </div>
         <p className="text-xs text-[#8a8aa0]">מתוכן {stats.clean} נכונות בניסיון הראשון</p>
+
+        <div className="w-full max-w-[280px]">
+          <p className="text-[11px] font-black text-[#8a8aa0] mb-2">🏆 השיאים של המסעדה</p>
+          {records === null ? (
+            <p className="text-[11px] text-[#8a8aa0]">טוען…</p>
+          ) : records.length === 0 ? (
+            <p className="text-[11px] text-[#8a8aa0]">אין עדיין שיאים — הזמן שלכם ייכנס ראשון</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {records.map((r, i) => {
+                // Highlight the row that is this run: same name and same time.
+                const isMine = r.name === session?.name && r.seconds === stats.seconds;
+                return (
+                  <div
+                    key={`${r.name}-${r.created_at}`}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-bold ${
+                      isMine ? "bg-[#241f4d] border border-[#6d5efc]" : "bg-[#16181c]"
+                    }`}
+                  >
+                    <span className="text-sm">{["🥇", "🥈", "🥉"][i]}</span>
+                    <span className="flex-1 text-right text-[#eef0f6] truncate">{r.name}</span>
+                    <span className="text-[#f3c14b] font-black">{r.seconds}s</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         <div className="flex flex-col gap-2 w-full max-w-[240px]">
           <button
-            onClick={() => { setStats({ pairs: 0, clean: 0, seconds: 0 }); setFinished(false); startBoard(board + 1); }}
+            onClick={() => { setStats({ pairs: 0, clean: 0, seconds: 0 }); setRecords(null); setFinished(false); startBoard(board + 1); }}
             className="px-4 py-3 rounded-2xl bg-[#6d5efc] text-white font-black text-sm"
           >
             עוד סבב
@@ -949,6 +1022,7 @@ function Matching({ items, onAnswer, onDone }) {
         // eventually matches correctly will remember this miss.
         wrongAttemptsRef.current.set(a.pairId, (wrongAttemptsRef.current.get(a.pairId) || 0) + 1);
         wrongAttemptsRef.current.set(b.pairId, (wrongAttemptsRef.current.get(b.pairId) || 0) + 1);
+        setPenalty((p) => p + WRONG_MATCH_PENALTY_S);
         setWrongPair([a.key, b.key]);
         setTimeout(() => { setWrongPair([]); setSel([]); }, 550);
       }
@@ -960,7 +1034,9 @@ function Matching({ items, onAnswer, onDone }) {
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0">
         <button onClick={onDone} className="text-xs text-[#8a8aa0]">← חזרה</button>
         <p className="text-xs font-bold text-[#eef0f6]">התאמה · לוח {(board % BOARDS_PER_GAME) + 1}/{BOARDS_PER_GAME}</p>
-        <p className="text-xs font-black text-[#f3c14b]">⏱ {seconds}s</p>
+        <p className={`text-xs font-black ${wrongPair.length ? "text-[#e0315a]" : "text-[#f3c14b]"}`}>
+          ⏱ {seconds + penalty}s{penalty > 0 && <span className="text-[10px] font-bold text-[#e0315a]"> (+{penalty})</span>}
+        </p>
       </div>
       <div className="flex-1 overflow-y-auto px-4 py-3">
         <div className="grid grid-cols-3 gap-2">
@@ -989,10 +1065,12 @@ function Matching({ items, onAnswer, onDone }) {
           <div className="text-center mt-6">
             <Trophy size={32} className="text-[#f3c14b] mx-auto mb-2" />
             <p className="text-sm font-black text-[#eef0f6] mb-1">לוח {(board % BOARDS_PER_GAME) + 1} מתוך {BOARDS_PER_GAME} הושלם</p>
-            <p className="text-xs text-[#8a8aa0] mb-3">{seconds} שניות</p>
+            <p className="text-xs text-[#8a8aa0] mb-3">
+              {seconds + penalty} שניות{penalty > 0 ? ` (${penalty} קנס)` : ""}
+            </p>
             <button
               onClick={() => {
-                setStats((st) => ({ ...st, seconds: st.seconds + seconds }));
+                setStats((st) => ({ ...st, seconds: st.seconds + seconds + penalty }));
                 // Summary after the last board of the set; otherwise deal a fresh grid.
                 if ((board + 1) % BOARDS_PER_GAME === 0) setFinished(true);
                 else startBoard(board + 1);
