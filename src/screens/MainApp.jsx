@@ -2,7 +2,6 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, Repeat, ChevronLeft, AlertTriangle, ListChecks, GraduationCap, Lock } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import MetricsScreen from "../components/MetricsScreen";
-import ShiftBrief from "../components/ShiftBrief";
 import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
 import { pickDistractors, buildWeightedDeck, availableFacets, dishLabel, withDisplayNames } from "../lib/questionEngine";
 import { pathState } from "../lib/learningPath";
@@ -362,9 +361,12 @@ export default function MainApp({ session, onSignOut }) {
       action: dailyDone ? null : { label: "התחילו ללמוד", onClick: () => { setModeItems(null); setMode("flashcards"); } },
     },
     {
-      id: "allergens", icon: AlertTriangle, color: "#e0315a", title: "אתגר האלרגיות",
+      // Not "challenge": allergies are the one thing on this menu that can put a guest in
+      // hospital, and framing them as a game undercuts the seriousness the waiter should
+      // carry to the table. Wording stays calm and instructional throughout.
+      id: "allergens", icon: AlertTriangle, color: "#e0315a", title: "לימוד האלרגיות",
       desc: lockedNote("allergens") || "קראו את שם המנה וזהו את כל האלרגיות שבה", progress: null, target: null, done: false,
-      action: gatedAction("allergens", "לאתגר האלרגיות"),
+      action: gatedAction("allergens", "ללימוד האלרגיות"),
     },
     {
       id: "namecomplete", icon: ListChecks, color: "#3a86ff", title: "התאימו תיאור למנה",
@@ -394,7 +396,90 @@ export default function MainApp({ session, onSignOut }) {
   // up what's actually happening in the team, not just static shortcuts.
   const streakLeader = [...leaderboard].filter(r => (r.streak || 0) > 1).sort((a, b) => (b.streak || 0) - (a.streak || 0))[0];
   const pointsLeader = leaderboard[0];
+  // Dishes started but not yet solid — the fallback for slide 2 on a menu with nothing new.
+  const reviewDishes = (cards || [])
+    .filter((c) => { const m = masteryById?.[c.id] || 0; return m > 0 && m < 4; })
+    .sort((a, b) => (masteryById?.[a.id] || 0) - (masteryById?.[b.id] || 0));
+
+  // Group new dishes by category so slide 2 reads like a manager's question ("have you
+  // learned the new cocktail menu?") instead of a list of dish names.
+  const newByCat = newDishes.reduce((acc, d) => {
+    const c = shortCat(d.category) || "התפריט";
+    (acc[c] = acc[c] || []).push(d);
+    return acc;
+  }, {});
+  const biggestNewCat = Object.entries(newByCat).sort((a, b) => b[1].length - a[1].length)[0];
+
+  const briefItems = [
+    ...(brief?.missing_items || []).map((x) => `חסר: ${x}`),
+    ...(brief?.new_items || []).map((x) => `חדש: ${x}`),
+    ...(brief?.oven_items || []).map((x) => `מוגבל: ${x}`),
+  ];
+  const hasBrief = briefItems.length > 0 || !!brief?.notes;
+
+  // The three lead slides, in this order, by request: today's briefing, then what is new
+  // to learn, then whether the waiter is ready to move up. Everything after them is the
+  // pre-existing hype (team leaders, game modes) and only shows when it applies.
   const promos = cards ? [
+    {
+      id: "brief", gradient: "linear-gradient(135deg,#e8a33d,#c2410c)", icon: ListChecks,
+      kicker: "עדכון יומי",
+      title: hasBrief
+        ? (briefItems[0] || "יש הודעה מהמנהל")
+        : "אין עדכונים חדשים",
+      subtitle: hasBrief
+        ? (briefItems.length > 1
+            ? `${countLabel(briefItems.slice(1), "עדכון נוסף", "עדכונים נוספים")}${brief?.notes ? " + הודעה מהמנהל" : ""}`
+            : (brief?.notes || "לפני שמתחילים את המשמרת"))
+        : "הכל כרגיל — משמרת טובה!",
+      cta: hasBrief ? "לעדכון המלא" : "לעדכון היומי",
+      onClick: () => setTab("daily"),
+    },
+    // Slide 2 always exists: new dishes if there are any, otherwise what needs review.
+    newDishes.length > 0 ? {
+      id: "new-dishes", gradient: "linear-gradient(135deg,#8b5cf6,#6d28d9)", icon: Sparkles,
+      kicker: "מנות חדשות ללמידה",
+      title: biggestNewCat && biggestNewCat[1].length >= 3
+        ? `כבר למדת את תפריט ${biggestNewCat[0]} החדש?`
+        : newDishes.length === 1
+          ? `נוספה מנה חדשה: ${dishLabel(newDishes[0])}`
+          : `נוספו ${newDishes.length} מנות חדשות לתפריט`,
+      subtitle: `${newDishes.length} מנות שעוד לא למדת`,
+      cta: "ללמוד עכשיו",
+      onClick: () => { setModeItems(newDishes); setMode("flashcards"); },
+    } : reviewDishes.length > 0 ? {
+      id: "review", gradient: "linear-gradient(135deg,#8b5cf6,#6d28d9)", icon: Sparkles,
+      kicker: "מנות ללמידה",
+      title: "אין מנות חדשות — זמן לחזק את מה שיש",
+      subtitle: `${reviewDishes.length} מנות עוד לא נעולות על 5/5`,
+      cta: "לחזרה",
+      onClick: () => { setModeItems(reviewDishes.slice(0, 10)); setMode("flashcards"); },
+    } : {
+      id: "all-known", gradient: "linear-gradient(135deg,#8b5cf6,#6d28d9)", icon: Sparkles,
+      kicker: "מנות ללמידה",
+      title: "כל התפריט בשליטה מלאה 🎉",
+      subtitle: "תרגול חוזר שומר על הרמה לפני משמרת",
+      cta: "לתרגול",
+      onClick: () => { setModeItems(null); setMode("flashcards"); },
+    },
+    // Slide 3: where the staged path says this waiter stands right now.
+    path.nextStep ? {
+      id: "next-stage", gradient: "linear-gradient(135deg,#14b8a6,#0d7f74)", icon: GraduationCap,
+      kicker: path.nextStep.kind === "exam" ? "מוכנים לשלב הבא" : "השלב הנוכחי שלכם",
+      title: path.nextStep.kind === "exam"
+        ? `מבחן ${shortCat(path.nextStep.category)}`
+        : `לימוד ${shortCat(path.nextStep.category)}`,
+      subtitle: path.nextStep.kind === "exam"
+        ? "עברתם את הסף — אפשר להיבחן ולפתוח את הקטגוריה הבאה"
+        : `${Math.round(path.nextStep.pct || 0)}% מתוך ${path.nextStep.threshold}% שנדרשים כדי להיבחן`,
+      cta: path.nextStep.kind === "exam" ? "למבחן" : "להמשיך ללמוד",
+      onClick: () => {
+        const cat = path.categories.find((c) => c.key === path.nextStep.category);
+        if (!cat) return;
+        if (path.nextStep.kind === "exam") { setExamCategory({ key: cat.key, label: catLabel(cat.key) }); setMode("exam"); }
+        else { setModeItems(cat.items); setMode("flashcards"); }
+      },
+    } : null,
     {
       id: "daily", gradient: "linear-gradient(135deg,#f3a712,#ff7a59)", icon: Sparkles,
       kicker: "אתגר יומי", title: dailyDone ? `הושלם! +${DAILY_BONUS} נקודות בונוס 🎉` : `למדו ${DAILY_TARGET} מנות היום`,
@@ -456,12 +541,6 @@ export default function MainApp({ session, onSignOut }) {
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {tab === "home" && (
           <div className="space-y-3">
-            {/* First thing on the screen, every shift, whether or not there is news. */}
-            <ShiftBrief
-              brief={brief}
-              newDishes={newDishes}
-              onStudyNew={() => { setModeItems(newDishes); setMode("flashcards"); }}
-            />
             {(session?.restaurantDescription || session?.restaurantCuisineTypes?.length > 0) && (
               <div className="bg-[#16181c] border border-[#22252b] rounded-xl p-3">
                 {session?.restaurantCuisineTypes?.length > 0 && (
