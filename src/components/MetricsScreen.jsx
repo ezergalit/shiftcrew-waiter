@@ -45,18 +45,36 @@ function recordStreak(days) {
   return best;
 }
 
-function Ring({ pct }) {
+// Mastery bands. A single-colour ring only says "how much"; these say "of what kind",
+// which is the difference between a waiter knowing they are 49% and knowing that 12 dishes
+// are solid and 9 have barely been opened.
+const BANDS = [
+  { key: "mastered", label: "שולט", color: "#22c08c", test: (v) => v >= 4 },
+  { key: "learning", label: "בתהליך", color: "#4aa8ff", test: (v) => v >= 2 && v < 4 },
+  { key: "started", label: "התחלתי", color: "#f3c14b", test: (v) => v === 1 },
+  { key: "untouched", label: "לא נגעתי", color: "#3a3d47", test: (v) => !v },
+];
+
+function Ring({ pct, counts, total }) {
   const r = 52, c = 2 * Math.PI * r;
-  // Three arcs so the ring reads like the mockup: mastered, partial, untouched.
-  const dash = (c * Math.min(100, Math.max(0, pct))) / 100;
+  let offset = 0;
+  const arcs = BANDS.map((b) => {
+    const share = total ? (counts[b.key] || 0) / total : 0;
+    const len = c * share;
+    const arc = { ...b, len, gap: c - len, rotate: -90 + (offset / c) * 360 };
+    offset += len;
+    return arc;
+  }).filter((a) => a.len > 0);
+
   return (
     <svg viewBox="0 0 140 140" className="w-[130px] h-[130px]">
-      <circle cx="70" cy="70" r={r} fill="none" stroke="#22252b" strokeWidth="12" />
-      <circle
-        cx="70" cy="70" r={r} fill="none" stroke="#6d5efc" strokeWidth="12"
-        strokeDasharray={`${dash} ${c - dash}`} strokeLinecap="round"
-        transform="rotate(-90 70 70)"
-      />
+      <circle cx="70" cy="70" r={r} fill="none" stroke="#191b1f" strokeWidth="13" />
+      {arcs.map((a) => (
+        <circle
+          key={a.key} cx="70" cy="70" r={r} fill="none" stroke={a.color} strokeWidth="13"
+          strokeDasharray={`${a.len} ${a.gap}`} transform={`rotate(${a.rotate} 70 70)`}
+        />
+      ))}
       <text x="70" y="68" textAnchor="middle" className="fill-[#eef0f6]" style={{ fontSize: 26, fontWeight: 900 }}>
         {Math.round(pct)}%
       </text>
@@ -81,7 +99,7 @@ function Bars({ data, color, emptyNote }) {
           <div key={i} className="flex-1 flex flex-col justify-end items-center h-full" title={`${d.label}: ${d.value}`}>
             <div
               className="w-full rounded-t-sm min-h-[2px] transition-all"
-              style={{ height: `${(d.value / max) * 100}%`, background: d.value ? color : "#22252b" }}
+              style={{ height: `${(d.value / max) * 100}%`, background: d.value ? `linear-gradient(180deg, ${color}, ${color}88)` : "#22252b" }}
             />
           </div>
         ))}
@@ -91,7 +109,7 @@ function Bars({ data, color, emptyNote }) {
           <span key={i} className="flex-1 text-center truncate">{d.showLabel ? d.label : ""}</span>
         ))}
       </div>
-      <p className="text-[10px] text-[#8a8aa0] font-bold mt-2 text-center">ממוצע: {avg.toFixed(1)}</p>
+      <p className="text-[10px] font-bold mt-2 text-center" style={{ color }}>ממוצע: {avg.toFixed(1)}</p>
     </>
   );
 }
@@ -129,6 +147,7 @@ export default function MetricsScreen({ session, cards, masteryById, onDone }) {
     const pct = list.length ? (sum / (list.length * 5)) * 100 : 0;
     const mastered = scores.filter((v) => v >= 4).length;
     const touched = scores.filter((v) => v > 0).length;
+    const counts = Object.fromEntries(BANDS.map((b) => [b.key, scores.filter(b.test).length]));
     const totalSeconds = member?.total_seconds || 0;
     // Time left = the pace actually observed so far, applied to the score still missing.
     // Before any real study time there is nothing to extrapolate from, so it stays null
@@ -136,7 +155,7 @@ export default function MetricsScreen({ session, cards, masteryById, onDone }) {
     const earned = sum;
     const remaining = list.length * 5 - sum;
     const estLeft = earned > 0 && totalSeconds > 0 ? (totalSeconds / earned) * remaining : null;
-    return { pct, mastered, touched, total: list.length, totalSeconds, estLeft };
+    return { pct, mastered, touched, counts, total: list.length, totalSeconds, estLeft };
   }, [cards, masteryById, member]);
 
   const series = useMemo(() => {
@@ -176,16 +195,19 @@ export default function MetricsScreen({ session, cards, masteryById, onDone }) {
     [snaps]
   );
 
-  const Card = ({ title, children }) => (
-    <div className="bg-[#16181c] border border-[#22252b] rounded-xl p-4">
-      <p className="text-xs font-black text-[#eef0f6] mb-3">{title}</p>
+  // Each card carries its own accent so the screen reads as sections at a glance rather
+  // than one long grey column.
+  const Card = ({ title, accent = "#6d5efc", children }) => (
+    <div className="bg-[#16181c] rounded-xl p-4 border border-[#22252b] relative overflow-hidden">
+      <span className="absolute top-0 right-0 h-full w-[3px]" style={{ background: accent }} />
+      <p className="text-xs font-black mb-3" style={{ color: accent }}>{title}</p>
       {children}
     </div>
   );
-  const Stat = ({ label, value }) => (
+  const Stat = ({ label, value, color = "#eef0f6" }) => (
     <div className="flex-1 text-center">
       <p className="text-[10px] text-[#8a8aa0] font-bold leading-tight mb-1">{label}</p>
-      <p className="text-lg font-black text-[#eef0f6]">{value}</p>
+      <p className="text-lg font-black" style={{ color }}>{value}</p>
     </div>
   );
 
@@ -200,40 +222,51 @@ export default function MetricsScreen({ session, cards, masteryById, onDone }) {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-        <p className="text-[11px] font-black text-[#8a8aa0]">התקדמות</p>
-        <Card title="שליטה בתפריט">
+        <p className="text-[11px] font-black text-[#6d5efc]">התקדמות</p>
+        <Card title="שליטה בתפריט" accent="#6d5efc">
           <div className="flex items-center gap-3">
-            <Ring pct={stats.pct} />
+            <Ring pct={stats.pct} counts={stats.counts} total={stats.total} />
             <div className="flex-1 space-y-2.5">
               <div>
                 <p className="text-[10px] text-[#8a8aa0] font-bold">מנות שנשלטו</p>
-                <p className="text-base font-black">{stats.mastered} / {stats.total}</p>
+                <p className="text-base font-black text-[#22c08c]">{stats.mastered} / {stats.total}</p>
               </div>
               <div>
                 <p className="text-[10px] text-[#8a8aa0] font-bold">זמן משוער שנותר</p>
-                <p className="text-base font-black">
+                <p className="text-base font-black text-[#4aa8ff]">
                   {stats.estLeft === null ? "—" : fmtHours(stats.estLeft)}
                 </p>
               </div>
               {member?.baseline_pct != null && (
                 <div>
                   <p className="text-[10px] text-[#8a8aa0] font-bold">ידע התחלתי</p>
-                  <p className="text-sm font-black text-[#8a8aa0]">{Math.round(member.baseline_pct)}%</p>
+                  <p className="text-sm font-black text-[#f3c14b]">{Math.round(member.baseline_pct)}%</p>
                 </div>
               )}
             </div>
           </div>
-        </Card>
-
-        <Card title="מאז ההצטרפות">
-          <div className="flex">
-            <Stat label="מנות שנגעתם בהן" value={stats.touched} />
-            <Stat label="מנות שנשלטו" value={stats.mastered} />
-            <Stat label="זמן לימוד" value={fmtHours(stats.totalSeconds)} />
+          {/* Legend: without it the ring's colours are decoration rather than information. */}
+          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 pt-3 border-t border-[#22252b]">
+            {BANDS.map((b) => (
+              <div key={b.key} className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full" style={{ background: b.color }} />
+                <span className="text-[10px] font-bold text-[#8a8aa0]">
+                  {b.label} {stats.counts?.[b.key] || 0}
+                </span>
+              </div>
+            ))}
           </div>
         </Card>
 
-        <p className="text-[11px] font-black text-[#8a8aa0] pt-1">התמדה</p>
+        <Card title="מאז ההצטרפות" accent="#22c08c">
+          <div className="flex">
+            <Stat label="מנות שלמדתם" value={stats.touched} color="#4aa8ff" />
+            <Stat label="מנות שנשלטו" value={stats.mastered} color="#22c08c" />
+            <Stat label="זמן לימוד" value={fmtHours(stats.totalSeconds)} color="#f3c14b" />
+          </div>
+        </Card>
+
+        <p className="text-[11px] font-black text-[#f3c14b] pt-1">התמדה</p>
         <div className="flex gap-1.5">
           {RANGES.map((r) => (
             <button
@@ -242,7 +275,7 @@ export default function MetricsScreen({ session, cards, masteryById, onDone }) {
               className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${
                 range === r.key
                   ? "bg-[#6d5efc] text-white border-[#6d5efc]"
-                  : "bg-[#16181c] text-[#8a8aa0] border-[#22252b]"
+                  : "bg-[#16181c] text-[#8a8aa0] border-[#3a3d47]"
               }`}
             >
               {r.label}
@@ -250,35 +283,35 @@ export default function MetricsScreen({ session, cards, masteryById, onDone }) {
           ))}
         </div>
 
-        <Card title="דקות לימוד ליום">
+        <Card title="דקות לימוד ליום" accent="#6d5efc">
           {snaps === null
             ? <p className="text-[11px] text-[#8a8aa0] py-6 text-center">טוען…</p>
             : <Bars data={series.map((d) => ({ ...d, value: d.minutes }))} color="#6d5efc"
                     emptyNote="עוד לא נרשם זמן לימוד בטווח הזה" />}
         </Card>
 
-        <Card title="נקודות ליום">
+        <Card title="נקודות ליום" accent="#22c08c">
           {snaps === null
             ? <p className="text-[11px] text-[#8a8aa0] py-6 text-center">טוען…</p>
             : <Bars data={series.map((d) => ({ ...d, value: d.points }))} color="#22c08c"
                     emptyNote="עוד לא נצברו נקודות בטווח הזה" />}
         </Card>
 
-        <Card title="רצפים">
+        <Card title="רצפים" accent="#f3c14b">
           <div className="flex">
             <div className="flex-1 text-center">
               <div className="flex items-center justify-center gap-1 mb-1">
                 <Flame size={12} className="text-[#f3c14b]" />
                 <p className="text-[10px] text-[#8a8aa0] font-bold">רצף נוכחי</p>
               </div>
-              <p className="text-lg font-black">{streak}</p>
+              <p className="text-lg font-black text-[#f3c14b]">{streak}</p>
             </div>
             <div className="flex-1 text-center">
               <div className="flex items-center justify-center gap-1 mb-1">
                 <Trophy size={12} className="text-[#f3c14b]" />
                 <p className="text-[10px] text-[#8a8aa0] font-bold">שיא</p>
               </div>
-              <p className="text-lg font-black">{Math.max(record, streak)}</p>
+              <p className="text-lg font-black text-[#f3c14b]">{Math.max(record, streak)}</p>
             </div>
           </div>
         </Card>

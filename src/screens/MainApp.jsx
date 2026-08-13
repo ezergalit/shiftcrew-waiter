@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, Repeat, ChevronLeft, AlertTriangle, ListChecks, GraduationCap, Lock } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import MetricsScreen from "../components/MetricsScreen";
+import ShiftBrief from "../components/ShiftBrief";
 import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
 import { pickDistractors, buildWeightedDeck, availableFacets, dishLabel, withDisplayNames } from "../lib/questionEngine";
 import { pathState } from "../lib/learningPath";
@@ -28,6 +29,10 @@ const shortCat = (c) => catLabel(c || "").split(/\s*[—–]\s*/)[0].trim();
 // which option was right — the previous ~1s read as a flash, especially since the deck
 // used to reshuffle at the same moment.
 const FEEDBACK_MS = 1800;
+// A dish is "new to you" while it is both recently added and still untouched. Time-boxed
+// so a waiter who simply never studied doesn't see the entire menu flagged as new forever
+// — that backlog is the learning path's job, not the brief's.
+const NEW_DISH_WINDOW_DAYS = 21;
 const DAILY_TARGET = 3;
 const DAILY_BONUS = 50;
 
@@ -38,7 +43,7 @@ function pubToCard(p) {
   // Four separate warning groups, never merged: "fish" is an allergy, "raw fish" is a
   // pregnancy warning, "coriander" is a preference. A waiter reading one combined list
   // can't tell which one could put a guest in hospital. See src/lib/dishFlags.js.
-  return { id: p.source_item_id, name: p.name, price: Number(p.price), category: p.category, desc: p.description || "", ingredients: ing, allergens: (p.allergens || []).filter(Boolean), pregnancy: (p.pregnancy || []).filter(Boolean), pitfalls: (p.pitfalls || []).filter(Boolean), kashrut: (p.kashrut || []).filter(Boolean), menuPosition: p.menu_position, isSpecial: !!p.is_special };
+  return { id: p.source_item_id, name: p.name, price: Number(p.price), category: p.category, desc: p.description || "", ingredients: ing, allergens: (p.allergens || []).filter(Boolean), pregnancy: (p.pregnancy || []).filter(Boolean), pitfalls: (p.pitfalls || []).filter(Boolean), kashrut: (p.kashrut || []).filter(Boolean), menuPosition: p.menu_position, createdAt: p.created_at, isSpecial: !!p.is_special };
 }
 
 const COLORS = ["#22c08c", "#ff7a59", "#e0315a", "#f3a712", "#3a86ff", "#6d5efc", "#9b7bff", "#1aa376"];
@@ -111,6 +116,11 @@ export default function MainApp({ session, onSignOut }) {
         .order("menu_position", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: true }).order("source_item_id", { ascending: true });
       if (alive) setCards(withDisplayNames((data || []).map(pubToCard)));
+      // Presence, recorded separately from progress: the owner's status board needs to
+      // distinguish "opened the app and did nothing" from "never showed up". Fire-and-
+      // forget — a failure here must not affect the session.
+      db.from("team_members").update({ last_seen_at: new Date().toISOString() })
+        .eq("id", session?.teamMemberId).then(() => {}, () => {});
       const { data: m } = await db.from("menu_progress").select("source_item_id, mastery").eq("team_member_id", session?.teamMemberId);
       if (alive) {
         setMastered(new Set((m || []).filter(r => (r.mastery ?? 0) >= 4).map(r => r.source_item_id)));
@@ -273,6 +283,15 @@ export default function MainApp({ session, onSignOut }) {
     () => (examConfig?.facets?.length ? examConfig.facets : availableFacets(gameItems)),
     [examConfig, gameItems]
   );
+
+  // Dishes the owner added recently that this waiter has never opened. Drives the "have
+  // you learned the new cocktail menu?" prompt on the home screen.
+  const newDishes = useMemo(() => {
+    const cutoff = Date.now() - NEW_DISH_WINDOW_DAYS * 86400000;
+    return (cards || []).filter(
+      (c) => c.createdAt && new Date(c.createdAt).getTime() >= cutoff && !(masteryById?.[c.id] > 0)
+    );
+  }, [cards, masteryById]);
 
   // Full-screen, above the tabs: it is a place you go to, not a tab you live in.
   if (showMetrics)
@@ -437,6 +456,12 @@ export default function MainApp({ session, onSignOut }) {
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {tab === "home" && (
           <div className="space-y-3">
+            {/* First thing on the screen, every shift, whether or not there is news. */}
+            <ShiftBrief
+              brief={brief}
+              newDishes={newDishes}
+              onStudyNew={() => { setModeItems(newDishes); setMode("flashcards"); }}
+            />
             {(session?.restaurantDescription || session?.restaurantCuisineTypes?.length > 0) && (
               <div className="bg-[#16181c] border border-[#22252b] rounded-xl p-3">
                 {session?.restaurantCuisineTypes?.length > 0 && (
@@ -526,18 +551,6 @@ export default function MainApp({ session, onSignOut }) {
               </div>
               <span className="text-[10px] font-bold text-[#f3a712] flex-shrink-0">כל האתגרים ←</span>
             </button>
-            {brief?.missing_items?.length > 0 && (
-              <div className="bg-[#33290f] border border-[#664400] rounded-lg p-2.5">
-                <p className="text-[10px] font-bold text-[#f3c14b] mb-1">❌ חסרים היום</p>
-                <p className="text-xs text-[#f3c14b]">{brief.missing_items.join(", ")}</p>
-              </div>
-            )}
-            {brief?.new_items?.length > 0 && (
-              <div className="bg-[#15302b] border border-[#0d8066] rounded-lg p-2.5">
-                <p className="text-[10px] font-bold text-[#22c08c] mb-1">⭐ חדש היום</p>
-                <p className="text-xs text-[#22c08c]">{brief.new_items.join(", ")}</p>
-              </div>
-            )}
           </div>
         )}
         {tab === "daily" && (
@@ -1105,6 +1118,11 @@ function Matching({ items, onAnswer, onDone, session }) {
 // clock instead of per-question) — was originally a self-report "ידעתי/לא יודע" button
 // pair, then a price quiz; both replaced (2026-08-11, user feedback: price is irrelevant
 // to menu knowledge and self-report is unverifiable — this keeps neither).
+const SPEED_SECONDS = 30;
+// A round is short enough that leaving instantly would just be a free deck reroll; long
+// enough that being stuck for the full 30s after a mis-tap is annoying. 10s splits it.
+const SPEED_EXIT_AFTER_S = 10;
+
 function Speed({ items, onAnswer, onDone, onFinish }) {
   const pool = useMemo(() => (items || []).filter(it => it.ingredients?.length > 0), [items]);
   const deck = useMemo(() => shuffle(pool).slice(0, 12).map(it => {
@@ -1114,7 +1132,7 @@ function Speed({ items, onAnswer, onDone, onFinish }) {
   }), [pool]);
   const [i, setI] = useState(0);
   const [correct, setCorrect] = useState(0);
-  const [time, setTime] = useState(30);
+  const [time, setTime] = useState(SPEED_SECONDS);
   const [picked, setPicked] = useState(null);
   useEffect(() => {
     if (time <= 0) return;
@@ -1136,7 +1154,19 @@ function Speed({ items, onAnswer, onDone, onFinish }) {
   };
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
-      <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0"><span className="text-xs font-bold text-[#f3c14b]">⏱ {time}s</span><p className="text-xs font-bold">{i + 1}/{deck.length}</p></div>
+      {/* No way out at all used to mean a mis-tap cost the full 30s. The exit appears only
+          after 10 seconds so it can't be used to reroll an unwanted deck instantly. */}
+      <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0">
+        <span className="text-xs font-bold text-[#f3c14b]">⏱ {time}s</span>
+        <p className="text-xs font-bold">{i + 1}/{deck.length}</p>
+        {SPEED_SECONDS - time >= SPEED_EXIT_AFTER_S ? (
+          <button onClick={onDone} className="text-xs text-[#8a8aa0]">יציאה ←</button>
+        ) : (
+          <span className="text-[10px] text-[#5a5a6e] font-bold">
+            יציאה בעוד {SPEED_EXIT_AFTER_S - (SPEED_SECONDS - time)}s
+          </span>
+        )}
+      </div>
       <div className="flex-1 flex flex-col items-center justify-center px-4">
         <div className="text-center w-full">
           <p className="text-[10px] font-bold text-[#8a8aa0] mb-2">איזה מרכיב שייך למנה הזו?</p>
