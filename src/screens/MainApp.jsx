@@ -1,9 +1,9 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, ChevronLeft, AlertTriangle, ListChecks, GraduationCap } from "lucide-react";
+import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, ChevronLeft, AlertTriangle, ListChecks, GraduationCap, Star, Repeat } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import MetricsScreen from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
-import { buildStudySession, nextConsecutiveFives, isRetired } from "../lib/studySession";
+import { buildStudySession, nextConsecutiveFives, isRetired, QUICK_SESSION_SIZE } from "../lib/studySession";
 import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
 import { pickDistractors, buildWeightedDeck, availableFacets, dishLabel, withDisplayNames } from "../lib/questionEngine";
 import { pathState } from "../lib/learningPath";
@@ -35,6 +35,23 @@ const FEEDBACK_MS = 1800;
 // — that backlog is the learning path's job, not the brief's.
 const NEW_DISH_WINDOW_DAYS = 21;
 const DAILY_TARGET = 3;
+// Fallback only. The real figure is the owner's `exam_config.daily_goal_minutes` — a busy
+// kitchen wants 10, a new opening might want 25 — and this is what a restaurant that has
+// never opened the setting gets.
+const DEFAULT_DAILY_MINUTES = 10;
+
+// For the "carry on?" card — the stored value is a mode key, and "quiz" on screen would
+// read as a bug rather than a name.
+const MODE_LABELS = {
+  flashcards: "כרטיסיות",
+  quick: "5 דקות לפני משמרת",
+  quiz: "חידון",
+  match: "התאמה",
+  speed: "מהירות",
+  allergens: "לימוד האלרגיות",
+  namecomplete: "התאמת תיאור",
+  exam: "מבחן קטגוריה",
+};
 const DAILY_BONUS = 50;
 
 function pubToCard(p) {
@@ -64,6 +81,27 @@ const saveDaily = (id, obj) => id && localStorage.setItem(`menu-app-daily-${id}`
 const loadNum = (key, id) => id ? Number(localStorage.getItem(`${key}-${id}`)) || 0 : 0;
 const saveNum = (key, id, val) => id && localStorage.setItem(`${key}-${id}`, String(val));
 
+// Where the waiter was when they last closed the app. Stored per member and stamped, so a
+// half-finished round from three days ago is not offered as "carry on where you left off"
+// — by then the deck is stale and the offer is just noise.
+const RESUME_KEY = "menu-app-resume";
+const RESUME_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+const saveResume = (id, obj) => {
+  if (!id) return;
+  try { localStorage.setItem(`${RESUME_KEY}-${id}`, JSON.stringify({ ...obj, at: Date.now() })); } catch { /* full or blocked */ }
+};
+const clearResume = (id) => id && localStorage.removeItem(`${RESUME_KEY}-${id}`);
+const loadResume = (id) => {
+  if (!id) return null;
+  try {
+    const raw = JSON.parse(localStorage.getItem(`${RESUME_KEY}-${id}`) || "null");
+    if (!raw?.mode || !raw?.at) return null;
+    if (Date.now() - raw.at > RESUME_MAX_AGE_MS) return null;
+    return raw;
+  } catch { return null; }
+};
+
 export default function MainApp({ session, onSignOut }) {
   const [tab, setTab] = useState("home");
   const [cards, setCards] = useState(null);
@@ -75,25 +113,82 @@ export default function MainApp({ session, onSignOut }) {
   const [fivesById, setFivesById] = useState({});
   const [verifiedById, setVerifiedById] = useState({});
   const [leaderboard, setLeaderboard] = useState([]);
+  // The weekly board is the one people compete on; `leaderboard` stays as the all-time
+  // record behind it. They cannot be the same number: all-time points are a pure function
+  // of how many dishes are mastered right now, while "earned this week" is a running sum
+  // of events that no amount of current state can reconstruct.
+  const [weekly, setWeekly] = useState([]);
+  const [boardScope, setBoardScope] = useState("week");
   const [brief, setBrief] = useState(null);
   const [briefAck, setBriefAck] = useState(null);
   const [mode, setMode] = useState(null);
   const [showMetrics, setShowMetrics] = useState(false); // flashcards | quiz | match | speed | exam | …
   const [modeItems, setModeItems] = useState(null); // scoped items for a challenge round; null = full menu
+  // Offered once per app open, never nagged: dismissing it clears the record.
+  const [resumeOffer, setResumeOffer] = useState(null);
   // Store the category key (e.g. "starters") for the DB record, and its Hebrew label for
   // display — the exam_results row keys off the former so it stays stable if labels change.
   const [examCategory, setExamCategory] = useState(null); // { key, label }
   // The staged path: what the owner configured, and which category exams this member has
   // already passed. Both feed learningPath.pathState, which derives every unlock.
   const [examConfig, setExamConfig] = useState(null);
+  // Seconds studied today: seeded from the snapshots already written, then ticked live by
+  // useStudyTime so the ring moves while the waiter studies instead of jumping every two
+  // minutes when a flush lands.
+  const [todaySeconds, setTodaySeconds] = useState(0);
   const [passedCats, setPassedCats] = useState([]);
   const [daily, setDaily] = useState(() => loadDaily(session?.teamMemberId));
   const [bonusTotal, setBonusTotal] = useState(() => loadNum("menu-app-bonus", session?.teamMemberId));
   const [bestSpeed, setBestSpeed] = useState(() => loadNum("menu-app-best-speed", session?.teamMemberId));
-  const exitMode = () => { setMode(null); setModeItems(null); };
+  const exitMode = () => {
+    // Leaving on purpose is not "interrupted" — only an unfinished round left by closing
+    // the app is worth resuming.
+    clearResume(session?.teamMemberId);
+    setMode(null);
+    setModeItems(null);
+  };
+
+  // Remember the current round so closing the app mid-way can be picked up later. Category
+  // rounds store the category so the same scope comes back, not a fresh full-menu deck.
+  useEffect(() => {
+    if (!session?.teamMemberId) return;
+    if (!mode) return;
+    saveResume(session.teamMemberId, {
+      mode,
+      categoryKey: modeItems?.length ? modeItems[0]?.category ?? null : null,
+      scoped: !!modeItems?.length,
+    });
+  }, [mode, modeItems, session?.teamMemberId]);
+
+  // Surface the offer once, after the menu is loaded so the deck can actually be rebuilt.
+  useEffect(() => {
+    if (!cards?.length || mode) return;
+    const r = loadResume(session?.teamMemberId);
+    if (r) setResumeOffer(r);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cards?.length]);
+
+  // Sunday-start week, matching add_weekly_points in the database. Both sides must agree
+  // or a waiter's score would land in one week and be read from another.
+  const weekStartStr = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - d.getDay());
+    return d.toISOString().slice(0, 10);
+  };
+
+  const refetchWeekly = async () => {
+    if (!session?.restaurantId || session?.offline) return;
+    const { data } = await db.from("weekly_scores")
+      .select("team_member_id, name, points")
+      .eq("restaurant_id", session.restaurantId)
+      .eq("week_start", weekStartStr())
+      .order("points", { ascending: false });
+    setWeekly(data || []);
+  };
 
   const refetchLeaderboard = async () => {
     const { data } = await db.from("leaderboard").select("*").eq("restaurant_id", session?.restaurantId).order("points", { ascending: false });
+    void refetchWeekly();
     setLeaderboard(data || []);
   };
 
@@ -138,6 +233,12 @@ export default function MainApp({ session, onSignOut }) {
       if (alive) setLeaderboard(l || []);
       const { data: cfg } = await db.from("exam_config").select("*").eq("restaurant_id", session?.restaurantId).maybeSingle();
       if (alive) setExamConfig(cfg || {});
+      // Everything already recorded for today, so the goal survives a refresh.
+      const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+      const { data: todaySnaps } = await db.from("progress_snapshots")
+        .select("seconds_delta").eq("team_member_id", session?.teamMemberId)
+        .gte("taken_at", dayStart.toISOString());
+      if (alive) setTodaySeconds((todaySnaps || []).reduce((n, r) => n + (r.seconds_delta || 0), 0));
       const { data: exams } = await db.from("exam_results")
         .select("category").eq("team_member_id", session?.teamMemberId).eq("passed", true);
       if (alive) setPassedCats([...new Set((exams || []).map(r => r.category))]);
@@ -215,7 +316,19 @@ export default function MainApp({ session, onSignOut }) {
       const justEarnedBonus = !base.bonusAwarded && newDaily.bonusAwarded;
       setDaily(newDaily);
       saveDaily(session.teamMemberId, newDaily);
-      if (justEarnedBonus) { newBonusTotal = bonusTotal + DAILY_BONUS; setBonusTotal(newBonusTotal); saveNum("menu-app-bonus", session.teamMemberId, newBonusTotal); }
+      if (justEarnedBonus) {
+        newBonusTotal = bonusTotal + DAILY_BONUS;
+        setBonusTotal(newBonusTotal);
+        saveNum("menu-app-bonus", session.teamMemberId, newBonusTotal);
+        if (!session.offline) {
+          void db.rpc("add_weekly_points", {
+            p_restaurant_id: session.restaurantId,
+            p_team_member_id: session.teamMemberId,
+            p_name: session.name,
+            p_points: DAILY_BONUS,
+          }).then(refetchWeekly, () => {});
+        }
+      }
     }
 
     if (crossed) {
@@ -240,6 +353,16 @@ export default function MainApp({ session, onSignOut }) {
     if (crossed) {
       const points = nextMasteredSize * 100 + newBonusTotal;
       await db.from("leaderboard").upsert({ restaurant_id: session.restaurantId, team_member_id: session.teamMemberId, name: session.name, points, mastered_count: nextMasteredSize, updated_at: new Date().toISOString() }, { onConflict: "restaurant_id,team_member_id" });
+      // Weekly is accrued, not recomputed: +100 for a dish that just became verified-
+      // mastered, -100 if it fell back out. Symmetric on purpose — a mistake costing the
+      // points it earned is the same rule the all-time score already follows.
+      await db.rpc("add_weekly_points", {
+        p_restaurant_id: session.restaurantId,
+        p_team_member_id: session.teamMemberId,
+        p_name: session.name,
+        p_points: nowMastered ? 100 : -100,
+      });
+      void refetchWeekly();
     }
   };
 
@@ -273,6 +396,7 @@ export default function MainApp({ session, onSignOut }) {
   useStudyTime({
     session,
     ready: !!cards?.length,
+    onSecond: () => setTodaySeconds((n) => n + 1),
     getPct: () => {
       const list = cards || [];
       if (!list.length) return 0;
@@ -314,6 +438,25 @@ export default function MainApp({ session, onSignOut }) {
     return buildStudySession(gameItems, progress);
   }, [gameItems]);
 
+  // "5 minutes before a shift": one short round of what matters tonight — the dishes the
+  // owner starred, the ones just added, and the ones this waiter is weakest on.
+  //
+  // That is exactly what buildStudySession already ranks (untouched scores highest, low
+  // mastery next, STAR_BOOST lifts starred), so the quick round is the same algorithm at a
+  // smaller size rather than a second selection rule that could drift away from it.
+  //
+  // Deliberately drawn from the WHOLE menu, not path.gamePool: a dish the owner is pushing
+  // tonight matters whether or not its category's exam has been passed. It is flashcards,
+  // so it is self-reported and cannot mint points either way.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const quickSession = useMemo(() => {
+    const progress = {};
+    for (const it of cards || []) {
+      progress[it.id] = { mastery: masteryById?.[it.id] ?? null, consecutiveFives: fivesById?.[it.id] || 0 };
+    }
+    return buildStudySession(cards, progress, QUICK_SESSION_SIZE, Math.random, { repeatWeak: false });
+  }, [cards, mode]);
+
   // The owner's ranking, narrowed to what the open part of the menu can actually support.
   // Memoised because availableFacets builds a fresh array: an unstable reference here
   // invalidated the decks' useMemo on every render, so answering a question rebuilt and
@@ -337,6 +480,7 @@ export default function MainApp({ session, onSignOut }) {
     return <MetricsScreen session={session} cards={cards} masteryById={masteryById} onDone={() => setShowMetrics(false)} />;
 
   if (mode === "flashcards") return <Flashcards items={studySession.deck} session={studySession} onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
+  if (mode === "quick") return <Flashcards items={quickSession.deck} session={quickSession} quick onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
   if (mode === "quiz") return <Quiz items={gameItems} facets={gameFacets} openKeys={path.openKeys} onAnswer={learnItem} onDone={exitMode} />;
   if (mode === "match") return <Matching items={gameItems} onAnswer={learnItem} onDone={exitMode} session={session} />;
   if (mode === "speed") return <Speed items={gameItems} onAnswer={learnItem} onDone={exitMode} onFinish={finishSpeed} />;
@@ -370,7 +514,12 @@ export default function MainApp({ session, onSignOut }) {
   };
 
   const pct = scorePct(cards);
-  const myRank = leaderboard.findIndex(r => r.team_member_id === session?.teamMemberId) + 1;
+  // Rank follows the weekly board, since that is the competition on screen. Falls back to
+  // all-time before any points have been scored this week, so a returning waiter doesn't
+  // see their standing vanish every Sunday morning.
+  const myRank = (weekly.length
+    ? weekly.findIndex(r => r.team_member_id === session?.teamMemberId)
+    : leaderboard.findIndex(r => r.team_member_id === session?.teamMemberId)) + 1;
   const myStreak = leaderboard.find(r => r.team_member_id === session?.teamMemberId)?.streak || 0;
   // Derived from the menu itself, not a fixed list. Hardcoding the four English keys meant
   // any restaurant whose menu was built in the owner app — where categories are free-text
@@ -386,6 +535,12 @@ export default function MainApp({ session, onSignOut }) {
       .filter(g => g.items.length > 0);
   })();
 
+  // The daily goal, in minutes, set by the owner.
+  const goalMinutes = examConfig?.daily_goal_minutes || DEFAULT_DAILY_MINUTES;
+  const studiedMinutes = Math.floor(todaySeconds / 60);
+  const goalPct = Math.min(100, Math.round((todaySeconds / (goalMinutes * 60)) * 100));
+  const goalMet = studiedMinutes >= goalMinutes;
+
   const dailyDone = daily.count >= DAILY_TARGET;
   // A challenge whose game is still locked shows what it takes to open it instead of a
   // button that would launch a mode the path hasn't reached.
@@ -398,11 +553,11 @@ export default function MainApp({ session, onSignOut }) {
     // Drops off the list once it is done for the day. A finished challenge with no action
     // left is just a spent row at the top of the page; the bonus was already awarded and
     // announced, and it comes back on its own tomorrow.
-    dailyDone ? null : {
-      id: "daily", icon: Sparkles, color: "#f3a712", title: "אתגר יומי",
-      desc: `למדו ${DAILY_TARGET} מנות חדשות היום`,
-      progress: Math.min(daily.count, DAILY_TARGET), target: DAILY_TARGET, done: false,
-      action: { label: "התחילו ללמוד", onClick: () => { setModeItems(null); setMode("flashcards"); } },
+    goalMet ? null : {
+      id: "daily-minutes", icon: Target, color: "#f3a712", title: "היעד היומי",
+      desc: `${goalMinutes} דקות לימוד היום — נשארו ${Math.max(0, goalMinutes - studiedMinutes)}`,
+      progress: Math.min(studiedMinutes, goalMinutes), target: goalMinutes, done: false,
+      action: { label: "להתחיל ללמוד", onClick: () => { setModeItems(null); setMode("quick"); } },
     },
     {
       // Not "challenge": allergies are the one thing on this menu that can put a guest in
@@ -570,6 +725,85 @@ export default function MainApp({ session, onSignOut }) {
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {tab === "home" && (
           <div className="space-y-3">
+            {/* Picked up where you stopped. Above everything else because it is the one
+                card that expires — dismissing it removes it for good. */}
+            {resumeOffer && (
+              <div className="bg-[#16181c] border border-[#6d5efc] rounded-xl p-3 flex items-center gap-3">
+                <Repeat size={16} className="text-[#6d5efc] flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-black text-[#eef0f6]">להמשיך מאיפה שהפסקתם?</p>
+                  <p className="text-[10px] font-bold text-[#8a8aa0]">
+                    {MODE_LABELS[resumeOffer.mode] || "סבב לימוד"}
+                    {resumeOffer.categoryKey ? ` · ${shortCat(resumeOffer.categoryKey)}` : ""}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    const items = resumeOffer.categoryKey
+                      ? (cards || []).filter((c) => c.category === resumeOffer.categoryKey)
+                      : null;
+                    setModeItems(items?.length ? items : null);
+                    setMode(resumeOffer.mode);
+                    setResumeOffer(null);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-[#6d5efc] text-white text-[11px] font-black flex-shrink-0"
+                >
+                  להמשיך
+                </button>
+                <button
+                  onClick={() => { clearResume(session?.teamMemberId); setResumeOffer(null); }}
+                  className="text-[#5a5a6e] text-[11px] font-bold flex-shrink-0"
+                >
+                  לא
+                </button>
+              </div>
+            )}
+
+            {/* First thing on the home screen: the one action that fits in the two minutes
+                a waiter actually has before service. */}
+            <button
+              onClick={() => { setModeItems(null); setMode("quick"); }}
+              className="w-full rounded-2xl p-4 text-right flex items-center gap-3 bg-gradient-to-l from-[#1b3a36] to-[#16181c] border border-[#22c08c]"
+            >
+              <div className="w-9 h-9 rounded-full bg-[#22c08c]/20 flex items-center justify-center flex-shrink-0">
+                <Zap size={17} className="text-[#22c08c]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-black text-[#eef0f6]">5 דקות לפני משמרת</p>
+                <p className="text-[10px] font-bold text-[#8a8aa0]">
+                  {quickSession.deck.length} מנות — מה שסומן, מה שחדש, ומה שהכי חלש אצלכם
+                </p>
+              </div>
+              <ChevronLeft size={16} className="text-[#22c08c] flex-shrink-0" />
+            </button>
+
+            {/* The daily goal, in minutes, as a ring you can read at a glance. Minutes and
+                not dishes: the owner sets the number, and time is what a waiter can
+                actually promise before a shift. */}
+            <div className="bg-[#16181c] border border-[#22252b] rounded-xl p-3 flex items-center gap-3">
+              <div className="relative w-[52px] h-[52px] flex-shrink-0">
+                <svg viewBox="0 0 52 52" className="w-[52px] h-[52px] -rotate-90">
+                  <circle cx="26" cy="26" r="22" fill="none" stroke="#22252b" strokeWidth="6" />
+                  <circle
+                    cx="26" cy="26" r="22" fill="none"
+                    stroke={goalMet ? "#22c08c" : "#f3a712"} strokeWidth="6" strokeLinecap="round"
+                    strokeDasharray={`${(goalPct / 100) * 2 * Math.PI * 22} ${2 * Math.PI * 22}`}
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[11px] font-black"
+                      style={{ color: goalMet ? "#22c08c" : "#eef0f6" }}>
+                  {goalMet ? "✓" : `${goalPct}%`}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-black text-[#eef0f6]">
+                  {goalMet ? "השלמתם את היעד היומי 🎉" : "היעד היומי"}
+                </p>
+                <p className="text-[10px] font-bold text-[#8a8aa0]">
+                  {studiedMinutes} מתוך {goalMinutes} דקות לימוד היום
+                </p>
+              </div>
+            </div>
             {(session?.restaurantDescription || session?.restaurantCuisineTypes?.length > 0) && (
               <div className="bg-[#16181c] border border-[#22252b] rounded-xl p-3">
                 {session?.restaurantCuisineTypes?.length > 0 && (
@@ -686,22 +920,60 @@ export default function MainApp({ session, onSignOut }) {
             )}
           </div>
         )}
-        {tab === "leaderboard" && (
-          <div className="bg-[#16181c] rounded-lg overflow-hidden">
-            {leaderboard.length === 0 && <p className="text-xs text-[#8a8aa0] p-4 text-center">עדיין אין נתונים — התחילו ללמוד!</p>}
-            {leaderboard.slice(0, 10).map((r, i) => (
-              <div key={r.team_member_id} className={`flex items-center gap-2 px-3 py-2 ${i > 0 ? "border-t border-[#22252b]" : ""}`}>
-                <span className="text-xs font-black w-5" style={{ color: ["#f3c14b", "#c7ccd6", "#cd8b5b"][i] || "#8a8aa0" }}>{i + 1}</span>
-                <span className="w-6 h-6 rounded-full text-[9px] font-black flex items-center justify-center text-white flex-shrink-0" style={{ background: colorFor(r.name) }}>{r.name[0]}</span>
-                <div className="flex-1">
-                  <p className={`text-xs font-bold ${r.team_member_id === session?.teamMemberId ? "text-[#6d5efc]" : "text-[#eef0f6]"}`}>{r.name}{r.team_member_id === session?.teamMemberId ? " (אני)" : ""}</p>
-                  <p className="text-[10px] text-[#8a8aa0] flex items-center gap-1">{r.mastered_count} נלמדו{r.streak > 1 && <span className="flex items-center gap-0.5"><Flame size={9} className="text-[#ff7a59]" />{r.streak}</span>}</p>
-                </div>
-                <p className="text-xs font-black text-[#6d5efc]">{r.points}</p>
+        {tab === "leaderboard" && (() => {
+          // Weekly is the default view: a lifetime total means whoever started first wins
+          // forever, and a waiter who joined on Sunday can never catch up. All-time is
+          // kept behind a toggle because the total is still something people are proud of.
+          const weeklyRows = weekly.map((w) => {
+            const all = leaderboard.find((r) => r.team_member_id === w.team_member_id);
+            return { ...w, mastered_count: all?.mastered_count ?? 0, streak: all?.streak ?? 0 };
+          });
+          const rows = boardScope === "week" ? weeklyRows : leaderboard;
+          return (
+            <div className="space-y-2">
+              <div className="flex gap-1.5">
+                {[{ k: "week", label: "השבוע" }, { k: "all", label: "כל הזמנים" }].map((o) => (
+                  <button
+                    key={o.k}
+                    onClick={() => setBoardScope(o.k)}
+                    className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${
+                      boardScope === o.k
+                        ? "bg-[#6d5efc] text-white border-[#6d5efc]"
+                        : "bg-[#16181c] text-[#8a8aa0] border-[#22252b]"
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+
+              {boardScope === "week" && (
+                <p className="text-[10px] text-[#8a8aa0] px-1 leading-relaxed">
+                  הניקוד מתאפס בכל יום ראשון — כל שבוע מתחיל מחדש, וגם מי שהצטרף אתמול יכול לנצח.
+                </p>
+              )}
+
+              <div className="bg-[#16181c] rounded-lg overflow-hidden">
+                {rows.length === 0 && (
+                  <p className="text-xs text-[#8a8aa0] p-4 text-center">
+                    {boardScope === "week" ? "עוד לא נצברו נקודות השבוע — אתם יכולים להיות ראשונים" : "עדיין אין נתונים — התחילו ללמוד!"}
+                  </p>
+                )}
+                {rows.slice(0, 10).map((r, i) => (
+                  <div key={r.team_member_id} className={`flex items-center gap-2 px-3 py-2 ${i > 0 ? "border-t border-[#22252b]" : ""}`}>
+                    <span className="text-xs font-black w-5" style={{ color: ["#f3c14b", "#c7ccd6", "#cd8b5b"][i] || "#8a8aa0" }}>{i + 1}</span>
+                    <span className="w-6 h-6 rounded-full text-[9px] font-black flex items-center justify-center text-white flex-shrink-0" style={{ background: colorFor(r.name) }}>{r.name[0]}</span>
+                    <div className="flex-1">
+                      <p className={`text-xs font-bold ${r.team_member_id === session?.teamMemberId ? "text-[#6d5efc]" : "text-[#eef0f6]"}`}>{r.name}{r.team_member_id === session?.teamMemberId ? " (אני)" : ""}</p>
+                      <p className="text-[10px] text-[#8a8aa0] flex items-center gap-1">{r.mastered_count} נלמדו{r.streak > 1 && <span className="flex items-center gap-0.5"><Flame size={9} className="text-[#ff7a59]" />{r.streak}</span>}</p>
+                    </div>
+                    <p className="text-xs font-black text-[#6d5efc]">{r.points}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
         {tab === "categories" && (
           <div className="space-y-2">
             <p className="text-[10px] text-[#8a8aa0] px-1 leading-relaxed">
@@ -925,7 +1197,7 @@ function NotEnoughData({ what, openKeys, onDone }) {
   );
 }
 
-function Flashcards({ items, session, onRate, onDone }) {
+function Flashcards({ items, session, quick, onRate, onDone }) {
   const [i, setI] = useState(0);
   const [revealed, setRevealed] = useState(false);
   if (!items?.length) return <div className="h-screen flex items-center justify-center"><p>אין פריטים</p></div>;
@@ -956,10 +1228,24 @@ function Flashcards({ items, session, onRate, onDone }) {
   const RATING_STYLE = { 1: "bg-[#3a1d22] text-[#e0315a]", 2: "bg-[#3a1d22] text-[#e0315a]", 3: "bg-[#33290f] text-[#f3a712]", 4: "bg-[#15302b] text-[#22c08c]", 5: "bg-[#15302b] text-[#22c08c]" };
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
-      <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0"><button onClick={onDone} className="text-xs text-[#8a8aa0]">← חזרה</button><p className="text-xs font-bold">{i + 1}/{items.length}</p></div>
+      <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0">
+        <button onClick={onDone} className="text-xs text-[#8a8aa0]">← חזרה</button>
+        {quick && <p className="text-[10px] font-black text-[#22c08c]">5 דקות לפני משמרת</p>}
+        <p className="text-xs font-bold">{i + 1}/{items.length}</p>
+      </div>
       <div className="flex-1 flex flex-col items-center justify-center px-4">
         <div className="bg-[#16181c] rounded-xl p-6 w-full text-center space-y-3">
-          <p className="text-2xl font-black text-[#eef0f6]">{dishLabel(it)}</p>
+          <p className="text-2xl font-black text-[#eef0f6] flex items-center justify-center gap-1.5">
+            {it.isSpecial && <Star size={18} className="text-[#f3c14b] flex-shrink-0" fill="#f3c14b" />}
+            {dishLabel(it)}
+          </p>
+          {/* The star alone is decoration — a waiter has no way to know what it means or
+              why this dish is worth more attention. The sentence is the point. */}
+          {it.isSpecial && (
+            <p className="text-[11px] font-bold text-[#f3c14b] bg-[#33290f] rounded-lg py-1.5 px-2">
+              ⭐ המנהל סימן: זו מנה חשובה ונמכרת — שווה להכיר אותה טוב
+            </p>
+          )}
           {!revealed && (
             <>
               {(it.ingredients?.length > 0 || it.allergens?.length > 0 || it.pitfalls?.length > 0) && (

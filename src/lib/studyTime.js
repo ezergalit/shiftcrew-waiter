@@ -20,12 +20,16 @@ const FLUSH_AFTER_SECONDS = 120;
 // chart with points that carry no information.
 const MIN_MEANINGFUL_SECONDS = 20;
 
-export function useStudyTime({ session, getPct, ready }) {
+export function useStudyTime({ session, getPct, ready, onSecond }) {
   const activeRef = useRef(0);      // seconds accumulated since the last flush
   const totalRef = useRef(0);       // seconds accumulated this mount, for total_seconds
   const flushingRef = useRef(false);
   const getPctRef = useRef(getPct);
   getPctRef.current = getPct;
+  // The daily goal is measured in minutes, so the ring has to move while the waiter
+  // studies — not only when a flush lands two minutes later.
+  const onSecondRef = useRef(onSecond);
+  onSecondRef.current = onSecond;
 
   const enabled = ready && !!session?.teamMemberId && !session?.offline;
 
@@ -65,6 +69,7 @@ export function useStudyTime({ session, getPct, ready }) {
       if (document.visibilityState !== "visible") return;
       activeRef.current += 1;
       totalRef.current += 1;
+      onSecondRef.current?.();
       if (activeRef.current >= FLUSH_AFTER_SECONDS) void flush();
     }, 1000);
 

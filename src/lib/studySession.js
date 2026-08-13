@@ -23,12 +23,20 @@
 export const SESSION_SIZE = 10;
 export const RETIRE_AFTER_FIVES = 2;
 
+// The "5 minutes before a shift" round: short enough to actually do while tying an apron.
+export const QUICK_SESSION_SIZE = 5;
+
+// A dish the owner starred is one they are trying to sell tonight, so it outranks a dish
+// the waiter merely happens to be weak on. One step, not an override: a starred dish the
+// waiter already has at 5/5 still loses to an untouched one.
+export const STAR_BOOST = 2;
+
 // How much a dish deserves attention. Untouched (no progress row) ranks above a dish rated
 // 1: never-seen is a bigger gap than seen-and-shaky, and it is also the more useful thing
 // to show first on a menu the waiter has just been given.
-export function priority(entry) {
-  if (!entry || entry.mastery == null) return 7;
-  return Math.max(1, 6 - entry.mastery);
+export function priority(entry, item) {
+  const base = !entry || entry.mastery == null ? 7 : Math.max(1, 6 - entry.mastery);
+  return item?.isSpecial ? base + STAR_BOOST : base;
 }
 
 export const isRetired = (entry) =>
@@ -43,7 +51,7 @@ export const isRetired = (entry) =>
  * @param rnd        injectable RNG so tests are deterministic
  * @returns { deck, retiredCount, poolCount, allRetired }
  */
-export function buildStudySession(items, progressById = {}, size = SESSION_SIZE, rnd = Math.random) {
+export function buildStudySession(items, progressById = {}, size = SESSION_SIZE, rnd = Math.random, { repeatWeak = true } = {}) {
   const all = (items || []).filter(Boolean);
   if (!all.length) return { deck: [], retiredCount: 0, poolCount: 0, allRetired: false };
 
@@ -58,7 +66,7 @@ export function buildStudySession(items, progressById = {}, size = SESSION_SIZE,
   // Weighted pick without replacement: weight = priority, so a mastery-1 dish is ~5x more
   // likely to be drawn than a mastery-5 one, but nothing is ever hard-excluded.
   const scored = pool.map((it) => {
-    const p = priority(progressById[it.id]);
+    const p = priority(progressById[it.id], it);
     return { it, p, roll: (p + rnd() * 2) };
   });
   scored.sort((a, b) => b.roll - a.roll);
@@ -73,7 +81,9 @@ export function buildStudySession(items, progressById = {}, size = SESSION_SIZE,
   // never-seen dish ranks highest for being dealt at all, but it isn't something the
   // waiter is failing, so it doesn't earn the repeat; drilling it twice before they have
   // even answered once is just noise.
-  const struggling = chosen
+  // The quick pre-shift round turns this off: it is a two-minute skim, and padding five
+  // dishes out to eight cards makes the "5 מנות" on the button a lie.
+  const struggling = !repeatWeak ? [] : chosen
     .filter((c) => {
       const m = progressById[c.it.id]?.mastery;
       return m != null && m <= 2;

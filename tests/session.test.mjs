@@ -4,8 +4,7 @@
 //   "once you mark 5 twice on the same dish it should skip it"
 import {
   buildStudySession, priority, isRetired, nextConsecutiveFives,
-  SESSION_SIZE, RETIRE_AFTER_FIVES,
-} from "../src/lib/studySession.js";
+  SESSION_SIZE, RETIRE_AFTER_FIVES, STAR_BOOST, QUICK_SESSION_SIZE } from "../src/lib/studySession.js";
 
 let failures = 0;
 const fail = (suite, msg) => { failures++; console.log(`  ❌ [${suite}] ${msg}`); };
@@ -98,6 +97,46 @@ console.log("\n=== PRIORITY / STREAK RULES ===");
   if (nextConsecutiveFives(3, 4) !== 0) fail("STREAK", "anything below 5 must reset the streak");
   if (isRetired({ mastery: 4, consecutiveFives: 5 })) fail("STREAK", "mastery<5 must not count as retired");
   if (!failures) ok("STREAK", "5 increments, <5 resets, retirement needs mastery 5");
+}
+
+// A starred dish is one the owner is pushing tonight, so it should be dealt before a dish
+// the waiter merely hasn't seen — but it must not become an override that pins mastered
+// dishes to the top of every round forever.
+{
+  const star = { isSpecial: true };
+  const plain = { isSpecial: false };
+  if (!(priority({ mastery: 3 }, star) > priority({ mastery: 3 }, plain)))
+    fail("STAR", "a starred dish must outrank an equally-known unstarred one");
+  else ok("STAR", "star raises priority at equal mastery");
+
+  if (!(priority(null, plain) > priority({ mastery: 5 }, star)))
+    fail("STAR", "a never-seen dish must still beat a starred dish already at 5/5");
+  else ok("STAR", "the star is a nudge, not an override");
+
+  // The quick round has to be short enough to do before a shift.
+  const many = Array.from({ length: 30 }, (_, i) => ({ id: `q${i}`, isSpecial: i < 3 }));
+  const quick = buildStudySession(many, {}, QUICK_SESSION_SIZE, () => 0.5);
+  if (quick.deck.length > QUICK_SESSION_SIZE)
+    fail("QUICK", `quick round must cap at ${QUICK_SESSION_SIZE}, got ${quick.deck.length}`);
+  else ok("QUICK", `quick round caps at ${QUICK_SESSION_SIZE} dishes`);
+
+  const starredFirst = quick.deck.slice(0, 3).filter((d) => d.isSpecial).length;
+  if (starredFirst === 0) fail("QUICK", "a quick round should surface starred dishes");
+  else ok("QUICK", "starred dishes lead the quick round");
+
+  // The button promises "5 מנות". The normal round pads weak dishes with a second sighting,
+  // which would quietly turn 5 cards into 8 and make that promise false.
+  const weakProgress = Object.fromEntries(many.map((d) => [d.id, { mastery: 1, consecutiveFives: 0 }]));
+  const quickWeak = buildStudySession(many, weakProgress, QUICK_SESSION_SIZE, () => 0.5, { repeatWeak: false });
+  if (quickWeak.deck.length !== QUICK_SESSION_SIZE)
+    fail("QUICK", `quick round must stay at ${QUICK_SESSION_SIZE} cards even when every dish is weak, got ${quickWeak.deck.length}`);
+  else ok("QUICK", "quick round does not pad weak dishes with repeats");
+
+  // The normal round still does repeat them — that behaviour must not be lost.
+  const normalWeak = buildStudySession(many, weakProgress, SESSION_SIZE, () => 0.5);
+  if (normalWeak.deck.length <= SESSION_SIZE)
+    fail("QUICK", "the normal round should still give weak dishes a second sighting");
+  else ok("QUICK", "the normal round keeps its repeats");
 }
 
 console.log(failures ? `\n❌ ${failures} failures\n` : "\n✅ study session behaves as specified\n");
