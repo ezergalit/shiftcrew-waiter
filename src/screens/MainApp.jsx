@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, Repeat, ChevronLeft, AlertTriangle, ListChecks, GraduationCap, Lock } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import MetricsScreen from "../components/MetricsScreen";
+import BriefAck from "../components/BriefAck";
 import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
 import { pickDistractors, buildWeightedDeck, availableFacets, dishLabel, withDisplayNames } from "../lib/questionEngine";
 import { pathState } from "../lib/learningPath";
@@ -72,6 +73,7 @@ export default function MainApp({ session, onSignOut }) {
   const [masteryById, setMasteryById] = useState({});
   const [leaderboard, setLeaderboard] = useState([]);
   const [brief, setBrief] = useState(null);
+  const [briefAck, setBriefAck] = useState(null);
   const [mode, setMode] = useState(null);
   const [showMetrics, setShowMetrics] = useState(false); // flashcards | quiz | match | speed | exam | …
   const [modeItems, setModeItems] = useState(null); // scoped items for a challenge round; null = full menu
@@ -135,13 +137,14 @@ export default function MainApp({ session, onSignOut }) {
       const today = new Date().toISOString().slice(0, 10);
       const { data: b } = await db.from("daily_brief").select("*").eq("restaurant_id", session?.restaurantId).eq("date", today).maybeSingle();
       if (alive) setBrief(b || {});
-      // Mark today's brief as read (for the owner's team-activity dashboard) — only when
-      // there's an actual brief to read, and only for real (non-offline) sessions.
+      // Whether THIS waiter has already acknowledged today's brief. Reading is no longer
+      // recorded automatically on load: that measured "opened the app", and the owner saw
+      // a ✓ next to people who never looked. It is now an explicit action plus one
+      // question drawn from the brief itself — see BriefAck.
       if (b && session?.teamMemberId) {
-        await db.from("daily_brief_reads").upsert(
-          { team_member_id: session.teamMemberId, restaurant_id: session.restaurantId, date: today, read_at: new Date().toISOString() },
-          { onConflict: "team_member_id,date" }
-        );
+        const { data: ack } = await db.from("daily_brief_reads")
+          .select("read_at, correct").eq("team_member_id", session.teamMemberId).eq("date", today).maybeSingle();
+        if (alive) setBriefAck(ack || null);
       }
     })();
 
@@ -641,6 +644,19 @@ export default function MainApp({ session, onSignOut }) {
             {brief?.notes && <div><span className="text-[10px] font-bold text-[#8a8aa0]">הערה:</span><p className="text-xs text-[#8a8aa0] mt-0.5">{brief.notes}</p></div>}
             {!brief?.missing_items?.length && !brief?.new_items?.length && !brief?.oven_items?.length && !brief?.notes && (
               <p className="text-xs text-[#8a8aa0]">אין עדכונים היום</p>
+            )}
+            {/* Acknowledgement lives here, under the full text — it should only be
+                answerable after the brief itself is on screen. */}
+            {!session?.offline && session?.teamMemberId && (
+              <div className="pt-1">
+                <BriefAck
+                  brief={brief}
+                  cards={cards}
+                  session={session}
+                  ack={briefAck}
+                  onAcked={setBriefAck}
+                />
+              </div>
             )}
           </div>
         )}
