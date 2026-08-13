@@ -73,6 +73,7 @@ export default function MainApp({ session, onSignOut }) {
   // are built from, so "4 out of 5 on every dish" reads as 80% instead of 100%.
   const [masteryById, setMasteryById] = useState({});
   const [fivesById, setFivesById] = useState({});
+  const [verifiedById, setVerifiedById] = useState({});
   const [leaderboard, setLeaderboard] = useState([]);
   const [brief, setBrief] = useState(null);
   const [briefAck, setBriefAck] = useState(null);
@@ -124,9 +125,11 @@ export default function MainApp({ session, onSignOut }) {
       // forget — a failure here must not affect the session.
       db.from("team_members").update({ last_seen_at: new Date().toISOString() })
         .eq("id", session?.teamMemberId).then(() => {}, () => {});
-      const { data: m } = await db.from("menu_progress").select("source_item_id, mastery, consecutive_fives").eq("team_member_id", session?.teamMemberId);
+      const { data: m } = await db.from("menu_progress").select("source_item_id, mastery, consecutive_fives, verified").eq("team_member_id", session?.teamMemberId);
       if (alive) {
-        setMastered(new Set((m || []).filter(r => (r.mastery ?? 0) >= 4).map(r => r.source_item_id)));
+        // Points follow VERIFIED mastery only — a self-reported 5 doesn't count here.
+        setMastered(new Set((m || []).filter(r => (r.mastery ?? 0) >= 4 && r.verified).map(r => r.source_item_id)));
+        setVerifiedById(Object.fromEntries((m || []).map(r => [r.source_item_id, !!r.verified])));
         setMasteryById(Object.fromEntries((m || []).map(r => [r.source_item_id, r.mastery ?? 0])));
         // Consecutive perfect ratings, for retiring a dish from the study rotation.
         setFivesById(Object.fromEntries((m || []).map(r => [r.source_item_id, r.consecutive_fives ?? 0])));
@@ -170,11 +173,23 @@ export default function MainApp({ session, onSignOut }) {
   // player can't just self-report "I knew it" without being tested. Mastery (>=4) can
   // move in EITHER direction: a later wrong answer un-masters something they'd already
   // gotten right before, which is the whole point of letting objective games grade it.
-  const learnItem = async (id, rating) => {
+  /**
+   * Record one rating.
+   *
+   * `objective` is the whole point of the signature: flashcards are self-reported, so the
+   * waiter decides their own score, and letting that mint points made the leaderboard a
+   * measure of how many times someone tapped "5". Only a mode that grades itself can
+   * VERIFY a dish, and only verified dishes are worth points. A wrong answer in a graded
+   * mode un-verifies the dish, so a mistake costs the points it earned.
+   */
+  const learnItem = async (id, rating, { objective = true } = {}) => {
     if (!session?.teamMemberId) return;
+    const wasVerified = !!verifiedById[id];
+    const nowVerified = rating >= 4 && (objective || wasVerified);
     const wasMastered = mastered.has(id);
-    const nowMastered = rating >= 4;
+    const nowMastered = rating >= 4 && nowVerified;
     const crossed = wasMastered !== nowMastered;
+    setVerifiedById(prev => ({ ...prev, [id]: nowVerified }));
     setMasteryById(prev => ({ ...prev, [id]: rating }));
     const nextFives = nextConsecutiveFives(fivesById[id], rating);
     setFivesById(prev => ({ ...prev, [id]: nextFives }));
@@ -189,11 +204,14 @@ export default function MainApp({ session, onSignOut }) {
 
     // Daily challenge: 3 NEWLY-mastered dishes/day → one-time +50 bonus. Only counts
     // fresh mastery (not re-grading something already known), and only counts up.
-    const justMasteredFresh = !wasMastered && nowMastered;
+    // Each dish counts toward the daily challenge at most once per day. Without the id
+    // list, un-mastering and re-mastering the same dish counted again every time.
+    const base = daily.date === todayStr() ? daily : { date: todayStr(), count: 0, bonusAwarded: false, ids: [] };
+    const countedToday = new Set(base.ids || []);
+    const justMasteredFresh = !wasMastered && nowMastered && !countedToday.has(id);
     let newBonusTotal = bonusTotal;
     if (justMasteredFresh) {
-      const base = daily.date === todayStr() ? daily : { date: todayStr(), count: 0, bonusAwarded: false };
-      const newDaily = { date: todayStr(), count: base.count + 1, bonusAwarded: base.bonusAwarded || base.count + 1 >= DAILY_TARGET };
+      const newDaily = { date: todayStr(), count: base.count + 1, bonusAwarded: base.bonusAwarded || base.count + 1 >= DAILY_TARGET, ids: [...countedToday, id] };
       const justEarnedBonus = !base.bonusAwarded && newDaily.bonusAwarded;
       setDaily(newDaily);
       saveDaily(session.teamMemberId, newDaily);
@@ -213,7 +231,7 @@ export default function MainApp({ session, onSignOut }) {
     }
 
     if (session.offline) return; // TEMP DEV FALLBACK — local-only, nothing to persist.
-    await db.from("menu_progress").upsert({ team_member_id: session.teamMemberId, source_item_id: id, mastery: rating, consecutive_fives: nextFives, last_reviewed: new Date().toISOString() }, { onConflict: "team_member_id,source_item_id" });
+    await db.from("menu_progress").upsert({ team_member_id: session.teamMemberId, source_item_id: id, mastery: rating, consecutive_fives: nextFives, verified: nowVerified, last_reviewed: new Date().toISOString() }, { onConflict: "team_member_id,source_item_id" });
     // Server-side visibility for the owner's team-activity dashboard (today_count/last_study_date
     // on leaderboard) — separate from the localStorage-based daily-bonus tracking above.
     if (justMasteredFresh) {
@@ -318,7 +336,7 @@ export default function MainApp({ session, onSignOut }) {
   if (showMetrics)
     return <MetricsScreen session={session} cards={cards} masteryById={masteryById} onDone={() => setShowMetrics(false)} />;
 
-  if (mode === "flashcards") return <Flashcards items={studySession.deck} session={studySession} onRate={learnItem} onDone={exitMode} />;
+  if (mode === "flashcards") return <Flashcards items={studySession.deck} session={studySession} onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
   if (mode === "quiz") return <Quiz items={gameItems} facets={gameFacets} onAnswer={learnItem} onDone={exitMode} />;
   if (mode === "match") return <Matching items={gameItems} onAnswer={learnItem} onDone={exitMode} session={session} />;
   if (mode === "speed") return <Speed items={gameItems} onAnswer={learnItem} onDone={exitMode} onFinish={finishSpeed} />;
@@ -945,6 +963,9 @@ function Flashcards({ items, session, onRate, onDone }) {
               {it.pitfalls?.length > 0 && <div className="bg-[#3a2f1d] p-2 rounded-lg"><p className="text-[10px] font-bold text-[#f3c14b]">מוקשים: {it.pitfalls.join(", ")}</p></div>}
               <div className="pt-1">
                 <p className="text-[10px] font-bold text-[#8a8aa0] mb-1.5">כמה טוב ידעתם?</p>
+                {/* Says plainly that this is practice, not scoring — otherwise a waiter
+                    rates 5s expecting points and quietly gets none. */}
+                <p className="text-[9px] text-[#5a5a6e] mb-1.5">הדירוג העצמי קובע מה תחזרו עליו — נקודות נצברות במשחקים ובמבחנים</p>
                 <div className="grid grid-cols-5 gap-1.5">
                   {[1, 2, 3, 4, 5].map(v => (
                     <button key={v} onClick={() => rate(v)} className={`py-2.5 rounded-lg font-black text-sm ${RATING_STYLE[v]}`}>{v}</button>
