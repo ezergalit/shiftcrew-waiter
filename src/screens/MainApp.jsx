@@ -16,8 +16,17 @@ const catLabel = (c) => CAT_LABELS[c] || c;
 
 // Imported categories carry their explanation after an em dash
 // ("מאקי — 6 יחידות, אצה בחוץ ואורז בפנים"); the leading phrase is the serving style.
+// Hebrew has no "1 items" — a count of one takes the singular noun, and this teaser line
+// is read on every flashcard, so "1 מוקשים" stands out.
+const countLabel = (arr, one, many) =>
+  arr?.length > 0 ? `${arr.length} ${arr.length === 1 ? one : many}` : null;
+
 const shortCat = (c) => catLabel(c || "").split(/\s*[—–]\s*/)[0].trim();
 
+// How long the red/green answer feedback stays before advancing. Long enough to read
+// which option was right — the previous ~1s read as a flash, especially since the deck
+// used to reshuffle at the same moment.
+const FEEDBACK_MS = 1800;
 const DAILY_TARGET = 3;
 const DAILY_BONUS = 50;
 
@@ -25,7 +34,7 @@ function pubToCard(p) {
   const ing = (p.ingredients || []).filter(Boolean);
   // displayName is filled in by withDisplayNames once the whole menu is loaded — whether a
   // name needs its serving style depends on the other dishes, not on this row alone.
-  return { id: p.source_item_id, name: p.name, price: Number(p.price), category: p.category, desc: p.description || "", ingredients: ing, allergens: (p.allergens || []).filter(Boolean), isSpecial: !!p.is_special };
+  return { id: p.source_item_id, name: p.name, price: Number(p.price), category: p.category, desc: p.description || "", ingredients: ing, allergens: (p.allergens || []).filter(Boolean), pitfalls: (p.pitfalls || []).filter(Boolean), isSpecial: !!p.is_special };
 }
 
 const COLORS = ["#22c08c", "#ff7a59", "#e0315a", "#f3a712", "#3a86ff", "#6d5efc", "#9b7bff", "#1aa376"];
@@ -242,9 +251,20 @@ export default function MainApp({ session, onSignOut }) {
   // A game launched from a card carries its own scope; anything else draws only from the
   // categories the waiter has actually opened — never quizzing desserts they haven't
   // reached (QUESTION-QUALITY.md #9).
-  const gameItems = modeItems || path.gamePool;
+  // Frozen for the life of a round. Answering calls learnItem, which updates masteryById;
+  // that recomputes `path` and hands back a NEW gamePool array, which invalidated every
+  // game's useMemo mid-round and rebuilt the board — a matching grid would reshuffle the
+  // moment you paired two tiles. Depending only on mode/scope pins the pool for the round.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const gameItems = useMemo(() => modeItems || path.gamePool, [mode, modeItems]);
   // The owner's ranking, narrowed to what the open part of the menu can actually support.
-  const gameFacets = examConfig?.facets?.length ? examConfig.facets : availableFacets(gameItems);
+  // Memoised because availableFacets builds a fresh array: an unstable reference here
+  // invalidated the decks' useMemo on every render, so answering a question rebuilt and
+  // reshuffled the deck underneath the feedback the trainee was still reading.
+  const gameFacets = useMemo(
+    () => (examConfig?.facets?.length ? examConfig.facets : availableFacets(gameItems)),
+    [examConfig, gameItems]
+  );
 
   if (mode === "flashcards") return <Flashcards items={gameItems} onRate={learnItem} onDone={exitMode} />;
   if (mode === "quiz") return <Quiz items={gameItems} facets={gameFacets} onAnswer={learnItem} onDone={exitMode} />;
@@ -737,11 +757,12 @@ function Flashcards({ items, onRate, onDone }) {
           <p className="text-2xl font-black text-[#eef0f6]">{dishLabel(it)}</p>
           {!revealed && (
             <>
-              {(it.ingredients?.length > 0 || it.allergens?.length > 0) && (
+              {(it.ingredients?.length > 0 || it.allergens?.length > 0 || it.pitfalls?.length > 0) && (
                 <p className="text-[11px] font-bold text-[#8a8aa0]">
                   {[
-                    it.ingredients?.length > 0 && `${it.ingredients.length} מרכיבים`,
-                    it.allergens?.length > 0 && `${it.allergens.length} אלרגיות`,
+                    countLabel(it.ingredients, "מרכיב", "מרכיבים"),
+                    countLabel(it.allergens, "אלרגיה", "אלרגיות"),
+                    countLabel(it.pitfalls, "מוקש", "מוקשים"),
                   ].filter(Boolean).join(" · ")}
                 </p>
               )}
@@ -753,6 +774,7 @@ function Flashcards({ items, onRate, onDone }) {
               {it.desc && <p className="text-xs text-[#c4c4d4]">{it.desc}</p>}
               {it.ingredients?.length > 0 && <p className="text-[11px] text-[#8a8aa0]">מרכיבים: {it.ingredients.join(", ")}</p>}
               {it.allergens?.length > 0 && <div className="bg-[#3a1d22] p-2 rounded-lg"><p className="text-[10px] font-bold text-[#e0315a]">אלרגיות: {it.allergens.join(", ")}</p></div>}
+              {it.pitfalls?.length > 0 && <div className="bg-[#3a2f1d] p-2 rounded-lg"><p className="text-[10px] font-bold text-[#f3c14b]">מוקשים: {it.pitfalls.join(", ")}</p></div>}
               <div className="pt-1">
                 <p className="text-[10px] font-bold text-[#8a8aa0] mb-1.5">כמה טוב ידעתם?</p>
                 <div className="grid grid-cols-5 gap-1.5">
@@ -794,7 +816,10 @@ function Quiz({ items, facets, onAnswer, onDone }) {
   const pool = useMemo(() => items || [], [items]);
   // Weighted by what the owner said matters, not a fixed builder list — otherwise the
   // ranking on their settings screen would quietly do nothing here.
-  const qs = useMemo(() => buildWeightedDeck(pool, 8, facets), [pool, facets]);
+  // Keyed on facet content, not array identity — a caller handing us a freshly built
+  // array must never rebuild the deck the trainee is partway through.
+  const facetKey = (facets || []).join(",");
+  const qs = useMemo(() => buildWeightedDeck(pool, 8, facets), [pool, facetKey]);
   if (qs.length < 3) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>אין מספיק פרטים במנות כדי לבנות חידון</p></div>;
   if (i >= qs.length) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Trophy size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">{score}/{qs.length}</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
   const q = qs[i];
@@ -803,7 +828,7 @@ function Quiz({ items, facets, onAnswer, onDone }) {
     const correct = opt === q.correct;
     if (correct) setScore(s => s + 1);
     onAnswer(q.itemId, correct ? 5 : 2);
-    setTimeout(() => { setPicked(null); setI(i + 1); }, 1100);
+    setTimeout(() => { setPicked(null); setI(i + 1); }, FEEDBACK_MS);
   };
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10]" dir="rtl">
@@ -833,7 +858,14 @@ function Quiz({ items, facets, onAnswer, onDone }) {
 // issue from the seed data), which made price tiles actively misleading.
 // Objective — a pair matched with zero wrong attempts grades 5, one wrong attempt 4,
 // two 3, three+ 2. No self-report; guessing wrong repeatedly costs you the rating.
+const BOARDS_PER_GAME = 2;
+
 function Matching({ items, onAnswer, onDone }) {
+  // `board` advances only when the player clears the current grid. It is the ONLY thing
+  // the deck depends on besides the (now frozen) item pool, so a grid can never be
+  // rebuilt in the middle of play — matching a pair used to swap the whole board.
+  const [board, setBoard] = useState(0);
+  const [finished, setFinished] = useState(false);
   const deck = useMemo(() => {
     const chosen = shuffle((items || []).filter(it => it.ingredients?.length > 0)).slice(0, 6);
     const tiles = chosen.flatMap(it => [
@@ -841,13 +873,14 @@ function Matching({ items, onAnswer, onDone }) {
       { key: `${it.id}-ing`, pairId: it.id, kind: "ing", label: it.ingredients.slice(0, 3).join(", ") },
     ]);
     return shuffle(tiles);
-  }, [items]);
+  }, [items, board]);
 
   const [matched, setMatched] = useState(new Set());
   const [sel, setSel] = useState([]);
   const [wrongPair, setWrongPair] = useState([]);
   const [seconds, setSeconds] = useState(0);
   const [running, setRunning] = useState(true);
+  const [stats, setStats] = useState({ pairs: 0, clean: 0, seconds: 0 });
   const startedRef = useRef(Date.now());
   const wrongAttemptsRef = useRef(new Map()); // pairId -> count, for objective grading
 
@@ -857,7 +890,43 @@ function Matching({ items, onAnswer, onDone }) {
     return () => clearInterval(t);
   }, [running]);
 
+  const startBoard = (nextBoard) => {
+    setMatched(new Set());
+    setSel([]);
+    setWrongPair([]);
+    wrongAttemptsRef.current = new Map();
+    startedRef.current = Date.now();
+    setSeconds(0);
+    setRunning(true);
+    setBoard(nextBoard);
+  };
+
   if (!deck.length) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>אין מספיק פריטים</p></div>;
+
+  if (finished) {
+    const accuracy = stats.pairs ? Math.round((stats.clean / stats.pairs) * 100) : 0;
+    return (
+      <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
+        <Trophy size={40} className="text-[#f3c14b]" />
+        <div>
+          <p className="text-4xl font-black">{accuracy}%</p>
+          <p className="text-sm text-[#8a8aa0] mt-1">
+            {stats.pairs} התאמות ב-{BOARDS_PER_GAME} לוחות · {stats.seconds} שניות
+          </p>
+        </div>
+        <p className="text-xs text-[#8a8aa0]">מתוכן {stats.clean} נכונות בניסיון הראשון</p>
+        <div className="flex flex-col gap-2 w-full max-w-[240px]">
+          <button
+            onClick={() => { setStats({ pairs: 0, clean: 0, seconds: 0 }); setFinished(false); startBoard(board + 1); }}
+            className="px-4 py-3 rounded-2xl bg-[#6d5efc] text-white font-black text-sm"
+          >
+            עוד סבב
+          </button>
+          <button onClick={onDone} className="px-4 py-3 rounded-2xl bg-[#22252b] text-[#c4c4d4] font-bold text-sm">סיום</button>
+        </div>
+      </div>
+    );
+  }
 
   const done = matched.size === deck.length;
   if (done && running) setRunning(false);
@@ -874,6 +943,7 @@ function Matching({ items, onAnswer, onDone }) {
         const wrongCount = wrongAttemptsRef.current.get(a.pairId) || 0;
         const rating = wrongCount === 0 ? 5 : wrongCount === 1 ? 4 : wrongCount === 2 ? 3 : 2;
         onAnswer(a.pairId, rating);
+        setStats((st) => ({ ...st, pairs: st.pairs + 1, clean: st.clean + (wrongCount === 0 ? 1 : 0) }));
       } else {
         // A wrong guess counts against BOTH tiles involved — whichever one the player
         // eventually matches correctly will remember this miss.
@@ -889,7 +959,7 @@ function Matching({ items, onAnswer, onDone }) {
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10]" dir="rtl">
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0">
         <button onClick={onDone} className="text-xs text-[#8a8aa0]">← חזרה</button>
-        <p className="text-xs font-bold text-[#eef0f6]">התאמה</p>
+        <p className="text-xs font-bold text-[#eef0f6]">התאמה · לוח {(board % BOARDS_PER_GAME) + 1}/{BOARDS_PER_GAME}</p>
         <p className="text-xs font-black text-[#f3c14b]">⏱ {seconds}s</p>
       </div>
       <div className="flex-1 overflow-y-auto px-4 py-3">
@@ -918,8 +988,19 @@ function Matching({ items, onAnswer, onDone }) {
         {done && (
           <div className="text-center mt-6">
             <Trophy size={32} className="text-[#f3c14b] mx-auto mb-2" />
-            <p className="text-sm font-black text-[#eef0f6] mb-3">סיימת ב-{seconds} שניות!</p>
-            <button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white text-xs font-bold">סיום</button>
+            <p className="text-sm font-black text-[#eef0f6] mb-1">לוח {(board % BOARDS_PER_GAME) + 1} מתוך {BOARDS_PER_GAME} הושלם</p>
+            <p className="text-xs text-[#8a8aa0] mb-3">{seconds} שניות</p>
+            <button
+              onClick={() => {
+                setStats((st) => ({ ...st, seconds: st.seconds + seconds }));
+                // Summary after the last board of the set; otherwise deal a fresh grid.
+                if ((board + 1) % BOARDS_PER_GAME === 0) setFinished(true);
+                else startBoard(board + 1);
+              }}
+              className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white text-xs font-bold"
+            >
+              {(board + 1) % BOARDS_PER_GAME === 0 ? "לתוצאה" : "ללוח הבא"}
+            </button>
           </div>
         )}
       </div>
@@ -988,7 +1069,12 @@ function Speed({ items, onAnswer, onDone, onFinish }) {
 // The same nine the owner app offers and the AI import is allowed to return. "סולפיטים"
 // used to be a tenth option here — an allergen no owner could ever tag, so selecting it
 // was always wrong for a reason the trainee had no way to learn.
-const ALLERGENS = ["גלוטן", "חלב", "ביצים", "אגוזים", "בוטנים", "דגים", "רכיכות", "סויה", "שומשום", "דג נא"];
+const ALLERGENS = ["גלוטן", "חלב", "ביצים", "אגוזים", "בוטנים", "דגים", "רכיכות", "סויה", "שומשום"];
+// "מוקשים" — what a guest often asks to avoid by preference, not by safety. Separate from
+// ALLERGENS on purpose: folding a preference into the allergen list makes the allergen
+// list less trustworthy, and a waiter reads the two for different reasons. Free text, so
+// these are only a starting palette — any restaurant adds its own.
+const PITFALLS = ["כוסברה", "חריף", "דג נא", "שום", "בצל", "ג'ינג'ר", "וסאבי", "מיונז", "אלכוהול", "טחינה"];
 
 // Objective: pick every allergen the dish actually has (submitting with none selected
 // is itself the "no allergens" answer). Exact-set match required — no partial credit —
@@ -1061,7 +1147,8 @@ function NameCompletion({ items, facets, onAnswer, onDone }) {
   const pool = useMemo(() => items || [], [items]);
   // Same owner-ranked weighting as the quiz; this mode differs by presentation, not by
   // which aspects of the menu it is allowed to ask about.
-  const deck = useMemo(() => buildWeightedDeck(pool, 8, facets), [pool, facets]);
+  const facetKey = (facets || []).join(",");
+  const deck = useMemo(() => buildWeightedDeck(pool, 8, facets), [pool, facetKey]);
   const [i, setI] = useState(0);
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState(null);
@@ -1074,7 +1161,7 @@ function NameCompletion({ items, facets, onAnswer, onDone }) {
     const correct = opt === q.correct;
     if (correct) setScore(s => s + 1);
     onAnswer(q.itemId, correct ? 5 : 2);
-    setTimeout(() => { setPicked(null); setI(x => x + 1); }, 1400);
+    setTimeout(() => { setPicked(null); setI(x => x + 1); }, FEEDBACK_MS);
   };
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
@@ -1357,7 +1444,8 @@ function CategoryExam({ items, categoryLabel, onAnswer, onDone, onFinish }) {
 // identically — what differs is only which knowledge is being checked.
 function QuizExam({ items, facets, categoryLabel, onAnswer, onDone, onFinish }) {
   const pool = useMemo(() => items || [], [items]);
-  const deck = useMemo(() => buildWeightedDeck(pool, 8, facets), [pool, facets]);
+  const facetKey = (facets || []).join(",");
+  const deck = useMemo(() => buildWeightedDeck(pool, 8, facets), [pool, facetKey]);
   const [i, setI] = useState(0);
   const [picked, setPicked] = useState(null);
   const [correctCount, setCorrectCount] = useState(0);
@@ -1402,7 +1490,7 @@ function QuizExam({ items, facets, categoryLabel, onAnswer, onDone, onFinish }) 
     const ok = opt === q.correct;
     if (ok) setCorrectCount((c) => c + 1);
     onAnswer(q.itemId, ok ? 5 : 2);
-    setTimeout(() => { setPicked(null); setI((x) => x + 1); }, 900);
+    setTimeout(() => { setPicked(null); setI((x) => x + 1); }, FEEDBACK_MS);
   };
 
   return (

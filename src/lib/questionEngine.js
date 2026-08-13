@@ -328,12 +328,52 @@ export function qWhichDish(pool, it) {
 // `requires` lets the owner UI offer only what this particular menu can actually support,
 // so nobody is asked to rank "price" on a menu that has no prices.
 
+// Pitfalls (מוקשים) are preferences, not safety: coriander, spicy, raw fish, garlic. A guest
+// who dislikes one wants to avoid it, but nothing bad happens if they don't. They get their
+// own facet rather than being folded into allergens, because conflating the two is exactly
+// how "דגים" ended up tagged as an allergen on half a sushi menu.
+//
+// Same trap-avoidance as qAllergenDish: a distractor that also carries the pitfall — whether
+// tagged or merely implied by its ingredients — makes the question unanswerable. On a sushi
+// menu almost everything implies "דג נא", so this builder simply returns null there rather
+// than shipping a question with two right answers.
+export function qPitfallDish(pool, it) {
+  const mine = (it.pitfalls || []).filter(Boolean);
+  if (!mine.length) return null;
+  const pitfall = shuffle(mine)[0];
+  const implying = ingredientsImplying(pool, pitfall);
+  const carries = (x) =>
+    (x.pitfalls || []).includes(pitfall) ||
+    (x.ingredients || []).some((i) => implying.has(hebKey(String(i).trim())));
+  const clean = pickDistractors(pool, it, 12).filter(
+    (x) => !carries(x) && dishLabel(x) !== dishLabel(it)
+  );
+  if (clean.length < 3) return null;
+  const options = [...new Set([dishLabel(it), ...clean.slice(0, 3).map(dishLabel)])];
+  if (options.length < 4) return null;
+  return validateQuestion({
+    itemId: it.id,
+    facet: "pitfalls",
+    prompt: `אורח מבקש מנה בלי ${pitfall}. איזו מנה לא מתאימה לו?`,
+    subject: pitfall,
+    subjectKind: "pitfall",
+    options: shuffle(options),
+    correct: dishLabel(it),
+  });
+}
+
 export const FACETS = {
   allergens: {
     label: "אלרגנים",
     hint: "מי לא יכול לאכול מה — השאלה שאורח שואל בפועל",
     builders: [qAllergenDish],
     requires: (pool) => pool.filter((it) => (it.allergens || []).length).length >= 2,
+  },
+  pitfalls: {
+    label: "מוקשים",
+    hint: "העדפות נפוצות — כוסברה, חריף, דג נא — לא בטיחות",
+    builders: [qPitfallDish],
+    requires: (pool) => pool.filter((it) => (it.pitfalls || []).length).length >= 2,
   },
   ingredients: {
     label: "מרכיבים",
