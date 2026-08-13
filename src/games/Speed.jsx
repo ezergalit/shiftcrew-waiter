@@ -1,3 +1,4 @@
+import StreakToast from "./StreakToast";
 import { useState, useEffect, useMemo } from "react";
 import { Zap } from "lucide-react";
 import { pickDistractors, dishLabel } from "../lib/questionEngine";
@@ -24,6 +25,7 @@ export default function Speed({ items, onAnswer, onDone, onFinish }) {
   const [correct, setCorrect] = useState(0);
   const [time, setTime] = useState(SPEED_SECONDS);
   const [picked, setPicked] = useState(null);
+  const [streak, setStreak] = useState(0);
   useEffect(() => {
     if (time <= 0) return;
     const t = setInterval(() => setTime(x => x - 1), 1000);
@@ -39,11 +41,13 @@ export default function Speed({ items, onAnswer, onDone, onFinish }) {
     setPicked(opt);
     const isCorrect = opt === q.a;
     if (isCorrect) setCorrect(c => c + 1);
+    setStreak((n) => (isCorrect ? n + 1 : 0));
     onAnswer(q.it.id, isCorrect ? 5 : 2);
     setTimeout(() => { setPicked(null); setI(x => x + 1); }, 350);
   };
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
+      <StreakToast streak={streak} />
       {/* No way out at all used to mean a mis-tap cost the full 30s. The exit appears only
           after 10 seconds so it can't be used to reroll an unwanted deck instantly. */}
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0">
@@ -52,14 +56,14 @@ export default function Speed({ items, onAnswer, onDone, onFinish }) {
         {SPEED_SECONDS - time >= SPEED_EXIT_AFTER_S ? (
           <button onClick={onDone} className="text-xs text-[#8a8aa0]">יציאה ←</button>
         ) : (
-          <span className="text-[10px] text-[#5a5a6e] font-bold">
+          <span className="text-[11px] text-[#5a5a6e] font-bold">
             יציאה בעוד {SPEED_EXIT_AFTER_S - (SPEED_SECONDS - time)}s
           </span>
         )}
       </div>
       <div className="flex-1 flex flex-col items-center justify-center px-4">
         <div className="text-center w-full">
-          <p className="text-[10px] font-bold text-[#8a8aa0] mb-2">איזה מרכיב שייך למנה הזו?</p>
+          <p className="text-[11px] font-bold text-[#8a8aa0] mb-2">איזה מרכיב שייך למנה הזו?</p>
           <p className="text-lg font-black mb-4">{dishLabel(q.it)}</p>
           <div className="flex flex-col gap-2">
             {q.opts.map((opt, j) => {

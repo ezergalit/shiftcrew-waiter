@@ -37,3 +37,31 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+
+/* --- 3D flashcard flip (2026-08-13) ------------------------------------------------
+   rotateX, not rotateY: a vertical flip reads identically in RTL and LTR, while a
+   horizontal flip "opens the wrong way" for RTL readers. Both faces are stacked in a
+   grid cell; backface-visibility hides whichever is turned away. */
+.flip-scene { perspective: 1200px; }
+.flip-card {
+  display: grid;
+  transform-style: preserve-3d;
+  transition: transform 0.5s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+.flip-card.flipped { transform: rotateX(180deg); }
+.flip-face {
+  grid-area: 1 / 1;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.flip-back { transform: rotateX(180deg); }
+
+/* streak toast: pops in, hangs, fades — one shot per streak milestone */
+@keyframes streak-pop {
+  0%   { transform: scale(0.6) translateY(8px); opacity: 0; }
+  20%  { transform: scale(1.08) translateY(0);  opacity: 1; }
+  30%  { transform: scale(1);                   opacity: 1; }
+  80%  { transform: scale(1);                   opacity: 1; }
+  100% { transform: scale(0.95) translateY(-6px); opacity: 0; }
+}
+.animate-streak { animation: streak-pop 1.4s ease-out forwards; }

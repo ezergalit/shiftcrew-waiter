@@ -215,7 +215,7 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
               שליחה
             </button>
             {picked.size === 0 && (
-              <p className="text-[10px] text-[#8a8aa0] text-center mt-2">בחרו לפחות מרכיב אחד</p>
+              <p className="text-[11px] text-[#8a8aa0] text-center mt-2">בחרו לפחות מרכיב אחד</p>
             )}
           </>
         )}
@@ -226,7 +226,7 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
               <div className="bg-[#3a1d22] border border-[#e0315a]/40 rounded-xl p-3">
                 <p className="text-[11px] font-black text-[#e0315a] mb-1">⚠️ פספסתם אלרגיות</p>
                 <p className="text-sm text-[#eef0f6]">{result.missAll.join(", ")}</p>
-                <p className="text-[10px] text-[#c4c4d4] mt-1.5">זה הדבר הכי חשוב לדעת — לקוח עלול להיפגע.</p>
+                <p className="text-[11px] text-[#c4c4d4] mt-1.5">זה הדבר הכי חשוב לדעת — לקוח עלול להיפגע.</p>
               </div>
             )}
             {result.wrongAll.length > 0 && (

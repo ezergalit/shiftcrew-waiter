@@ -1,3 +1,4 @@
+import StreakToast from "./StreakToast";
 import { useState, useMemo } from "react";
 import { Trophy } from "lucide-react";
 import { buildWeightedDeck } from "../lib/questionEngine";
@@ -23,6 +24,7 @@ export default function Quiz({ items, facets, openKeys, onAnswer, onDone }) {
   const [i, setI] = useState(0);
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState(null);
+  const [streak, setStreak] = useState(0);
   const pool = useMemo(() => items || [], [items]);
   // Weighted by what the owner said matters, not a fixed builder list — otherwise the
   // ranking on their settings screen would quietly do nothing here.
@@ -37,15 +39,17 @@ export default function Quiz({ items, facets, openKeys, onAnswer, onDone }) {
     setPicked(opt);
     const correct = opt === q.correct;
     if (correct) setScore(s => s + 1);
+    setStreak((n) => (correct ? n + 1 : 0));
     onAnswer(q.itemId, correct ? 5 : 2);
     setTimeout(() => { setPicked(null); setI(i + 1); }, FEEDBACK_MS);
   };
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10]" dir="rtl">
+      <StreakToast streak={streak} />
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0"><button onClick={onDone} className="text-xs text-[#8a8aa0]">← חזרה</button><p className="text-xs font-bold text-[#eef0f6]">{i + 1}/{qs.length}</p></div>
       <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col">
         <div className="bg-[#16181c] rounded-lg p-3 mb-3">
-          <p className="text-[10px] font-bold text-[#8a8aa0] mb-1">{q.prompt}</p>
+          <p className="text-[11px] font-bold text-[#8a8aa0] mb-1">{q.prompt}</p>
           <p className={`font-black text-[#eef0f6] ${q.subjectKind === "desc" ? "text-sm" : "text-lg"}`}>{q.subject}</p>
         </div>
         <div className="space-y-2">

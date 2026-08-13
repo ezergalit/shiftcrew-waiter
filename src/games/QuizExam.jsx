@@ -68,7 +68,7 @@ export default function QuizExam({ items, facets, categoryLabel, onAnswer, onDon
       </div>
       <div className="flex-1 overflow-y-auto px-4 py-3">
         <div className="bg-[#16181c] rounded-lg p-3 mb-3">
-          <p className="text-[10px] font-bold text-[#8a8aa0] mb-1">{q.prompt}</p>
+          <p className="text-[11px] font-bold text-[#8a8aa0] mb-1">{q.prompt}</p>
           <p className={`font-black ${q.subjectKind === "desc" ? "text-sm leading-snug" : "text-lg"}`}>{q.subject}</p>
         </div>
         <div className="space-y-2">

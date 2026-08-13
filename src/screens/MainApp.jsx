@@ -538,19 +538,10 @@ export default function MainApp({ session, onSignOut }) {
       progress: Math.min(studiedMinutes, goalMinutes), target: goalMinutes, done: false,
       action: { label: "להתחיל ללמוד", onClick: () => { setModeItems(null); setMode("quick"); } },
     },
-    {
-      // Not "challenge": allergies are the one thing on this menu that can put a guest in
-      // hospital, and framing them as a game undercuts the seriousness the waiter should
-      // carry to the table. Wording stays calm and instructional throughout.
-      id: "allergens", icon: AlertTriangle, color: "#e0315a", title: "לימוד האלרגיות",
-      desc: lockedNote("allergens") || "קראו את שם המנה וזהו את כל האלרגיות שבה", progress: null, target: null, done: false,
-      action: gatedAction("allergens", "ללימוד האלרגיות"),
-    },
-    {
-      id: "namecomplete", icon: ListChecks, color: "#3a86ff", title: "התאימו תיאור למנה",
-      desc: lockedNote("namecomplete") || "קראו את שם המנה ובחרו את התיאור הנכון מבין 3 אפשרויות", progress: null, target: null, done: false,
-      action: gatedAction("namecomplete", "לאתגר"),
-    },
+    // Game launchers used to live here too (allergen study, description match). They
+    // duplicated the practice grid, and the duplication is what made "challenges" hard to
+    // read — this tab now holds only things with a state to beat: a goal, a record, a
+    // streak, full mastery. The games moved to the practice grid, all in one place.
     {
       // No action button — this one is a status card, so the whole card is the target and
       // it opens the menu itself, where the remaining dishes actually are.
@@ -680,7 +671,7 @@ export default function MainApp({ session, onSignOut }) {
         <button onClick={onSignOut} className="w-8 h-8 rounded-lg bg-[#191b1f] flex items-center justify-center text-[#8a8aa0]"><LogOut size={16} /></button>
         <div className="text-center">
           <p className="text-sm font-black">{session?.name}</p>
-          {session?.restaurantName && <p className="text-[10px] text-[#8a8aa0] font-semibold">{session.restaurantName}</p>}
+          {session?.restaurantName && <p className="text-[11px] text-[#8a8aa0] font-semibold">{session.restaurantName}</p>}
         </div>
         <div className="flex items-center gap-1.5">
           {myRank > 0 && <span className="text-[11px] font-bold text-[#f3c14b] bg-[#33290f] px-2 py-1 rounded-md">מקום {myRank}</span>}
@@ -711,7 +702,7 @@ export default function MainApp({ session, onSignOut }) {
                 <Repeat size={16} className="text-[#6d5efc] flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-black text-[#eef0f6]">להמשיך מאיפה שהפסקתם?</p>
-                  <p className="text-[10px] font-bold text-[#8a8aa0]">
+                  <p className="text-[11px] font-bold text-[#8a8aa0]">
                     {MODE_LABELS[resumeOffer.mode] || "סבב לימוד"}
                     {resumeOffer.categoryKey ? ` · ${shortCat(resumeOffer.categoryKey)}` : ""}
                   </p>
@@ -738,103 +729,54 @@ export default function MainApp({ session, onSignOut }) {
               </div>
             )}
 
-            {/* First thing on the home screen: the one action that fits in the two minutes
-                a waiter actually has before service. */}
+            {/* THE hero: one card, one action, one number. The quick round is what a
+                waiter actually has time for before service, and the ring is today's goal
+                — so starting the round and seeing where you stand are the same glance.
+                Everything else on this screen is secondary to this card. */}
             <button
               onClick={() => { setModeItems(null); setMode("quick"); }}
-              className="w-full rounded-2xl p-4 text-right flex items-center gap-3 bg-gradient-to-l from-[#1b3a36] to-[#16181c] border border-[#22c08c]"
+              className="w-full rounded-2xl p-5 text-right flex items-center gap-4 bg-gradient-to-l from-[#1b3a36] via-[#16241f] to-[#16181c] border border-[#22c08c]/60 active:scale-[0.99] transition-transform"
             >
-              <div className="w-9 h-9 rounded-full bg-[#22c08c]/20 flex items-center justify-center flex-shrink-0">
-                <Zap size={17} className="text-[#22c08c]" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-[#eef0f6]">5 דקות לפני משמרת</p>
-                <p className="text-[10px] font-bold text-[#8a8aa0]">
-                  {quickSession.deck.length} מנות — מה שסומן, מה שחדש, ומה שהכי חלש אצלכם
-                </p>
-              </div>
-              <ChevronLeft size={16} className="text-[#22c08c] flex-shrink-0" />
-            </button>
-
-            {/* The daily goal, in minutes, as a ring you can read at a glance. Minutes and
-                not dishes: the owner sets the number, and time is what a waiter can
-                actually promise before a shift. */}
-            <div className="bg-[#16181c] border border-[#22252b] rounded-xl p-3 flex items-center gap-3">
-              <div className="relative w-[52px] h-[52px] flex-shrink-0">
-                <svg viewBox="0 0 52 52" className="w-[52px] h-[52px] -rotate-90">
-                  <circle cx="26" cy="26" r="22" fill="none" stroke="#22252b" strokeWidth="6" />
+              <div className="relative w-[64px] h-[64px] flex-shrink-0">
+                <svg viewBox="0 0 64 64" className="w-[64px] h-[64px] -rotate-90">
+                  <circle cx="32" cy="32" r="27" fill="none" stroke="#22252b" strokeWidth="7" />
                   <circle
-                    cx="26" cy="26" r="22" fill="none"
-                    stroke={goalMet ? "#22c08c" : "#f3a712"} strokeWidth="6" strokeLinecap="round"
-                    strokeDasharray={`${(goalPct / 100) * 2 * Math.PI * 22} ${2 * Math.PI * 22}`}
+                    cx="32" cy="32" r="27" fill="none"
+                    stroke={goalMet ? "#22c08c" : "#f3a712"} strokeWidth="7" strokeLinecap="round"
+                    strokeDasharray={`${(goalPct / 100) * 2 * Math.PI * 27} ${2 * Math.PI * 27}`}
                   />
                 </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[11px] font-black"
+                <span className="absolute inset-0 flex items-center justify-center text-sm font-black"
                       style={{ color: goalMet ? "#22c08c" : "#eef0f6" }}>
                   {goalMet ? "✓" : `${goalPct}%`}
                 </span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-black text-[#eef0f6]">
-                  {goalMet ? "השלמתם את היעד היומי 🎉" : "היעד היומי"}
+                <p className="text-base font-black text-[#eef0f6] flex items-center gap-1.5">
+                  <Zap size={16} className="text-[#22c08c]" /> 5 דקות לפני משמרת
                 </p>
-                <p className="text-[10px] font-bold text-[#8a8aa0]">
-                  {studiedMinutes} מתוך {goalMinutes} דקות לימוד היום
+                <p className="text-xs font-bold text-[#8a8aa0] mt-0.5">
+                  {quickSession.deck.length} מנות — מה שסומן, מה שחדש, ומה שחלש
+                </p>
+                <p className="text-xs font-bold mt-1" style={{ color: goalMet ? "#22c08c" : "#f3a712" }}>
+                  {goalMet ? "השלמתם את היעד היומי 🎉" : `${studiedMinutes}/${goalMinutes} דקות מהיעד היומי`}
                 </p>
               </div>
-            </div>
-            {(session?.restaurantDescription || session?.restaurantCuisineTypes?.length > 0) && (
-              <div className="bg-[#16181c] border border-[#22252b] rounded-xl p-3">
-                {session?.restaurantCuisineTypes?.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-1.5">
-                    {session.restaurantCuisineTypes.map((c) => (
-                      <span key={c} className="bg-[#6d5efc]/15 border border-[#6d5efc]/40 text-[#a79bff] text-[10px] font-bold px-2 py-0.5 rounded-full">{c}</span>
-                    ))}
-                  </div>
-                )}
-                {session?.restaurantDescription && (
-                  <p className="text-xs text-[#8a8aa0] leading-relaxed">{session.restaurantDescription}</p>
-                )}
-              </div>
-            )}
+              <ChevronLeft size={18} className="text-[#22c08c] flex-shrink-0" />
+            </button>
             <PromoCarousel items={promos} />
-            {/* One concrete next action, so the home screen never asks the waiter to
-                decide what to do — the staged path already knows. */}
-            {path.nextStep && (
-              <button
-                onClick={() => {
-                  const cat = path.categories.find((c) => c.key === path.nextStep.category);
-                  setModeItems(cat?.items || null);
-                  if (path.nextStep.kind === "exam") { setExamCategory({ key: cat.key, label: catLabel(cat.key) }); setMode("exam"); }
-                  else setMode("flashcards");
-                }}
-                className="w-full rounded-xl p-4 text-white text-right"
-                style={{ background: "linear-gradient(135deg,#6d5efc,#9b7bff)" }}
-              >
-                <p className="text-[10px] font-bold opacity-80 mb-0.5">
-                  {path.nextStep.kind === "exam" ? "מוכנים לשלב הבא" : "השלב הנוכחי שלכם"}
-                </p>
-                <p className="text-base font-black mb-1">
-                  {path.nextStep.kind === "exam"
-                    ? `מבחן ${shortCat(path.nextStep.category)}`
-                    : `לימוד ${shortCat(path.nextStep.category)}`}
-                </p>
-                {path.nextStep.kind === "study" && (
-                  <>
-                    <div className="h-1.5 bg-white/25 rounded-full overflow-hidden mb-1">
-                      <div className="h-full bg-white" style={{ width: `${Math.min(100, (path.nextStep.pct / path.nextStep.threshold) * 100)}%` }} />
-                    </div>
-                    <p className="text-[10px] opacity-90">{path.nextStep.pct}% מתוך {path.nextStep.threshold}% שנדרשים כדי להיבחן</p>
-                  </>
-                )}
-              </button>
-            )}
             <div className="bg-[#16181c] rounded-xl p-3">
-              <p className="text-xs font-black text-[#eef0f6] mb-2">תרגול</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-black text-[#eef0f6]">תרגול</p>
+                <p className="text-xs font-bold text-[#8a8aa0]">{pct}% · {mastered.size}/{cards?.length || 0} נלמדו</p>
+              </div>
+              <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mb-3">
+                <div className="h-full bg-[#6d5efc] transition-all" style={{ width: `${pct}%` }} />
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={() => { setModeItems(null); setMode("flashcards"); }}
                   className="bg-[#6d5efc] text-white font-bold text-xs py-2.5 rounded-lg">כרטיסיות</button>
-                {path.games.filter(g => g.mode !== "namecomplete").map((g) => (
+                {path.games.map((g) => (
                   <button key={g.mode}
                     onClick={() => { setModeItems(null); setMode(g.mode); }}
                     className="font-bold text-xs py-2.5 rounded-lg flex items-center justify-center gap-1 bg-[#22252b] text-[#eef0f6]">
@@ -845,32 +787,20 @@ export default function MainApp({ session, onSignOut }) {
               {/* Nothing is locked, so the note explains SCOPE instead: practice draws
                   from the categories already passed, and passing another widens it. */}
               {path.scopedToOpen && path.openKeys?.length > 0 && (
-                <p className="text-[10px] text-[#8a8aa0] mt-2 leading-relaxed">
+                <p className="text-[11px] text-[#8a8aa0] mt-2 leading-relaxed">
                   {path.passedCount === 0
                     ? `כל התרגול פתוח — כרגע על ${shortCat(path.openKeys[0])}. עברו מבחן כדי להוסיף עוד קטגוריות לתרגול.`
                     : `התרגול כולל: ${path.openKeys.map(shortCat).join(" · ")}. כל מבחן שעוברים מוסיף קטגוריה.`}
                 </p>
               )}
             </div>
-            <div className="bg-[#16181c] rounded-lg p-3">
-              <p className="text-xs font-bold text-[#8a8aa0] mb-2">התקדמות</p>
-              <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mb-2">
-                <div className="h-full bg-[#6d5efc]" style={{ width: `${pct}%` }} />
-              </div>
-              <p className="text-[11px] text-[#8a8aa0]">{pct}% הצלחה · {mastered.size}/{cards?.length || 0} מנות נלמדו</p>
-            </div>
-            <button onClick={() => setTab("challenges")} className="w-full bg-[#16181c] rounded-lg p-3 flex items-center gap-3 text-right">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "#3a2a0f" }}>
-                <Sparkles size={16} className="text-[#f3a712]" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-black text-[#eef0f6]">אתגר יומי</p>
-                <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mt-1.5 mb-1">
-                  <div className="h-full bg-[#f3a712]" style={{ width: `${Math.min(100, (daily.count / DAILY_TARGET) * 100)}%` }} />
-                </div>
-                <p className="text-[10px] text-[#8a8aa0]">{Math.min(daily.count, DAILY_TARGET)}/{DAILY_TARGET} מנות היום{dailyDone ? ` · הושלם +${DAILY_BONUS}` : ""}</p>
-              </div>
-              <span className="text-[10px] font-bold text-[#f3a712] flex-shrink-0">כל האתגרים ←</span>
+
+            {/* The old preview here still counted 3 dishes — the goal moved to minutes
+                and lives in the hero ring, so this is now just the door to the tab. */}
+            <button onClick={() => setTab("challenges")} className="w-full bg-[#16181c] border border-[#22252b] rounded-xl px-4 py-3 min-h-[48px] flex items-center gap-2.5 text-right active:scale-[0.99] transition-transform">
+              <Sparkles size={15} className="text-[#f3a712] flex-shrink-0" />
+              <p className="flex-1 text-sm font-bold text-[#eef0f6]">האתגרים והשיאים שלכם</p>
+              <ChevronLeft size={15} className="text-[#8a8aa0] flex-shrink-0" />
             </button>
           </div>
         )}
@@ -880,7 +810,7 @@ export default function MainApp({ session, onSignOut }) {
             {brief?.missing_items?.length > 0 && <div><span className="text-[10px] font-bold text-[#f3c14b]">❌ חסרים:</span><p className="text-xs text-[#f3c14b] mt-0.5">{brief.missing_items.join(", ")}</p></div>}
             {brief?.new_items?.length > 0 && <div><span className="text-[10px] font-bold text-[#22c08c]">⭐ חדש:</span><p className="text-xs text-[#22c08c] mt-0.5">{brief.new_items.join(", ")}</p></div>}
             {brief?.oven_items?.length > 0 && <div><span className="text-[10px] font-bold text-[#6d5efc]">📦 מעלה:</span><p className="text-xs text-[#6d5efc] mt-0.5">{brief.oven_items.join(", ")}</p></div>}
-            {brief?.notes && <div><span className="text-[10px] font-bold text-[#8a8aa0]">הערה:</span><p className="text-xs text-[#8a8aa0] mt-0.5">{brief.notes}</p></div>}
+            {brief?.notes && <div><span className="text-[11px] font-bold text-[#8a8aa0]">הערה:</span><p className="text-xs text-[#8a8aa0] mt-0.5">{brief.notes}</p></div>}
             {!brief?.missing_items?.length && !brief?.new_items?.length && !brief?.oven_items?.length && !brief?.notes && (
               <p className="text-xs text-[#8a8aa0]">אין עדכונים היום</p>
             )}
@@ -927,7 +857,7 @@ export default function MainApp({ session, onSignOut }) {
               </div>
 
               {boardScope === "week" && (
-                <p className="text-[10px] text-[#8a8aa0] px-1 leading-relaxed">
+                <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">
                   הניקוד מתאפס בכל יום ראשון — כל שבוע מתחיל מחדש, וגם מי שהצטרף אתמול יכול לנצח.
                 </p>
               )}
@@ -944,7 +874,7 @@ export default function MainApp({ session, onSignOut }) {
                     <span className="w-6 h-6 rounded-full text-[9px] font-black flex items-center justify-center text-white flex-shrink-0" style={{ background: colorFor(r.name) }}>{r.name[0]}</span>
                     <div className="flex-1">
                       <p className={`text-xs font-bold ${r.team_member_id === session?.teamMemberId ? "text-[#6d5efc]" : "text-[#eef0f6]"}`}>{r.name}{r.team_member_id === session?.teamMemberId ? " (אני)" : ""}</p>
-                      <p className="text-[10px] text-[#8a8aa0] flex items-center gap-1">{r.mastered_count} נלמדו{r.streak > 1 && <span className="flex items-center gap-0.5"><Flame size={9} className="text-[#ff7a59]" />{r.streak}</span>}</p>
+                      <p className="text-[11px] text-[#8a8aa0] flex items-center gap-1">{r.mastered_count} נלמדו{r.streak > 1 && <span className="flex items-center gap-0.5"><Flame size={9} className="text-[#ff7a59]" />{r.streak}</span>}</p>
                     </div>
                     <p className="text-xs font-black text-[#6d5efc]">{r.points}</p>
                   </div>
@@ -955,7 +885,7 @@ export default function MainApp({ session, onSignOut }) {
         })()}
         {tab === "categories" && (
           <div className="space-y-2">
-            <p className="text-[10px] text-[#8a8aa0] px-1 leading-relaxed">
+            <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">
               {/* No order is imposed any more — say so, and steer without blocking. */}
               כל הקטגוריות פתוחות — אפשר להתחיל מאיפה שרוצים.
               {path.recommended ? ` ממליצים להתחיל ב${shortCat(path.recommended.key)}.` : ""}
@@ -986,7 +916,7 @@ export default function MainApp({ session, onSignOut }) {
                     <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden">
                       <div className="h-full transition-all" style={{ width: `${cat.pct}%`, background: cat.passed ? "#22c08c" : "#6d5efc" }} />
                     </div>
-                    <p className="text-[10px] text-[#8a8aa0] mt-1">
+                    <p className="text-[11px] text-[#8a8aa0] mt-1">
                       {/* shortCat, not the full label: imported categories carry their
                           whole explanation ("מאקי — 6 יחידות, אצה בחוץ ואורז בפנים") and
                           inlining that makes the sentence unreadable. */}
@@ -1035,7 +965,7 @@ export default function MainApp({ session, onSignOut }) {
                       <p className="text-xs font-black text-[#eef0f6]">{ch.title}</p>
                       {ch.done && <Check size={14} className="text-[#22c08c] flex-shrink-0" />}
                     </div>
-                    <p className="text-[10px] text-[#8a8aa0] mt-0.5">{ch.desc}</p>
+                    <p className="text-[11px] text-[#8a8aa0] mt-0.5">{ch.desc}</p>
                   </div>
                 </div>
                 {ch.target != null && (
@@ -1043,7 +973,7 @@ export default function MainApp({ session, onSignOut }) {
                     <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden">
                       <div className="h-full" style={{ width: `${Math.min(100, (ch.progress / ch.target) * 100)}%`, background: ch.color }} />
                     </div>
-                    <p className="text-[10px] text-[#8a8aa0] mt-1">{ch.progress}/{ch.target}</p>
+                    <p className="text-[11px] text-[#8a8aa0] mt-1">{ch.progress}/{ch.target}</p>
                   </div>
                 )}
                 {ch.action && !ch.done && (
@@ -1089,7 +1019,7 @@ function BottomNav({ tab, setTab, hasDailyUpdate, hasChallenge }) {
                 <Icon size={20} strokeWidth={active ? 2.3 : 1.6} className={active ? "text-white" : "text-[#8a8aa0]"} />
                 {badge && <span className="absolute -top-1 -left-1.5 w-2 h-2 rounded-full bg-[#e0315a]" />}
               </div>
-              <span className={`text-[10px] font-semibold transition-colors ${active ? "text-white" : "text-[#8a8aa0]"}`}>{label}</span>
+              <span className={`text-[11px] font-semibold transition-colors ${active ? "text-white" : "text-[#8a8aa0]"}`}>{label}</span>
             </button>
           );
         })}

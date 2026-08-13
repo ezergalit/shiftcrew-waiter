@@ -184,7 +184,7 @@ export default function Matching({ items, onAnswer, onDone, session }) {
         <button onClick={onDone} className="text-xs text-[#8a8aa0]">← חזרה</button>
         <p className="text-xs font-bold text-[#eef0f6]">התאמה · לוח {(board % BOARDS_PER_GAME) + 1}/{BOARDS_PER_GAME}</p>
         <p className={`text-xs font-black ${wrongPair.length ? "text-[#e0315a]" : "text-[#f3c14b]"}`}>
-          ⏱ {seconds + penalty}s{penalty > 0 && <span className="text-[10px] font-bold text-[#e0315a]"> (+{penalty})</span>}
+          ⏱ {seconds + penalty}s{penalty > 0 && <span className="text-[11px] font-bold text-[#e0315a]"> (+{penalty})</span>}
         </p>
       </div>
       <div className="flex-1 overflow-y-auto px-4 py-3">
