@@ -419,11 +419,12 @@ export default function MainApp({ session, onSignOut }) {
     },
   ].filter(Boolean) : [];
 
-  // Home-page carousel. Leads with the three things a waiter needs before a shift —
-  // today's briefing, what is new to learn, where they stand — then the daily challenge
-  // and the points leader. Game-mode teasers and the streak banner were dropped: the
-  // games already have their own tiles below, so advertising them here was noise.
-  const pointsLeader = leaderboard[0];
+  // Home-page carousel — exactly three slides, by request: today's briefing, what is new
+  // to learn, and the study round to do next. Everything else that used to live here (the
+  // daily challenge, team leaders, game teasers) already has its own place further down
+  // the home screen or in the challenges tab; repeating it up here was noise, and it
+  // buried the three things that actually matter before a shift.
+  // Slides 2 and 3 always render a card — never a gap — so the count stays at three.
   // Dishes started but not yet solid — the fallback for slide 2 on a menu with nothing new.
   const reviewDishes = (cards || [])
     .filter((c) => { const m = masteryById?.[c.id] || 0; return m > 0 && m < 4; })
@@ -490,7 +491,9 @@ export default function MainApp({ session, onSignOut }) {
       cta: "לתרגול",
       onClick: () => { setModeItems(null); setMode("flashcards"); },
     },
-    // Slide 3: where the staged path says this waiter stands right now.
+    // Slide 3: where the staged path says this waiter stands. Like slide 2 it never
+    // disappears — with every category already passed there is still something to do,
+    // and an empty third slot would leave the carousel with two.
     path.nextStep ? {
       id: "next-stage", gradient: "linear-gradient(135deg,#14b8a6,#0d7f74)", icon: GraduationCap,
       kicker: path.nextStep.kind === "exam" ? "מוכנים לשלב הבא" : "השלב הנוכחי שלכם",
@@ -507,18 +510,14 @@ export default function MainApp({ session, onSignOut }) {
         if (path.nextStep.kind === "exam") { setExamCategory({ key: cat.key, label: catLabel(cat.key) }); setMode("exam"); }
         else { setModeItems(cat.items); setMode("flashcards"); }
       },
-    } : null,
-    {
-      id: "daily", gradient: "linear-gradient(135deg,#f3a712,#ff7a59)", icon: Sparkles,
-      kicker: "אתגר יומי", title: dailyDone ? `הושלם! +${DAILY_BONUS} נקודות בונוס 🎉` : `למדו ${DAILY_TARGET} מנות היום`,
-      subtitle: dailyDone ? "חזרו מחר לאתגר חדש" : `עוד ${DAILY_TARGET - daily.count} ותקבלו ${DAILY_BONUS} נקודות בונוס`,
-      cta: dailyDone ? "לכל האתגרים" : "בואו נתחיל", onClick: () => { if (dailyDone) setTab("challenges"); else { setModeItems(null); setMode("flashcards"); } },
+    } : {
+      id: "study-round", gradient: "linear-gradient(135deg,#14b8a6,#0d7f74)", icon: GraduationCap,
+      kicker: "לימוד מנות",
+      title: "סבב לימוד מותאם אליכם",
+      subtitle: "המנות שהכי כדאי לחזור עליהן, לפי איך שהצלחתם בפעם הקודמת",
+      cta: "לסבב לימוד",
+      onClick: () => { setModeItems(null); setMode("flashcards"); },
     },
-    pointsLeader && pointsLeader.team_member_id !== session?.teamMemberId ? {
-      id: "points-leader", gradient: "linear-gradient(135deg,#6d5efc,#9b7bff)", icon: Trophy,
-      kicker: "בראש הטבלה", title: `${pointsLeader.name} מוביל/ה עם ${pointsLeader.points} נקודות`,
-      subtitle: "הצטרפו לתחרות ותתפסו אותם", cta: "לדירוג המלא", onClick: () => setTab("leaderboard"),
-    } : null,
   ].filter(Boolean) : [];
 
   return (
