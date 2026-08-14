@@ -594,7 +594,8 @@ node tests/path.test.mjs   # כתוב מחדש סביב המפרט הזה
 
 - `useStudyTime({ onSecond })` מדווח כל שנייה — בלי זה הטבעת קופצת רק כל פליחה (2 דק').
 - `todaySeconds` נזרע מ-`progress_snapshots` של היום בטעינה, כדי שרענון לא יאפס.
-- ⚠️ **מסך ההגדרה בצד המנהל עדיין לא נבנה.** העמודה עובדת וכל מסעדה על 10.
+- ✅ **מסך ההגדרה בצד המנהל נבנה** (2026-08-14): טאב "הגדרות" ⇒ "יעד לימוד יומי",
+  5/10/15/20 דקות. נבדק מקצה לקצה: 15 בצד המנהל ⇒ "0/15 דקות מהיעד היומי" בבית.
 
 ### 🏆 ניקוד שבועי (`weekly_scores` + `add_weekly_points`)
 
@@ -670,3 +671,17 @@ todayStr/loadDaily/saveDaily/loadNum/saveNum). **MainApp מייבא מהם** —
 
 במשחקים ובתוויות אינטראקטיביות: מינימום 11px, מטרות הקשה ראשיות 44px.
 מסכים צפופים (מדדים) נשארו כמו שהם בכוונה.
+
+## 📱 2026-08-14 — Capacitor + session tokens (ר' CLAUDE.md הראשי לתמונה המלאה)
+
+- `capacitor.config.json` + `ios/` + `android/` (appId `il.co.shiftcrew.team`).
+  אחרי כל `npm run build` ⇒ `npx cap sync`.
+- `index.html`: נוסף `viewport-fit=cover` — בלעדיו ה-safe-area שכבר היה בקוד
+  (כולל ה-bottom nav) חושב ל-0. ה-header של MainApp קיבל inset עליון.
+- **`TeamLogin.jsx` שוכתב על `team_join` (RPC)**: כל הזרימה — חיפוש מסעדה, exact
+  match, fuzzy (Levenshtein≤2 ⇒ status:'confirm'), יצירת חבר צוות — רצה בשרת,
+  שגם מנפיק את הטוקן. ה-levenshtein המקומי נמחק. ה-offline fallback נשאר.
+- **טוקן**: `lib/appSession.js` + fetch מוזרק ב-`lib/supabase.js` (header
+  `x-app-session`). sign-out מנקה גם את הטוקן (App.jsx).
+- **`DeleteProfile` ב-`MetricsScreen.jsx`** — מחיקת פרופיל עצמית
+  (`delete_my_team_profile`, cascade). דרישת חנויות. מוסתר ב-offline.

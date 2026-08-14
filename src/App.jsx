@@ -5,6 +5,7 @@ import TeamLogin from "./auth/TeamLogin";
 import MainApp from "./screens/MainApp";
 import WelcomeTutorial from "./screens/WelcomeTutorial";
 import BaselineIntake from "./screens/BaselineIntake";
+import { setSessionToken } from "./lib/appSession";
 
 const SESSION_KEY = "menu-app-team-session";
 const db = supabase.schema("menu_app");
@@ -92,7 +93,7 @@ export default function App() {
     );
   }
 
-  return <MainApp session={session} onSignOut={() => { localStorage.removeItem(SESSION_KEY); setPhase("login"); }} />;
+  return <MainApp session={session} onSignOut={() => { localStorage.removeItem(SESSION_KEY); setSessionToken(null); setPhase("login"); }} />;
 }
 
 function Splash() {

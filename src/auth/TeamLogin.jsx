@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Utensils, Loader2, AlertTriangle, UserCheck } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { setSessionToken } from "../lib/appSession";
 
 const SESSION_KEY = "menu-app-team-session";
 const db = supabase.schema("menu_app");
@@ -11,27 +12,10 @@ const db = supabase.schema("menu_app");
 // the API is back. Remove this block once Supabase is confirmed healthy again.
 const FALLBACK_RESTAURANT_ID = "dc496522-8085-48d2-866b-db72a2e6d949";
 
-// Classic iterative Levenshtein (edit distance) — used to catch near-duplicate names
-// like "יותם עזר" vs "יותם אזר" (one character apart) so the same person doesn't end
-// up with two separate progress records just because of a typo.
-function levenshtein(a, b) {
-  const m = a.length, n = b.length;
-  if (m === 0) return n;
-  if (n === 0) return m;
-  const row = new Array(n + 1);
-  for (let j = 0; j <= n; j++) row[j] = j;
-  for (let i = 1; i <= m; i++) {
-    let prev = row[0];
-    row[0] = i;
-    for (let j = 1; j <= n; j++) {
-      const tmp = row[j];
-      row[j] = a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, row[j], row[j - 1]);
-      prev = tmp;
-    }
-  }
-  return row[n];
-}
-const normName = (s) => s.trim().toLowerCase().replace(/\s+/g, " ");
+// The whole join flow — restaurant lookup, roster fuzzy-match (the "יותם עזר" vs
+// "יותם אזר" case), member creation — now runs server-side in menu_app.team_join,
+// which is also what mints the session token RLS checks on every later request.
+// The client only renders the three outcomes: ok / confirm / bad_code.
 
 export default function TeamLogin({ onGranted }) {
   const [teamCode, setTeamCode] = useState("");
@@ -42,7 +26,9 @@ export default function TeamLogin({ onGranted }) {
   // When a near-duplicate name is found, pause here for a yes/no before committing.
   const [pendingMatch, setPendingMatch] = useState(null); // { rest, match, typedFirst, typedLast }
 
-  const finishLogin = (rest, member, isNewMember) => {
+  const finishLogin = (result) => {
+    const rest = result.restaurant, member = result.member;
+    setSessionToken(result.token);
     const session = {
       teamMemberId: member.id,
       name: member.name,
@@ -56,22 +42,21 @@ export default function TeamLogin({ onGranted }) {
       restaurantServiceNotes: rest.service_notes || "",
       // Drives the one-time welcome tutorial in MainApp — only for a brand-new profile,
       // not someone whose name we just matched back to an existing one.
-      showTutorial: !!isNewMember,
+      showTutorial: !!result.is_new,
       // Same signal, read by App.jsx to send a first-timer to the baseline intake without
       // a second round-trip. A restored profile is checked against the DB column instead.
-      isNew: !!isNewMember,
+      isNew: !!result.is_new,
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     onGranted(session);
   };
 
-  const createMember = async (rest, first, last) => {
-    const { data, error } = await db.from("team_members")
-      .insert({ restaurant_id: rest.id, first_name: first, last_name: last, name: `${first} ${last}` })
-      .select("id, name, first_name, last_name").single();
-    if (error) throw error;
-    return data;
-  };
+  const join = (extra = {}) => db.rpc("team_join", {
+    p_team_code: teamCode.trim(),
+    p_first: firstName.trim(),
+    p_last: lastName.trim(),
+    ...extra,
+  });
 
   const submit = async (e) => {
     e?.preventDefault();
@@ -81,13 +66,10 @@ export default function TeamLogin({ onGranted }) {
     setErr("");
 
     try {
-      // Find restaurant by team code — only the owner's chosen code for THIS restaurant
-      // gets you into THAT restaurant's menu. No code, no access.
-      const { data: rest, error: e1 } = await db.from("restaurants")
-        .select("id, name, description, cuisine_types, service_style, service_notes").eq("team_code", teamCode.trim()).single();
+      const { data, error } = await join();
 
-      if (e1 || !rest) {
-        console.warn("[TeamLogin] Supabase lookup failed, using local offline session:", e1);
+      if (error || !data) {
+        console.warn("[TeamLogin] Supabase lookup failed, using local offline session:", error);
         const session = {
           teamMemberId: crypto.randomUUID(),
           name: `${first} ${last}`,
@@ -101,29 +83,14 @@ export default function TeamLogin({ onGranted }) {
         return;
       }
 
-      const fullTyped = normName(`${first} ${last}`);
-      const { data: roster } = await db.from("team_members")
-        .select("id, name, first_name, last_name").eq("restaurant_id", rest.id);
+      if (data.status === "bad_code") { setErr("קוד הצוות לא נמצא. בדקו אותו מול המנהל/ת."); return; }
+      if (data.status === "bad_name") { setErr("צריך שם פרטי ושם משפחה כדי להתחבר."); return; }
 
-      // Exact match (case/whitespace-insensitive) — silently reuse, no need to ask.
-      const exact = (roster || []).find(m => normName(m.name || `${m.first_name} ${m.last_name}`) === fullTyped);
-      if (exact) { finishLogin(rest, exact, false); return; }
+      // Near match (small edit distance, decided server-side) — could be the same
+      // person with a typo, could be a genuinely different name. Ask, don't guess.
+      if (data.status === "confirm") { setPendingMatch({ match: data.candidate }); return; }
 
-      // Near match (small edit distance) — could be the same person with a typo, could
-      // be a genuinely different name. Ask instead of guessing either way.
-      let closest = null, closestDist = Infinity;
-      for (const m of roster || []) {
-        const d = levenshtein(fullTyped, normName(m.name || `${m.first_name} ${m.last_name}`));
-        if (d < closestDist) { closestDist = d; closest = m; }
-      }
-      if (closest && closestDist > 0 && closestDist <= 2) {
-        setPendingMatch({ rest, match: closest, typedFirst: first, typedLast: last });
-        setBusy(false);
-        return;
-      }
-
-      const member = await createMember(rest, first, last);
-      finishLogin(rest, member, true);
+      finishLogin(data);
     } catch (e2) {
       console.error(e2);
       setErr("משהו השתבש. נסה/י שוב.");
@@ -133,16 +100,15 @@ export default function TeamLogin({ onGranted }) {
   };
 
   const confirmMatch = async (isSamePerson) => {
-    const { rest, match, typedFirst, typedLast } = pendingMatch;
+    const { match } = pendingMatch;
     setPendingMatch(null);
     setBusy(true);
     try {
-      if (isSamePerson) {
-        finishLogin(rest, match, false);
-      } else {
-        const member = await createMember(rest, typedFirst, typedLast);
-        finishLogin(rest, member, true);
-      }
+      const { data, error } = await join(
+        isSamePerson ? { p_confirm_member: match.id } : { p_force_new: true }
+      );
+      if (error || data?.status !== "ok") throw error || new Error(data?.status);
+      finishLogin(data);
     } catch (e2) {
       console.error(e2);
       setErr("משהו השתבש. נסה/י שוב.");

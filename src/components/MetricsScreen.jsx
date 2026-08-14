@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Flame, Clock, Trophy } from "lucide-react";
+import { ChevronRight, Flame, Clock, Trophy, Trash2, Loader2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { setSessionToken } from "../lib/appSession";
 
 const db = supabase.schema("menu_app");
 
@@ -322,7 +323,67 @@ export default function MetricsScreen({ session, cards, masteryById, onDone }) {
             <p className="text-[10px] text-[#f3c14b] font-bold">מצב לוקאלי — אין נתונים היסטוריים</p>
           </div>
         )}
+
+        {!session?.offline && <DeleteProfile />}
       </div>
+    </div>
+  );
+}
+
+// In-app profile deletion — a store requirement (Google Play UserData policy /
+// App Store 5.1.1(v)): any app where people create an identity must let them
+// erase it from inside the app. The RPC resolves who to delete from the session
+// token, deletes the team_members row, and the FK cascades take the progress,
+// leaderboard and history rows with it.
+function DeleteProfile() {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const run = async () => {
+    setBusy(true);
+    setErr("");
+    try {
+      const { data, error } = await supabase.schema("menu_app").rpc("delete_my_team_profile");
+      if (error || !data?.ok) throw error || new Error(data?.error);
+      localStorage.removeItem("menu-app-team-session");
+      setSessionToken(null);
+      window.location.reload();
+    } catch (e) {
+      console.error("delete profile:", e);
+      setErr("המחיקה נכשלה. נסו שוב.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="pt-2 pb-4">
+      {!open ? (
+        <button onClick={() => setOpen(true)}
+          className="w-full text-center text-[11px] text-[#5a5a6e] font-bold underline underline-offset-2 py-2">
+          מחיקת הפרופיל שלי מהמסעדה
+        </button>
+      ) : (
+        <div className="bg-[#16181c] border border-[#3a1c22] rounded-2xl p-4 space-y-2">
+          <p className="text-xs font-bold text-[#e0315a] flex items-center gap-1.5">
+            <Trash2 size={13} /> מחיקת הפרופיל
+          </p>
+          <p className="text-[11px] text-[#8a8aa0] leading-relaxed">
+            כל ההתקדמות, הנקודות והמבחנים שלכם יימחקו לצמיתות. אין שחזור.
+          </p>
+          {err && <p className="text-[11px] font-bold text-[#e0315a]">{err}</p>}
+          <div className="flex gap-2">
+            <button onClick={() => setOpen(false)} disabled={busy}
+              className="flex-1 bg-[#22252b] text-[#c4c4d4] font-bold py-2.5 rounded-xl text-xs">
+              ביטול
+            </button>
+            <button onClick={run} disabled={busy}
+              className="flex-1 bg-[#e0315a] text-white font-black py-2.5 rounded-xl text-xs disabled:opacity-50">
+              {busy ? <Loader2 size={13} className="animate-spin mx-auto" /> : "מחיקה לצמיתות"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
