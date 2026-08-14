@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Trophy, Star } from "lucide-react";
 import { dishLabel } from "../lib/questionEngine";
 import { countLabel } from "./shared";
+import { categoryVisual } from "../lib/categoryVisual";
 
 // A real card that flips (2026-08-13). The reveal used to swap content in place, which
 // read as a page change, not a card. rotateX (vertical) rather than rotateY: a horizontal
@@ -61,6 +62,17 @@ export default function Flashcards({ items, session, quick, onRate, onDone }) {
               onClick={() => setRevealed(true)}
               className="flip-face bg-[#16181c] border border-[#22252b] rounded-2xl p-6 w-full text-center space-y-3 min-h-[260px] flex flex-col items-center justify-center active:scale-[0.99] transition-transform"
             >
+              {/* Category visual — the base "dish image" until real photos exist. Derived
+                  from this restaurant's own category names, so every menu looks its own. */}
+              {(() => { const vis = categoryVisual(it.category); return (
+                <span
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center text-4xl"
+                  style={{ background: `linear-gradient(135deg, ${vis.from}, ${vis.to}44)` }}
+                  aria-hidden
+                >
+                  {vis.emoji}
+                </span>
+              ); })()}
               <p className="text-2xl font-black text-[#eef0f6] flex items-center justify-center gap-1.5">
                 {it.isSpecial && <Star size={18} className="text-[#f3c14b] flex-shrink-0" fill="#f3c14b" />}
                 {dishLabel(it)}
