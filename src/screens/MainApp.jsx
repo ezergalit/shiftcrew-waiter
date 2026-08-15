@@ -8,6 +8,7 @@ import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
 import { pickDistractors, buildWeightedDeck, availableFacets, dishLabel, withDisplayNames } from "../lib/questionEngine";
 import { pathState } from "../lib/learningPath";
 import { useStudyTime } from "../lib/studyTime";
+import { hapticAnswer } from "../lib/haptics";
 import {
   CAT_LABELS, CAT_ORDER, catLabel, shortCat, countLabel, colorFor, shuffle,
   todayStr, loadDaily, saveDaily, loadNum, saveNum, FEEDBACK_MS,
@@ -264,6 +265,9 @@ export default function MainApp({ session, onSignOut }) {
    */
   const learnItem = async (id, rating, { objective = true } = {}) => {
     if (!session?.teamMemberId) return;
+    // Native-only success/error haptic. Graded answers only — self-rating a
+    // flashcard "2" is a judgment call, not a mistake, and shouldn't buzz.
+    if (objective) hapticAnswer(rating >= 4);
     const wasVerified = !!verifiedById[id];
     const nowVerified = rating >= 4 && (objective || wasVerified);
     const wasMastered = mastered.has(id);

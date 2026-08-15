@@ -685,3 +685,13 @@ todayStr/loadDaily/saveDaily/loadNum/saveNum). **MainApp מייבא מהם** —
   `x-app-session`). sign-out מנקה גם את הטוקן (App.jsx).
 - **`DeleteProfile` ב-`MetricsScreen.jsx`** — מחיקת פרופיל עצמית
   (`delete_my_team_profile`, cascade). דרישת חנויות. מוסתר ב-offline.
+
+## 🔄 2026-08-15 (ערב) — סנכרון בין המכונות הושלם + רי-ברנדינג CrewMenu
+
+- המק החדש משך את `ad9f877` (אייקוני המותג, טורקיז) מ-origin/main. קונפליקט יחיד
+  ב-`index.html` נפתר: favicon החדש + title החדש ("CrewMenu — צוות") נשמרו יחד.
+- **רי-ברנדינג**: appId → `il.co.crewmenu.team`, שם תצוגה "CrewMenu צוות". השם
+  הקובע מעתה: **CrewMenu**.
+- **Haptics** (`@capacitor/haptics`): `src/lib/haptics.js` + קריאה ב-`learnItem`
+  (MainApp.jsx) — רטט הצלחה/שגיאה בכל המשחקים המדורגים, לא בכרטיסיות. no-op ב-web.
+- `Info.plist`: נוסף `ITSAppUsesNonExemptEncryption=false`.

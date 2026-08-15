@@ -1,6 +1,6 @@
 {
-  "appId": "il.co.shiftcrew.team",
-  "appName": "ShiftCrew צוות",
+  "appId": "il.co.crewmenu.team",
+  "appName": "CrewMenu צוות",
   "webDir": "dist",
   "ios": {
     "contentInset": "always",
