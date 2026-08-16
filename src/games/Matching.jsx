@@ -180,7 +180,7 @@ export default function Matching({ items, onAnswer, onDone, session }) {
 
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10]" dir="rtl">
-      <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0">
+      <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-2.5 flex items-center justify-between flex-shrink-0">
         <button onClick={onDone} className="text-xs text-[#8a8aa0]">← חזרה</button>
         <p className="text-xs font-bold text-[#eef0f6]">התאמה · לוח {(board % BOARDS_PER_GAME) + 1}/{BOARDS_PER_GAME}</p>
         <p className={`text-xs font-black ${wrongPair.length ? "text-[#e0315a]" : "text-[#f3c14b]"}`}>

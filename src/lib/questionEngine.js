@@ -379,6 +379,9 @@ export function qPitfallDish(pool, it) {
     prompt: `אורח מבקש מנה בלי ${pitfall}. איזו מנה לא מתאימה לו?`,
     subject: pitfall,
     subjectKind: "pitfall",
+    // The pitfall is already in the sentence — repeating it as a purple
+    // subline read as noise. subject stays for validateQuestion's checks.
+    showSubject: false,
     options: shuffle(options),
     correct: dishLabel(it),
   });
@@ -596,6 +599,8 @@ export function qAllergenDish(pool, it) {
     prompt: `אורח מבקש מנה ללא ${allergen}. איזו מנה אסורה לו?`,
     subject: allergen,
     subjectKind: "allergen",
+    // Same as the pitfall question: one self-contained sentence, no subline.
+    showSubject: false,
     options: shuffle(options),
     correct: dishLabel(it),
   });

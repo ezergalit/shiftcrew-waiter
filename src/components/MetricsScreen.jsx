@@ -214,7 +214,7 @@ export default function MetricsScreen({ session, cards, masteryById, onDone }) {
 
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
-      <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-3 flex items-center justify-between flex-shrink-0">
+      <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 flex items-center justify-between flex-shrink-0">
         <button onClick={onDone} className="text-xs text-[#8a8aa0] flex items-center gap-1">
           <ChevronRight size={14} /> חזרה
         </button>

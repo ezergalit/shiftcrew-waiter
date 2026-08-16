@@ -50,7 +50,7 @@ export default function Speed({ items, onAnswer, onDone, onFinish }) {
       <StreakToast streak={streak} />
       {/* No way out at all used to mean a mis-tap cost the full 30s. The exit appears only
           after 10 seconds so it can't be used to reroll an unwanted deck instantly. */}
-      <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0">
+      <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-2.5 flex items-center justify-between flex-shrink-0">
         <span className="text-xs font-bold text-[#f3c14b]">⏱ {time}s</span>
         <p className="text-xs font-bold">{i + 1}/{deck.length}</p>
         {SPEED_SECONDS - time >= SPEED_EXIT_AFTER_S ? (

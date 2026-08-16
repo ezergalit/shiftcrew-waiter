@@ -48,7 +48,7 @@ export default function Flashcards({ items, session, quick, onRate, onDone }) {
 
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
-      <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0">
+      <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-2.5 flex items-center justify-between flex-shrink-0">
         <button onClick={onDone} className="text-xs text-[#8a8aa0] min-h-[44px] px-1">← חזרה</button>
         {quick && <p className="text-[11px] font-black text-[#22c08c]">5 דקות לפני משמרת</p>}
         <p className="text-xs font-bold">{i + 1}/{items.length}</p>

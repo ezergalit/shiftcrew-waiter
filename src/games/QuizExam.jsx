@@ -61,7 +61,7 @@ export default function QuizExam({ items, facets, categoryLabel, onAnswer, onDon
 
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
-      <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0">
+      <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-2.5 flex items-center justify-between flex-shrink-0">
         <button onClick={onDone} className="text-xs text-[#8a8aa0]">← יציאה</button>
         <p className="text-xs font-bold">מבחן {categoryLabel}</p>
         <p className="text-xs font-bold text-[#8a8aa0]">{i + 1}/{deck.length}</p>
@@ -69,8 +69,10 @@ export default function QuizExam({ items, facets, categoryLabel, onAnswer, onDon
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {/* Question dominant, subject secondary — mirrors Quiz.jsx. */}
         <div className="bg-[#16181c] rounded-xl p-4 mb-3">
-          <p className="text-xl font-black text-[#eef0f6] leading-snug mb-2">{q.prompt}</p>
-          <p className={`font-bold ${q.subjectKind === "desc" ? "text-sm leading-relaxed" : "text-base"}`}>{q.subject}</p>
+          <p className={`text-xl font-black text-[#eef0f6] leading-snug ${q.showSubject === false ? "" : "mb-2"}`}>{q.prompt}</p>
+          {q.showSubject !== false && (
+            <p className={`font-bold ${q.subjectKind === "desc" ? "text-sm leading-relaxed" : "text-base"}`}>{q.subject}</p>
+          )}
         </div>
         <div className="space-y-2">
           {q.options.map((opt, j) => {

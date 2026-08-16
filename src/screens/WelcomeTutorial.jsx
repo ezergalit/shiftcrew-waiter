@@ -82,7 +82,7 @@ export default function WelcomeTutorial({ session, onDone }) {
 
   return (
     <div className="h-full max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
-      <div className="flex-1 flex flex-col justify-center px-7 py-8 overflow-y-auto">
+      <div className="flex-1 flex flex-col justify-center px-7 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] overflow-y-auto">
         <div className="w-14 h-14 rounded-2xl text-white flex items-center justify-center mb-5"
           style={{ background: "linear-gradient(135deg,#6d5efc,#9b7bff)" }}>
           <s.icon size={26} />

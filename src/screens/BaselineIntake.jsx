@@ -263,8 +263,10 @@ export default function BaselineIntake({ session, onDone }) {
         {/* The prompt was 10px gray — testers read only the dish name and missed
             what was being asked. The question leads now, same as the game screens. */}
         <div className="bg-[#16181c] rounded-xl p-4 mb-3">
-          <p className="text-xl font-black text-[#eef0f6] leading-snug mb-2">{q.prompt}</p>
-          <p className={`font-bold text-[#a79bff] ${q.subjectKind === "desc" ? "text-sm leading-relaxed" : "text-base"}`}>{q.subject}</p>
+          <p className={`text-xl font-black text-[#eef0f6] leading-snug ${q.showSubject === false ? "" : "mb-2"}`}>{q.prompt}</p>
+          {q.showSubject !== false && (
+            <p className={`font-bold text-[#a79bff] ${q.subjectKind === "desc" ? "text-sm leading-relaxed" : "text-base"}`}>{q.subject}</p>
+          )}
         </div>
         <div className="space-y-2">
           {q.options.map((opt, j) => (
@@ -309,7 +311,7 @@ export default function BaselineIntake({ session, onDone }) {
 }
 
 const Shell = ({ children }) => (
-  <div className="h-full max-w-md mx-auto flex flex-col bg-[#0c0d10] px-4 py-5" dir="rtl">{children}</div>
+  <div className="h-full max-w-md mx-auto flex flex-col bg-[#0c0d10] px-4 pt-[max(1.25rem,env(safe-area-inset-top))] pb-5" dir="rtl">{children}</div>
 );
 const Center = ({ children }) => (
   <div className="h-full flex items-center justify-center bg-[#0c0d10]" dir="rtl">{children}</div>
