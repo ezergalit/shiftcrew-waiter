@@ -65,3 +65,13 @@ body {
   100% { transform: scale(0.95) translateY(-6px); opacity: 0; }
 }
 .animate-streak { animation: streak-pop 1.4s ease-out forwards; }
+
+/* Scroll stays inside the middle pane on every screen: a container that hits its
+   edge must not chain the scroll to the page (which visually drags the fixed
+   header/bottom-nav on iOS). Global on purpose — covers every tab, game and
+   challenge screen without touching each one. Pairs with ios.scrollEnabled=false
+   in capacitor.config.json, which kills the native WKWebView bounce in the app. */
+.overflow-y-auto, .overflow-auto {
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
