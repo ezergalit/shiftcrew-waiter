@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { Utensils, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import BrandMark from "./components/BrandMark";
 import { supabase } from "./lib/supabase";
 import TeamLogin from "./auth/TeamLogin";
 import MainApp from "./screens/MainApp";
 import WelcomeTutorial from "./screens/WelcomeTutorial";
 import BaselineIntake from "./screens/BaselineIntake";
 import { setSessionToken } from "./lib/appSession";
+import { ensureDailyReminder, cancelDailyReminder } from "./lib/notifications";
 
 const SESSION_KEY = "menu-app-team-session";
 const db = supabase.schema("menu_app");
@@ -24,6 +26,11 @@ export default function App() {
   // reappears on a new device), this is derived from the DB column, so the intake happens
   // exactly once per person no matter where they log in.
   const [needsBaseline, setNeedsBaseline] = useState(false);
+
+  // Native only (no-op on web): once someone is actually in the app, keep the
+  // daily study reminder scheduled. Runs on every entry so a reinstalled app or
+  // an OS-cleared schedule heals itself.
+  useEffect(() => { if (phase === "app") ensureDailyReminder(); }, [phase]);
 
   useEffect(() => {
     let alive = true;
@@ -93,15 +100,14 @@ export default function App() {
     );
   }
 
-  return <MainApp session={session} onSignOut={() => { localStorage.removeItem(SESSION_KEY); setSessionToken(null); setPhase("login"); }} />;
+  return <MainApp session={session} onSignOut={() => { localStorage.removeItem(SESSION_KEY); setSessionToken(null); cancelDailyReminder(); setPhase("login"); }} />;
 }
 
 function Splash() {
   return (
     <div className="h-full max-w-md mx-auto flex flex-col items-center justify-center gap-4 bg-[#0c0d10]" dir="rtl">
-      <div className="w-16 h-16 rounded-3xl text-white flex items-center justify-center shadow-[0_10px_30px_rgba(109,94,252,0.35)]"
-        style={{ background: "linear-gradient(135deg,#6d5efc,#9b7bff)" }}>
-        <Utensils size={32} />
+      <div className="w-16 h-16 rounded-3xl bg-[#0F5C46] flex items-center justify-center shadow-[0_10px_30px_rgba(15,92,70,0.35)]">
+        <BrandMark size={40} />
       </div>
       <Loader2 size={22} className="animate-spin text-[#b4b4c4]" />
     </div>

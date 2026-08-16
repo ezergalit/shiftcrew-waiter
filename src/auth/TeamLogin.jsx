@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Utensils, Loader2, AlertTriangle, UserCheck } from "lucide-react";
+import { Loader2, AlertTriangle, UserCheck } from "lucide-react";
+import BrandMark from "../components/BrandMark";
 import { supabase } from "../lib/supabase";
 import { setSessionToken } from "../lib/appSession";
 
@@ -146,13 +147,12 @@ export default function TeamLogin({ onGranted }) {
   return (
     <div className="h-full max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <div className="px-7 pt-[max(3.5rem,env(safe-area-inset-top))] pb-2 text-center">
-        <div className="w-16 h-16 rounded-3xl text-white flex items-center justify-center mx-auto mb-4 shadow-[0_10px_30px_rgba(109,94,252,0.35)]"
-          style={{ background: "linear-gradient(135deg,#6d5efc,#9b7bff)" }}>
-          <Utensils size={32} />
+        <div className="w-16 h-16 rounded-3xl bg-[#0F5C46] flex items-center justify-center mx-auto mb-4 shadow-[0_10px_30px_rgba(15,92,70,0.35)]">
+          <BrandMark size={40} />
         </div>
         <h1 className="text-3xl font-black leading-tight">CrewMenu</h1>
         <p className="text-sm text-[#8a8aa0] font-semibold mt-2 leading-relaxed">
-          תלמיד · מאמן לימוד
+          צוות · לומדים את התפריט
         </p>
       </div>
 
@@ -163,7 +163,7 @@ export default function TeamLogin({ onGranted }) {
           <div>
             <p className="text-[12px] font-bold text-[#8a8aa0] mb-1.5 px-1">קוד הצוות (מהמנהל/ת שלך)</p>
             <input value={teamCode} onChange={(e) => setTeamCode(e.target.value)}
-              placeholder="לדוגמה: 1234" dir="ltr" autoComplete="off"
+              placeholder="הקוד שקיבלתם מהמנהל/ת" dir="ltr" autoComplete="off"
               className="w-full bg-[#0c0d10] border border-[#22252b] rounded-2xl px-3.5 py-3 text-sm font-bold text-[#eef0f6] text-center placeholder:text-[#b4b4c4] focus:outline-none focus:border-[#6d5efc]" />
           </div>
 
