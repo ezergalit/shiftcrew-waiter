@@ -67,9 +67,10 @@ export default function QuizExam({ items, facets, categoryLabel, onAnswer, onDon
         <p className="text-xs font-bold text-[#8a8aa0]">{i + 1}/{deck.length}</p>
       </div>
       <div className="flex-1 overflow-y-auto px-4 py-3">
-        <div className="bg-[#16181c] rounded-lg p-3 mb-3">
-          <p className="text-[15px] font-black text-[#eef0f6] leading-snug mb-1.5">{q.prompt}</p>
-          <p className={`font-black ${q.subjectKind === "desc" ? "text-sm leading-snug" : "text-lg"}`}>{q.subject}</p>
+        {/* Question dominant, subject secondary — mirrors Quiz.jsx. */}
+        <div className="bg-[#16181c] rounded-xl p-4 mb-3">
+          <p className="text-xl font-black text-[#eef0f6] leading-snug mb-2">{q.prompt}</p>
+          <p className={`font-bold ${q.subjectKind === "desc" ? "text-sm leading-relaxed" : "text-base"}`}>{q.subject}</p>
         </div>
         <div className="space-y-2">
           {q.options.map((opt, j) => {

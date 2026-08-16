@@ -260,9 +260,11 @@ export default function BaselineIntake({ session, onDone }) {
         <div className="h-1 rounded-full bg-[#16181c] mb-4 overflow-hidden">
           <div className="h-full bg-[#6d5efc] transition-all" style={{ width: `${(i / deck.length) * 100}%` }} />
         </div>
-        <div className="bg-[#16181c] rounded-lg p-3 mb-3">
-          <p className="text-[10px] font-bold text-[#8a8aa0] mb-1">{q.prompt}</p>
-          <p className={`font-black text-[#eef0f6] ${q.subjectKind === "desc" ? "text-sm leading-snug" : "text-lg"}`}>{q.subject}</p>
+        {/* The prompt was 10px gray — testers read only the dish name and missed
+            what was being asked. The question leads now, same as the game screens. */}
+        <div className="bg-[#16181c] rounded-xl p-4 mb-3">
+          <p className="text-xl font-black text-[#eef0f6] leading-snug mb-2">{q.prompt}</p>
+          <p className={`font-bold text-[#a79bff] ${q.subjectKind === "desc" ? "text-sm leading-relaxed" : "text-base"}`}>{q.subject}</p>
         </div>
         <div className="space-y-2">
           {q.options.map((opt, j) => (
