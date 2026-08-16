@@ -47,7 +47,7 @@ export const shuffle = a => [...a].sort(() => Math.random() - 0.5);
 // The same nine the owner app offers and the AI import is allowed to return. "סולפיטים"
 // used to be a tenth option here — an allergen no owner could ever tag, so selecting it
 // was always wrong for a reason the trainee had no way to learn.
-export const ALLERGENS = ["גלוטן", "חלב", "ביצים", "אגוזים", "בוטנים", "דגים", "רכיכות", "סויה", "שומשום"];
+export const ALLERGENS = ["גלוטן", "לקטוז", "ביצים", "אגוזים", "בוטנים", "רכיכות", "סויה", "שומשום"];
 // "מוקשים" — what a guest often asks to avoid by preference, not by safety. Separate from
 // ALLERGENS on purpose: folding a preference into the allergen list makes the allergen
 // list less trustworthy, and a waiter reads the two for different reasons. Free text, so

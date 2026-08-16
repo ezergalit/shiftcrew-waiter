@@ -38,7 +38,7 @@ export default function AllergenQuiz({ items, onAnswer, onDone }) {
       <div className="flex-1 overflow-y-auto px-4 py-3">
         <div className="bg-[#16181c] rounded-lg p-3 mb-3 text-center">
           <p className="text-sm font-black mb-1">{dishLabel(it)}</p>
-          <p className="text-[11px] text-[#8a8aa0]">אילו אלרגיות יש במנה הזו?</p>
+          <p className="text-[15px] font-black text-[#eef0f6] leading-snug">אילו אלרגיות יש במנה הזו?</p>
         </div>
         {/* The verdict has to be stated, not inferred from chip colours. Answering "no
             allergies" on a dish that has them used to paint every real allergen green and

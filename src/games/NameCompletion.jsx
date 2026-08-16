@@ -39,8 +39,8 @@ export default function NameCompletion({ items, facets, openKeys, onAnswer, onDo
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0"><button onClick={onDone} className="text-xs text-[#8a8aa0]">← חזרה</button><p className="text-xs font-bold">{i + 1}/{deck.length}</p></div>
       <div className="flex-1 flex flex-col items-center justify-center px-4">
         <div className="w-full text-center space-y-3">
-          <p className="text-[11px] font-bold text-[#8a8aa0]">{q.prompt}</p>
-          <p className="text-lg font-black mb-3">{q.subject}</p>
+          <p className="text-[15px] font-black text-[#eef0f6] leading-snug">{q.prompt}</p>
+          <p className="text-lg font-black text-[#a79bff] mb-3">{q.subject}</p>
           <div className="flex flex-col gap-2">
             {q.options.map((opt, j) => {
               const isCorrectOpt = picked && opt === q.correct;

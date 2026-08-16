@@ -63,7 +63,7 @@ export default function Speed({ items, onAnswer, onDone, onFinish }) {
       </div>
       <div className="flex-1 flex flex-col items-center justify-center px-4">
         <div className="text-center w-full">
-          <p className="text-[11px] font-bold text-[#8a8aa0] mb-2">איזה מרכיב שייך למנה הזו?</p>
+          <p className="text-[15px] font-black text-[#eef0f6] leading-snug mb-2">איזה מרכיב שייך למנה הזו?</p>
           <p className="text-lg font-black mb-4">{dishLabel(q.it)}</p>
           <div className="flex flex-col gap-2">
             {q.opts.map((opt, j) => {

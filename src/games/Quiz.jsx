@@ -49,8 +49,8 @@ export default function Quiz({ items, facets, openKeys, onAnswer, onDone }) {
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 py-2.5 flex items-center justify-between flex-shrink-0"><button onClick={onDone} className="text-xs text-[#8a8aa0]">← חזרה</button><p className="text-xs font-bold text-[#eef0f6]">{i + 1}/{qs.length}</p></div>
       <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col">
         <div className="bg-[#16181c] rounded-lg p-3 mb-3">
-          <p className="text-[11px] font-bold text-[#8a8aa0] mb-1">{q.prompt}</p>
-          <p className={`font-black text-[#eef0f6] ${q.subjectKind === "desc" ? "text-sm" : "text-lg"}`}>{q.subject}</p>
+          <p className="text-[15px] font-black text-[#eef0f6] leading-snug mb-1.5">{q.prompt}</p>
+          <p className={`font-black text-[#a79bff] ${q.subjectKind === "desc" ? "text-sm" : "text-lg"}`}>{q.subject}</p>
         </div>
         <div className="space-y-2">
           {q.options.map((opt, j) => {
