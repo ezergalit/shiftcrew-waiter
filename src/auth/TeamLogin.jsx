@@ -150,7 +150,7 @@ export default function TeamLogin({ onGranted }) {
           style={{ background: "linear-gradient(135deg,#6d5efc,#9b7bff)" }}>
           <Utensils size={32} />
         </div>
-        <h1 className="text-3xl font-black leading-tight">Menu Trainer</h1>
+        <h1 className="text-3xl font-black leading-tight">CrewMenu</h1>
         <p className="text-sm text-[#8a8aa0] font-semibold mt-2 leading-relaxed">
           תלמיד · מאמן לימוד
         </p>
@@ -193,7 +193,7 @@ export default function TeamLogin({ onGranted }) {
         </div>
 
         <p className="text-center text-[12px] text-[#8a8aa0] font-semibold mt-auto pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] leading-relaxed">
-          Menu Trainer · מאמן תפריט לצוות
+          CrewMenu · מאמן תפריט לצוות
         </p>
       </form>
     </div>
