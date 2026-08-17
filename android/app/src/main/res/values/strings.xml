@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">ShiftCrew צוות</string>
-    <string name="title_activity_main">ShiftCrew צוות</string>
-    <string name="package_name">il.co.shiftcrew.team</string>
-    <string name="custom_url_scheme">il.co.shiftcrew.team</string>
+    <string name="app_name">CrewMenu צוות</string>
+    <string name="title_activity_main">CrewMenu צוות</string>
+    <string name="package_name">il.co.crewmenu.team</string>
+    <string name="custom_url_scheme">il.co.crewmenu.team</string>
 </resources>
