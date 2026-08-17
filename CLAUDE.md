@@ -710,3 +710,10 @@ todayStr/loadDaily/saveDaily/loadNum/saveNum). **MainApp מייבא מהם** —
 - **Haptics** (`@capacitor/haptics`): `src/lib/haptics.js` + קריאה ב-`learnItem`
   (MainApp.jsx) — רטט הצלחה/שגיאה בכל המשחקים המדורגים, לא בכרטיסיות. no-op ב-web.
 - `Info.plist`: נוסף `ITSAppUsesNonExemptEncryption=false`.
+
+## 🍏 2026-08-17 — iOS build 6 הועלה ל-App Store Connect מ-homestation
+
+הועלה יחד עם אפליקציית הבעלים, באותו צינור. **התיעוד המלא של צינור ה-iOS
+(פקודות, ExportOptions, אימות, העלאת מספר build) נמצא ב-`shiftcrew-owner/CLAUDE.md`,
+סעיף "iOS builds הועלו ל-App Store Connect"** — לא משוכפל כאן. נכון לעכשיו:
+גרסה 1.0, build **6**, teamID `Q9994667T8`.
