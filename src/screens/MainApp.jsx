@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import MetricsScreen from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
 import BriefGate, { briefHasContent } from "../components/BriefGate";
+import AppTour from "../components/AppTour";
 import { isUnderstood } from "../lib/progressiveSession";
 import ProgressiveFlashcards from "../games/ProgressiveFlashcards";
 import { buildStudySession, nextConsecutiveFives, isRetired, QUICK_SESSION_SIZE } from "../lib/studySession";
@@ -53,6 +54,9 @@ const MODE_LABELS = {
   progressive: "תרגול לפי התפריט",
 };
 const DAILY_BONUS = 50;
+
+// First-run tour flag, device-scoped like the welcome slides.
+const TOUR_DONE_KEY = "menu-app-apptour-done";
 
 // One icon per practice mode (the grid on the home screen). Kept beside MODE_LABELS —
 // both are projections of the same mode registry.
@@ -128,6 +132,8 @@ export default function MainApp({ session, onSignOut }) {
   // launching a deck, and a tapped dish opens the continuous progressive session.
   const [catView, setCatView] = useState(null); // category key or null
   const [groupView, setGroupView] = useState(null); // menu (menu_group) key or null
+  const [tourOpen, setTourOpen] = useState(() =>
+    !!session?.teamMemberId && localStorage.getItem(`menu-app-apptour-done-${session.teamMemberId}`) !== "1");
   const [prog, setProg] = useState(null); // { items, label, progress, firstId }
   // Re-running the gate from the daily tab is practice — it never rewrites the ack row.
   const [gatePractice, setGatePractice] = useState(false);
@@ -639,6 +645,17 @@ export default function MainApp({ session, onSignOut }) {
 
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
+      {/* First-run interactive tour: walks the real screens, one step per tab. Shown once
+          per member — the flag is device-scoped, same as the welcome slides. */}
+      {tourOpen && (
+        <AppTour
+          onNavigate={(t) => setTab(t)}
+          onDone={() => {
+            setTourOpen(false);
+            if (session?.teamMemberId) localStorage.setItem(`${TOUR_DONE_KEY}-${session.teamMemberId}`, "1");
+          }}
+        />
+      )}
       {/* Header */}
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 flex items-center justify-between flex-shrink-0">
         <SignOutButton onSignOut={onSignOut} />

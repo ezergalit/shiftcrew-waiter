@@ -85,26 +85,53 @@ export default function MetricsScreen({ session, cards, masteryById, weekly = []
   const [snaps, setSnaps] = useState(null);
   const [member, setMember] = useState(null);
   const [streak, setStreak] = useState(0);
+  const [earnings, setEarnings] = useState([]);
+  const [addingEarn, setAddingEarn] = useState(false);
+  const [earnAmount, setEarnAmount] = useState("");
 
   useEffect(() => {
     let alive = true;
     (async () => {
       if (session?.offline || !session?.teamMemberId) { if (alive) setSnaps([]); return; }
-      const [s, m, l] = await Promise.all([
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      const [s, m, l, e] = await Promise.all([
         db.from("progress_snapshots").select("taken_at, pct, seconds_delta, points")
           .eq("team_member_id", session.teamMemberId).order("taken_at", { ascending: true }),
         db.from("team_members").select("total_seconds, baseline_pct, created_at")
           .eq("id", session.teamMemberId).maybeSingle(),
         db.from("leaderboard").select("streak")
           .eq("team_member_id", session.teamMemberId).maybeSingle(),
+        // RLS returns only this member's own rows — earnings are private.
+        db.from("shift_earnings").select("date, amount")
+          .eq("team_member_id", session.teamMemberId)
+          .gte("date", monthStart.toISOString().slice(0, 10)),
       ]);
       if (!alive) return;
       setSnaps(s.data || []);
       setMember(m.data || null);
       setStreak(l.data?.streak || 0);
+      setEarnings(e.data || []);
     })();
     return () => { alive = false; };
   }, [session]);
+
+  // Upsert on (member, date): today's amount is corrected, not duplicated.
+  const saveEarning = async () => {
+    const amount = Number(earnAmount);
+    if (!amount || !session?.teamMemberId) return;
+    const date = new Date().toISOString().slice(0, 10);
+    // restaurant_id is NOT NULL and the INSERT policy checks it — sending only the member
+    // id fails on both counts.
+    const { error } = await db.from("shift_earnings")
+      .upsert(
+        { restaurant_id: session.restaurantId, team_member_id: session.teamMemberId, date, amount },
+        { onConflict: "team_member_id,date" }
+      );
+    if (error) { console.error("shift_earnings", error); return; }
+    setEarnings((prev) => [...prev.filter((r) => r.date !== date), { date, amount }]);
+    setAddingEarn(false); setEarnAmount("");
+  };
 
   const stats = useMemo(() => {
     const list = cards || [];
@@ -156,6 +183,50 @@ export default function MetricsScreen({ session, cards, masteryById, weekly = []
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+        {!session?.offline && (() => {
+          const total = earnings.reduce((n, r) => n + Number(r.amount || 0), 0);
+          const monthName = new Date().toLocaleDateString("he-IL", { month: "long" });
+          return (
+            <Card title={`ההכנסות שלי — ${monthName}`} accent="#f3c14b">
+              {earnings.length === 0 ? (
+                <p className="text-[11px] text-[#8a8aa0]">
+                  עוד לא נרשמו משמרות החודש — בערב של יום לימוד תקבלו הצעה להזין כמה הרווחתם.
+                </p>
+              ) : (
+                <div className="flex">
+                  <Stat label="הרווחתם החודש" value={`₪${total.toLocaleString()}`} color="#f3c14b" />
+                  <Stat label="משמרות שנרשמו" value={earnings.length} color="#eef0f6" />
+                  <Stat label="ממוצע למשמרת" value={`₪${Math.round(total / earnings.length).toLocaleString()}`} color="#22c08c" />
+                </div>
+              )}
+              {/* Without a way in, the card above could only ever say "nothing yet" —
+                  the evening prompt that used to fill it is not wired up. One row per
+                  date, so re-entering today's amount corrects it instead of doubling. */}
+              {addingEarn ? (
+                <div className="flex gap-1.5 mt-2">
+                  <input
+                    type="number" inputMode="numeric" autoFocus
+                    value={earnAmount} onChange={(e) => setEarnAmount(e.target.value)}
+                    placeholder="כמה הרווחתם היום?"
+                    className="flex-1 min-w-0 bg-[#0c0d10] border border-[#22252b] rounded-lg px-2.5 py-2 text-[#eef0f6] text-xs focus:outline-none focus:border-[#f3c14b]"
+                  />
+                  <button onClick={saveEarning} disabled={!Number(earnAmount)}
+                    className="px-3 py-2 min-h-[36px] rounded-lg text-[11px] font-black bg-[#f3c14b] text-[#231c05] disabled:opacity-50">
+                    שמירה
+                  </button>
+                  <button onClick={() => { setAddingEarn(false); setEarnAmount(""); }}
+                    className="px-2.5 py-2 rounded-lg text-[11px] font-bold bg-[#22252b] text-[#8a8aa0]">ביטול</button>
+                </div>
+              ) : (
+                <button onClick={() => setAddingEarn(true)}
+                  className="w-full mt-2 py-2 min-h-[36px] rounded-lg text-[11px] font-black bg-[#33290f] text-[#f3c14b]">
+                  + רישום המשמרת של היום
+                </button>
+              )}
+              <p className="text-[10px] text-[#5a5a6e] mt-2">הסכומים נשמרים רק אצלך — אף אחד אחר בצוות או בניהול לא רואה אותם.</p>
+            </Card>
+          );
+        })()}
         <p className="text-[11px] font-black text-[#6d5efc]">התקדמות</p>
         <Card title="שליטה בתפריט" accent="#6d5efc">
           <div className="flex items-center gap-3">
