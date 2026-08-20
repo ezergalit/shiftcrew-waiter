@@ -99,7 +99,9 @@ function checkQuestion(menu, pool, q) {
     fail(menu, `notIngredient: "${q.correct}" IS in ${it.name}`);
   if (q.prompt === "מה מחיר המנה?" && q.correct !== `₪${Number(it.price)}`)
     fail(menu, `price: correct "${q.correct}" != actual ₪${it.price}`);
-  if (q.prompt?.startsWith("אורח מבקש")) {
+  // Keyed on subjectKind, not the prompt text — the phrasing changed (2026-08-20:
+  // direct positive, no double negatives) and must be free to change again.
+  if (q.subjectKind === "allergen") {
     const allergen = q.subject;
     if (!(it.allergens || []).includes(allergen)) fail(menu, `allergenDish: ${it.name} has no ${allergen}`);
     for (const opt of q.options.filter((o) => o !== q.correct)) {
@@ -111,6 +113,23 @@ function checkQuestion(menu, pool, q) {
       if (other && looksMisTagged(pool, other, allergen))
         fail(menu, `allergenDish: distractor "${opt}" visibly contains ${allergen} (untagged) — unanswerable`);
     }
+  }
+  // The pitfall twin used to be swept (wrongly) into the allergen block by its shared
+  // "אורח מבקש" prefix — now it gets its own semantic check against `pitfalls`.
+  if (q.subjectKind === "pitfall") {
+    const pitfall = q.subject;
+    if (!(it.pitfalls || []).includes(pitfall)) fail(menu, `pitfallDish: ${it.name} has no ${pitfall}`);
+    for (const opt of q.options.filter((o) => o !== q.correct)) {
+      const other = pool.find((d) => dishLabel(d) === opt);
+      if (other && (other.pitfalls || []).includes(pitfall))
+        fail(menu, `pitfallDish: distractor "${opt}" ALSO carries ${pitfall} — two right answers`);
+    }
+  }
+  // Phrasing rule (user, 2026-08-20): a question may carry at most ONE negation —
+  // "מבקש ללא X... איזו אסורה/לא מתאימה" style double negatives are banned.
+  {
+    const negations = (String(q.prompt).match(/\bלא\b|\bללא\b|\bבלי\b|אסור/g) || []).length;
+    if (negations > 1) fail(menu, `phrasing: double negative in "${q.prompt}"`);
   }
 }
 

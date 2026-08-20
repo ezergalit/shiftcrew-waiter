@@ -22,6 +22,8 @@ import Matching from "../games/Matching";
 import Speed from "../games/Speed";
 import AllergenQuiz from "../games/AllergenQuiz";
 import NameCompletion from "../games/NameCompletion";
+import MenuCheckQuiz from "../games/MenuCheckQuiz";
+import GroupFlashcards from "../games/GroupFlashcards";
 import CategoryExam from "../games/CategoryExam";
 import QuizExam from "../games/QuizExam";
 
@@ -532,6 +534,11 @@ export default function MainApp({ session, onSignOut }) {
   if (mode === "speed") return <Speed items={gameItems} onAnswer={learnItem} onDone={exitMode} onFinish={finishSpeed} />;
   if (mode === "allergens") return <AllergenQuiz items={gameItems} onAnswer={learnItem} onDone={exitMode} />;
   if (mode === "namecomplete") return <NameCompletion items={gameItems} facets={gameFacets} openKeys={path.openKeys} onAnswer={learnItem} onDone={exitMode} />;
+  // Quick carry-list check for thin categories (soft drinks etc.) — see MenuCheckQuiz.
+  if (mode === "menucheck") return <MenuCheckQuiz items={gameItems} allItems={cards} onAnswer={learnItem} onDone={exitMode} />;
+  // Thin-category study: group cards (front = "שתייה קלה מוגזת", back = the carry list
+  // with prices). A per-item flashcard there flips קולה into קולה — teaches nothing.
+  if (mode === "groupcards") return <GroupFlashcards items={gameItems} onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
   // Two graduation formats, same contract to recordExam.
   //
   // The chip exam (pick the exact ingredient set) is the better test, but it needs dishes
@@ -840,6 +847,11 @@ export default function MainApp({ session, onSignOut }) {
           // Tapping a dish opens it as the first card of a progressive session; the big
           // button starts the same session without choosing an opener.
           const items = (cards || []).filter((c) => c.category === catView);
+          // A "thin" category — most items carry no ingredients and no description
+          // (soft drinks and the like) — can't build the regular question types, but it
+          // has a quiz of its own: do you know the carry list? (user request, 2026-08-20)
+          const thin = items.length >= 3 &&
+            items.filter((x) => !(x.ingredients?.length) && !x.desc).length / items.length >= 0.5;
           return (
             <div className="space-y-2">
               {/* Back sits top-right (user request, 2026-08-20) — in RTL that is the
@@ -857,10 +869,40 @@ export default function MainApp({ session, onSignOut }) {
                   <p className="text-[11px] text-[#8a8aa0]">הקישו על מנה ללימוד ממוקד, או התחילו תרגול מלא</p>
                 </div>
               </div>
-              <button onClick={() => startProgressive(catView)}
+              {/* Thin categories study as group cards, not per-item flashcards —
+                  a card whose front and back both say קולה teaches nothing. */}
+              <button onClick={() => { if (thin) { setModeItems(items); setMode("groupcards"); } else startProgressive(catView); }}
                 className="w-full py-3 min-h-[48px] rounded-xl bg-[#6d5efc] text-white text-sm font-black active:scale-[0.99] transition-transform">
                 תרגול {shortCat(catView)}
               </button>
+              {thin && (
+                <button onClick={() => { setModeItems(items); setMode("menucheck"); }}
+                  className="w-full py-3 min-h-[48px] rounded-xl bg-[#15302b] border border-[#22c08c] text-[#22c08c] text-sm font-black active:scale-[0.99] transition-transform">
+                  ⚡ בוחן זריז — מה יש אצלנו?
+                </button>
+              )}
+              {/* The exam belongs inside the category page too (user, 2026-08-20) —
+                  finishing the dishes here and having to hunt for the exam outside
+                  was confusing. Same gate and launch as the list view's button. */}
+              {(() => {
+                const cat = (path.categories || []).find((c) => c.key === catView);
+                if (!cat) return null;
+                const examReady = cat.examUnlocked;
+                return (
+                  <button
+                    disabled={!examReady}
+                    onClick={() => { setModeItems(cat.items); setExamCategory({ key: cat.key, label: catLabel(cat.key) }); setMode("exam"); }}
+                    className={`w-full py-3 min-h-[48px] rounded-xl font-black text-sm flex items-center justify-center gap-1.5 active:scale-[0.99] transition-transform ${
+                      examReady ? "bg-[#22c08c] text-white" : "bg-[#1c1e22] text-[#8a8aa0]"
+                    }`}
+                  >
+                    <GraduationCap size={15} />
+                    {cat.passed ? "עברתם! אפשר להיבחן שוב"
+                      : examReady ? `מבחן ${shortCat(catView)}`
+                      : `הגיעו ל-${cat.threshold}% כדי להיבחן`}
+                  </button>
+                );
+              })()}
               {items.map((it) => {
                 const m = masteryById?.[it.id] || 0;
                 const done = isUnderstood(fivesById?.[it.id]);

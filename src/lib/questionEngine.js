@@ -376,7 +376,8 @@ export function qPitfallDish(pool, it) {
   return validateQuestion({
     itemId: it.id,
     facet: "pitfalls",
-    prompt: `אורח מבקש מנה בלי ${pitfall}. איזו מנה לא מתאימה לו?`,
+    // Same phrasing rule as qAllergenDish: direct positive, no double negative.
+    prompt: `באיזו מנה יש ${pitfall}?`,
     subject: pitfall,
     subjectKind: "pitfall",
     // The pitfall is already in the sentence — repeating it as a purple
@@ -547,8 +548,8 @@ export function qServingStyle(pool, it) {
   });
 }
 
-// "אורח מבקש בלי <אלרגן> — איזו מנה אסורה לו?" — the question a waiter actually gets
-// at a table. Exactly one option carries the allergen; the rest are verified clean, so
+// "איזו מנה מכילה <אלרגן>?" — the fact a waiter actually needs at a table, asked as a
+// direct positive. Exactly one option carries the allergen; the rest are verified clean, so
 // there is no ambiguity to argue with. Distractors come from the same category, which is
 // where a real mix-up happens.
 // Ingredients the menu ITSELF ties to an allergen: if the dishes containing ingredient X
@@ -596,7 +597,9 @@ export function qAllergenDish(pool, it) {
   return validateQuestion({
     itemId: it.id,
     facet: "allergens",
-    prompt: `אורח מבקש מנה ללא ${allergen}. איזו מנה אסורה לו?`,
+    // Phrasing rule (user, 2026-08-20): never a double negative ("מבקש ללא X — איזו
+    // אסורה" tests parsing, not menu knowledge). Ask the direct positive instead.
+    prompt: `איזו מנה מכילה ${allergen}?`,
     subject: allergen,
     subjectKind: "allergen",
     // Same as the pitfall question: one self-contained sentence, no subline.
