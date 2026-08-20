@@ -6,6 +6,7 @@ import BriefAck from "../components/BriefAck";
 import BriefGate, { briefHasContent } from "../components/BriefGate";
 import AppTour from "../components/AppTour";
 import TasksTab, { useShiftTasks } from "../components/TasksTab";
+import MenuBrowser from "../components/MenuBrowser";
 import { isUnderstood } from "../lib/progressiveSession";
 import ProgressiveFlashcards from "../games/ProgressiveFlashcards";
 import { buildStudySession, nextConsecutiveFives, isRetired, QUICK_SESSION_SIZE } from "../lib/studySession";
@@ -135,7 +136,7 @@ export default function MainApp({ session, onSignOut }) {
   const [groupView, setGroupView] = useState(null); // menu (menu_group) key or null
   const [tourOpen, setTourOpen] = useState(() =>
     !!session?.teamMemberId && localStorage.getItem(`menu-app-apptour-done-${session.teamMemberId}`) !== "1");
-  const { tasks: shiftTasks, doneIds: taskDone, toggle: toggleTask } = useShiftTasks(session);
+  const { rows: shiftRows, doneIds: taskDone, toggle: toggleTask } = useShiftTasks(session);
   const [prog, setProg] = useState(null); // { items, label, progress, firstId }
   // Re-running the gate from the daily tab is practice — it never rewrites the ack row.
   const [gatePractice, setGatePractice] = useState(false);
@@ -649,11 +650,52 @@ export default function MainApp({ session, onSignOut }) {
   // reading today's brief, and reaching the owner's daily minute goal. A tick a waiter
   // can give themselves for studying would measure tapping, not studying.
   const goalMinutes = examConfig?.daily_goal_minutes || DEFAULT_DAILY_MINUTES;
-  const autoDone = {};
-  for (const t of shiftTasks) {
-    if (t.kind !== "learning") continue;
-    if (t.action === "brief") autoDone[t.id] = briefRead || !hasBrief;
-    else autoDone[t.id] = todaySeconds >= goalMinutes * 60;
+  // The task list is built from real content only — a row exists because the restaurant
+  // sent something or the waiter has something concrete to do. Nothing here is a bare
+  // checkbox: every entry either opens a screen or opens the manager's own instruction.
+  const dayTasks = [];
+  let pos = 0;
+
+  if (hasBrief) {
+    dayTasks.push({
+      id: "brief", position: ++pos,
+      title: "לקרוא את העדכון היומי",
+      subtitle: briefItems.slice(0, 2).join(" · ") || brief?.notes || "מה קורה היום במסעדה",
+      done: briefRead, cta: briefRead ? "לצפייה ←" : "לקריאה ←",
+      onOpen: () => setTab("daily"),
+    });
+  }
+
+  if (newDishes.length > 0) {
+    dayTasks.push({
+      id: "newdishes", position: ++pos,
+      title: `ללמוד ${newDishes.length === 1 ? "מנה חדשה בתפריט" : `${newDishes.length} מנות חדשות בתפריט`}`,
+      subtitle: newDishes.slice(0, 3).map((d) => d.name).join(" · "),
+      done: false, cta: "ללמידה ←",
+      onOpen: () => { setModeItems(newDishes); setMode("flashcards"); },
+    });
+  }
+
+  if (focusCat) {
+    dayTasks.push({
+      id: "focus", position: ++pos,
+      title: `ללמוד ${shortCat(focusCat.key)}`,
+      subtitle: `${focusCat.pct}% · ${focusCat.items?.length || 0} מנות בקטגוריה`,
+      done: todaySeconds >= goalMinutes * 60, cta: "לתרגול ←",
+      onOpen: () => startProgressive(focusCat.key),
+    });
+  }
+
+  // The manager's own instructions. They carry their text as `body`, so tapping opens the
+  // instruction to read before it can be closed.
+  for (const r of shiftRows) {
+    if (r.kind === "learning") continue;   // handled above, from real progress
+    dayTasks.push({
+      id: r.id, position: ++pos,
+      title: r.title, subtitle: r.subtitle,
+      body: r.subtitle || r.title,
+      done: taskDone.has(r.id), cta: "לפתיחה ←",
+    });
   }
 
   return (
@@ -697,15 +739,7 @@ export default function MainApp({ session, onSignOut }) {
       {/* Content */}
       <div key={tab} className="flex-1 overflow-y-auto px-4 py-3 animate-fadeIn">
         {tab === "home" && (
-          <TasksTab
-            session={session}
-            tasks={shiftTasks}
-            doneIds={taskDone}
-            onToggle={toggleTask}
-            auto={autoDone}
-            onOpenBrief={() => setTab("daily")}
-            onOpenLearning={() => (focusCat ? startProgressive(focusCat.key) : (setModeItems(null), setMode("flashcards")))}
-          >
+          <TasksTab tasks={dayTasks} onDone={toggleTask}>
             {/* Picked up where you stopped. Above everything else because it is the one
                 card that expires — dismissing it removes it for good. */}
             {resumeOffer && (
@@ -744,7 +778,7 @@ export default function MainApp({ session, onSignOut }) {
                 sketch, 2026-08-20). The waiter's own week + the manager's note, if any. */}
             <div className="rounded-2xl p-4 relative overflow-hidden text-[#EEF0F6]"
                  style={{ background: "linear-gradient(135deg,#0F5C46,#0a3d2f)" }}>
-              <p className="text-base font-black">שלום {firstName || "לך"} 👋</p>
+              <p className="text-base font-black">שלום {session?.name || firstName || "לך"} 👋</p>
               <p className="text-xs font-bold text-[#EEF0F6]/80 mt-1">
                 {newDishes.length > 0
                   ? `נשאר לך ללמוד ${newDishes.length === 1 ? "מנה חדשה אחת" : `${newDishes.length} מנות חדשות`} בתפריט 🍽️`
@@ -761,149 +795,12 @@ export default function MainApp({ session, onSignOut }) {
               )}
             </div>
 
-            {/* The daily update and the next thing to learn, side by side — the two
-                answers to "מה לפני המשמרת?": what changed today, and what to study. */}
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setTab("daily")}
-                className="rounded-2xl p-3 text-right text-white active:scale-[0.98] transition-transform flex flex-col"
-                style={{ background: "linear-gradient(135deg,#8b5cf6,#6d28d9)" }}
-              >
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <ListChecks size={13} />
-                  <p className="text-[11px] font-black opacity-90">העדכון היומי</p>
-                </div>
-                <p className="text-lg font-black">
-                  {!hasBrief ? "—" : briefRead ? "✓" : "0/1"}
-                </p>
-                <p className="text-[11px] font-bold opacity-90 mt-0.5">
-                  {!hasBrief ? "אין עדכון היום" : briefRead ? "קראתם כבר היום" : "טרם נקרא"}
-                </p>
-                <p className="text-[11px] font-black mt-1.5" style={{ color: briefRead ? "#22c08c" : "#f3c14b" }}>
-                  {briefRead ? "לחזרה ←" : "לקריאה ←"}
-                </p>
-              </button>
-              {focusCat ? (
-                <button
-                  onClick={() => startProgressive(focusCat.key)}
-                  className="rounded-2xl p-3 text-right text-white active:scale-[0.98] transition-transform flex flex-col"
-                  style={{ background: "linear-gradient(135deg,#22c08c,#0F5C46)" }}
-                >
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <GraduationCap size={13} />
-                    <p className="text-[11px] font-black opacity-90 line-clamp-1">למידת {shortCat(focusCat.key)}</p>
-                  </div>
-                  <p className="text-lg font-black">{focusCat.pct}%</p>
-                  <div className="h-1 bg-white/25 rounded-full overflow-hidden mt-1 mb-0.5">
-                    <div className="h-full bg-white" style={{ width: `${focusCat.pct}%` }} />
-                  </div>
-                  <p className="text-[11px] font-black mt-auto pt-1"><span className="bg-white/20 rounded-lg px-2 py-1 inline-block">ללמידה ←</span></p>
-                </button>
-              ) : (
-                <button
-                  onClick={() => { setModeItems(null); setMode("flashcards"); }}
-                  className="rounded-2xl p-3 text-right text-white active:scale-[0.98] transition-transform"
-                  style={{ background: "linear-gradient(135deg,#22c08c,#0F5C46)" }}
-                >
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <GraduationCap size={13} />
-                    <p className="text-[11px] font-black opacity-90">סבב לימוד</p>
-                  </div>
-                  <p className="text-lg font-black">{pct}%</p>
-                  <p className="text-[11px] font-black mt-1.5 bg-white/20 rounded-lg px-2 py-1 inline-block">ללמידה ←</p>
-                </button>
-              )}
-            </div>
           </TasksTab>
         )}
         {/* Learning tab: the practice grid and overall progress. It used to sit at the
             bottom of the old home screen, under the cards — which meant the thing the
             app exists for was the last thing on the page. */}
-        {tab === "learn" && (
-          <div className="space-y-3">
-            <div className="bg-[#16181c] rounded-2xl p-3.5">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-black text-[#eef0f6]">תרגול</p>
-                <p className="text-xs font-bold text-[#8a8aa0]">{pct}% · {mastered.size}/{cards?.length || 0} נלמדו</p>
-              </div>
-              <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mb-3">
-                <div className="h-full bg-[#22c08c] transition-all" style={{ width: `${pct}%` }} />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => { setModeItems(null); setMode("flashcards"); }}
-                  className="text-white font-bold text-xs min-h-[44px] rounded-xl flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
-                  style={{ background: "linear-gradient(135deg,#22c08c,#17805d)" }}>
-                  <Layers size={14} /> כרטיסיות
-                </button>
-                {path.games.map((g) => {
-                  const GameIcon = GAME_ICONS[g.mode] || HelpCircle;
-                  return (
-                    <button key={g.mode}
-                      onClick={() => { setModeItems(null); setMode(g.mode); }}
-                      className="font-bold text-xs min-h-[44px] rounded-xl flex items-center justify-center gap-1.5 bg-[#22252b] text-[#eef0f6] active:scale-[0.98] transition-transform">
-                      <GameIcon size={14} className="text-[#8a8aa0]" /> {g.label}
-                    </button>
-                  );
-                })}
-              </div>
-              {/* Nothing is locked, so the note explains SCOPE instead: practice draws
-                  from the categories already passed, and passing another widens it. */}
-              {path.scopedToOpen && path.openKeys?.length > 0 && (
-                <p className="text-[11px] text-[#8a8aa0] mt-2 leading-relaxed">
-                  {path.passedCount === 0
-                    ? `כל התרגול פתוח — כרגע על ${shortCat(path.openKeys[0])}. עברו מבחן כדי להוסיף עוד קטגוריות לתרגול.`
-                    : `התרגול כולל: ${path.openKeys.map(shortCat).join(" · ")}. כל מבחן שעוברים מוסיף קטגוריה.`}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-        {tab === "daily" && (
-          <div className="bg-[#16181c] border border-[#8b5cf6]/40 rounded-2xl p-3.5 space-y-2 relative overflow-hidden">
-            <span className="absolute top-0 right-0 h-full w-[3px]" style={{ background: "linear-gradient(180deg,#8b5cf6,#6d28d9)" }} />
-            <p className="text-xs font-black text-[#a79bff] mb-2">עדכון יומי של המסעדה</p>
-            {brief?.missing_items?.length > 0 && <div><span className="text-[10px] font-bold text-[#f3c14b]">❌ חסרים:</span><p className="text-xs text-[#f3c14b] mt-0.5">{brief.missing_items.join(", ")}</p></div>}
-            {brief?.new_items?.length > 0 && <div><span className="text-[10px] font-bold text-[#22c08c]">⭐ חדש:</span><p className="text-xs text-[#22c08c] mt-0.5">{brief.new_items.join(", ")}</p></div>}
-            {brief?.oven_items?.length > 0 && <div><span className="text-[10px] font-bold text-[#6d5efc]">📦 מעלה:</span><p className="text-xs text-[#6d5efc] mt-0.5">{brief.oven_items.join(", ")}</p></div>}
-            {brief?.notes && <div><span className="text-[11px] font-bold text-[#8a8aa0]">הערה:</span><p className="text-xs text-[#8a8aa0] mt-0.5">{brief.notes}</p></div>}
-            {!brief?.missing_items?.length && !brief?.new_items?.length && !brief?.oven_items?.length && !brief?.notes && (
-              <div className="text-center py-3 space-y-2">
-                <p className="text-sm font-bold text-[#eef0f6]">אין כרגע עדכון יומי</p>
-                <p className="text-xs text-[#8a8aa0]">אבל תמיד כדאי לנצל את הזמן לחזרה על התפריט</p>
-                <button
-                  onClick={() => { setModeItems(null); setMode("quick"); }}
-                  className="px-5 py-2.5 min-h-[44px] rounded-lg bg-[#6d5efc] text-white text-xs font-black"
-                >
-                  ללמידה — 5 דקות לפני משמרת ←
-                </button>
-              </div>
-            )}
-            {/* Acknowledgement lives here, under the full text — it should only be
-                answerable after the brief itself is on screen. */}
-            {!session?.offline && session?.teamMemberId && (
-              <div className="pt-1">
-                <BriefAck
-                  brief={brief}
-                  cards={cards}
-                  session={session}
-                  ack={briefAck}
-                  onAcked={setBriefAck}
-                />
-              </div>
-            )}
-            {/* Re-run the gate as practice — reading is already recorded, so this never
-                touches the ack row; it exists for a waiter who wants to drill the brief. */}
-            {!session?.offline && briefAck?.read_at && briefHasContent(brief) && (
-              <button
-                onClick={() => setGatePractice(true)}
-                className="w-full py-2.5 min-h-[44px] rounded-lg bg-[#22252b] text-[#eef0f6] text-xs font-black"
-              >
-                ↻ לעבור שוב על העדכון היומי והשאלות
-              </button>
-            )}
-          </div>
-        )}
-                {tab === "categories" && catView && (() => {
+                {tab === "learn" && catView && (() => {
           // Drill-down (2026-08-19): the category's dishes, one by one, under "לתרגול X:".
           // Tapping a dish opens it as the first card of a progressive session; the big
           // button starts the same session without choosing an opener.
@@ -989,9 +886,24 @@ export default function MainApp({ session, onSignOut }) {
         {/* Menus level: a restaurant has several menus and categories live inside one.
             Shown only when this restaurant's dishes actually carry a menu_group, so a
             menu that predates the column behaves exactly as before. */}
-        {tab === "categories" && !catView && !groupView && menuGroups.length > 1 && (
+        {tab === "learn" && !catView && !groupView && menuGroups.length > 1 && (
           <div className="space-y-2">
-            <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">בחרו תפריט כדי לראות את הקטגוריות שבו.</p>
+            {/* The whole-menu exam is the goal this tab exists for, so it sits at the top
+                level rather than one drill-down in. */}
+            <button
+              onClick={() => { setExamCategory({ key: "general", label: "התפריט המלא" }); setMode("general_exam"); }}
+              className="w-full rounded-2xl p-3.5 text-right text-white active:scale-[0.99] transition-transform flex items-center gap-3"
+              style={{ background: "linear-gradient(135deg,#14b8a6,#0d7f74)" }}
+            >
+              <GraduationCap size={20} className="flex-shrink-0" />
+              <span className="flex-1">
+                <span className="block text-sm font-black">מבחן התפריט המלא</span>
+                <span className="block text-[11px] font-bold opacity-90">
+                  {examConfig?.general_exam_questions || 40} שאלות על כל התפריט, עם שעון — זו המטרה הסופית
+                </span>
+              </span>
+            </button>
+            <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">בחרו תפריט כדי לתרגל אותו או להיבחן עליו.</p>
             {menuGroups.map(({ g, items, catCount }) => {
               const pct = scorePct(items);
               return (
@@ -1011,7 +923,7 @@ export default function MainApp({ session, onSignOut }) {
           </div>
         )}
 
-        {tab === "categories" && !catView && (groupView || menuGroups.length <= 1) && (
+        {tab === "learn" && !catView && (groupView || menuGroups.length <= 1) && (
           <div className="space-y-2">
             {groupView && (
               <div className="flex items-center gap-2.5">
@@ -1100,6 +1012,55 @@ export default function MainApp({ session, onSignOut }) {
             })}
           </div>
         )}
+        {/* The menu tab is the menu: menu → category → dishes with descriptions. Read
+            only, so checking a dish mid-shift never touches the waiter's score. */}
+        {tab === "categories" && <MenuBrowser cards={cards} />}
+
+        {tab === "daily" && (
+          <div className="bg-[#16181c] border border-[#8b5cf6]/40 rounded-2xl p-3.5 space-y-2 relative overflow-hidden">
+            <span className="absolute top-0 right-0 h-full w-[3px]" style={{ background: "linear-gradient(180deg,#8b5cf6,#6d28d9)" }} />
+            <p className="text-xs font-black text-[#a79bff] mb-2">עדכון יומי של המסעדה</p>
+            {brief?.missing_items?.length > 0 && <div><span className="text-[10px] font-bold text-[#f3c14b]">❌ חסרים:</span><p className="text-xs text-[#f3c14b] mt-0.5">{brief.missing_items.join(", ")}</p></div>}
+            {brief?.new_items?.length > 0 && <div><span className="text-[10px] font-bold text-[#22c08c]">⭐ חדש:</span><p className="text-xs text-[#22c08c] mt-0.5">{brief.new_items.join(", ")}</p></div>}
+            {brief?.oven_items?.length > 0 && <div><span className="text-[10px] font-bold text-[#6d5efc]">📦 מעלה:</span><p className="text-xs text-[#6d5efc] mt-0.5">{brief.oven_items.join(", ")}</p></div>}
+            {brief?.notes && <div><span className="text-[11px] font-bold text-[#8a8aa0]">הערה:</span><p className="text-xs text-[#8a8aa0] mt-0.5">{brief.notes}</p></div>}
+            {!brief?.missing_items?.length && !brief?.new_items?.length && !brief?.oven_items?.length && !brief?.notes && (
+              <div className="text-center py-3 space-y-2">
+                <p className="text-sm font-bold text-[#eef0f6]">אין כרגע עדכון יומי</p>
+                <p className="text-xs text-[#8a8aa0]">אבל תמיד כדאי לנצל את הזמן לחזרה על התפריט</p>
+                <button
+                  onClick={() => { setModeItems(null); setMode("quick"); }}
+                  className="px-5 py-2.5 min-h-[44px] rounded-lg bg-[#6d5efc] text-white text-xs font-black"
+                >
+                  ללמידה — 5 דקות לפני משמרת ←
+                </button>
+              </div>
+            )}
+            {/* Acknowledgement lives here, under the full text — it should only be
+                answerable after the brief itself is on screen. */}
+            {!session?.offline && session?.teamMemberId && (
+              <div className="pt-1">
+                <BriefAck
+                  brief={brief}
+                  cards={cards}
+                  session={session}
+                  ack={briefAck}
+                  onAcked={setBriefAck}
+                />
+              </div>
+            )}
+            {/* Re-run the gate as practice — reading is already recorded, so this never
+                touches the ack row; it exists for a waiter who wants to drill the brief. */}
+            {!session?.offline && briefAck?.read_at && briefHasContent(brief) && (
+              <button
+                onClick={() => setGatePractice(true)}
+                className="w-full py-2.5 min-h-[44px] rounded-lg bg-[#22252b] text-[#eef0f6] text-xs font-black"
+              >
+                ↻ לעבור שוב על העדכון היומי והשאלות
+              </button>
+            )}
+          </div>
+        )}
               </div>
 
       <BottomNav tab={tab} setTab={setTab}
@@ -1114,7 +1075,7 @@ function BottomNav({ tab, setTab, hasDailyUpdate }) {
     // pile of cards; the shift checklist is what a waiter actually opens the app for.
     ["home", ListChecks, "משימות", hasDailyUpdate],
     ["categories", BookOpen, "תפריט", false],
-    ["learn", GraduationCap, "לימוד", false],
+    ["learn", GraduationCap, "תרגול ובחינה", false],
   ];
   return (
     <div
