@@ -3,7 +3,22 @@ import { X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
 const db = supabase.schema("menu_app");
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const dateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const todayStr = () => dateStr(new Date());
+
+// A weekly task ticked on Monday must still read as done on Tuesday. The tick is always
+// stored on the day it happened (`done_date`), so the PERIOD lives in the read: how far
+// back a completion still counts is decided by the task's kind.
+//   weekly  ⇒ since the last Sunday      monthly ⇒ since the 1st       else ⇒ today
+// ⚠️ Week starts on SUNDAY, matching `weekly_scores` on both the SQL and JS side. Two
+// different week boundaries inside one product is a bug that is very hard to see.
+export const PERIOD_LABEL = { weekly: "משימה שבועית", monthly: "משימה חודשית" };
+export function periodStart(kind, now = new Date()) {
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (kind === "weekly") d.setDate(d.getDate() - d.getDay());   // getDay() 0 = Sunday
+  else if (kind === "monthly") d.setDate(1);
+  return dateStr(d);
+}
 
 // The shift as one numbered checklist (user, 2026-08-20).
 //
@@ -55,7 +70,16 @@ export default function TasksTab({ tasks, onDone, children }) {
         {t.done ? "✓" : t.position}
       </span>
       <span className="flex-1 min-w-0">
-        {isNext && <span className="block text-[9.5px] font-black text-[#22c08c] tracking-wide mb-0.5">הבא בתור</span>}
+        {/* A weekly task shown as "done" alongside daily ones is confusing unless it says
+            so — the tick means "done this week", not "done today". */}
+        {(isNext || t.periodLabel) && (
+          <span className="flex items-center gap-1.5 mb-0.5">
+            {isNext && <span className="text-[9.5px] font-black text-[#22c08c] tracking-wide">הבא בתור</span>}
+            {t.periodLabel && (
+              <span className="text-[9.5px] font-black text-[#8a8aa0] bg-[#20232b] rounded px-1.5 py-0.5">{t.periodLabel}</span>
+            )}
+          </span>
+        )}
         <span className={`block font-black leading-snug ${t.done ? "text-[12px] text-[#22c08c] line-through truncate" : "text-sm text-[#eef0f6]"}`}>
           {t.title}
         </span>
@@ -95,7 +119,7 @@ export default function TasksTab({ tasks, onDone, children }) {
             {shut.length > 0 && (
               <div className="flex items-center gap-2 text-[10px] font-black text-[#5a5a6e] tracking-wide mt-1 mb-0.5">
                 <span className="flex-1 h-px bg-[#22252b]" />
-                בוצע היום · {shut.length}
+                בוצע · {shut.length}
                 <span className="flex-1 h-px bg-[#22252b]" />
               </div>
             )}
@@ -155,14 +179,23 @@ export function useShiftTasks(session) {
         db.from("shift_tasks").select("id, title, subtitle, position, kind")
           .eq("restaurant_id", session.restaurantId).eq("active", true)
           .order("position", { ascending: true }),
+        // Read back to the widest period any task could use (the 1st of the month), then
+        // keep each completion only if it falls inside ITS OWN task's period.
         session.teamMemberId
-          ? db.from("shift_task_done").select("task_id")
-              .eq("team_member_id", session.teamMemberId).eq("done_date", todayStr())
+          ? db.from("shift_task_done").select("task_id, done_date")
+              .eq("team_member_id", session.teamMemberId)
+              .gte("done_date", periodStart("monthly"))
           : Promise.resolve({ data: [] }),
       ]);
       if (!alive) return;
-      setRows(t.data || []);
-      setDoneIds(new Set((d.data || []).map((r) => r.task_id)));
+      const tasks = t.data || [];
+      const kindOf = new Map(tasks.map((r) => [r.id, r.kind]));
+      setRows(tasks);
+      setDoneIds(new Set(
+        (d.data || [])
+          .filter((r) => r.done_date >= periodStart(kindOf.get(r.task_id)))
+          .map((r) => r.task_id)
+      ));
     })();
     return () => { alive = false; };
   }, [session]);

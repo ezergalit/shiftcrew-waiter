@@ -5,7 +5,8 @@ import MetricsScreen from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
 import BriefGate, { briefHasContent } from "../components/BriefGate";
 import AppTour from "../components/AppTour";
-import TasksTab, { useShiftTasks } from "../components/TasksTab";
+import TasksTab, { useShiftTasks, PERIOD_LABEL } from "../components/TasksTab";
+import ManagerMessages from "../components/ManagerMessages";
 import MenuBrowser from "../components/MenuBrowser";
 import { isUnderstood } from "../lib/progressiveSession";
 import ProgressiveFlashcards from "../games/ProgressiveFlashcards";
@@ -664,6 +665,7 @@ export default function MainApp({ session, onSignOut }) {
       id: r.id, position: ++pos,
       title: r.title, subtitle: r.subtitle,
       body: r.subtitle || r.title,
+      periodLabel: PERIOD_LABEL[r.kind],
       done: taskDone.has(r.id), cta: "לפתיחה ←",
     });
   }
@@ -710,6 +712,9 @@ export default function MainApp({ session, onSignOut }) {
       <div key={tab} className="flex-1 overflow-y-auto px-4 py-3 animate-fadeIn">
         {tab === "home" && (
           <TasksTab tasks={dayTasks} onDone={toggleTask}>
+            {/* A personal note from the manager outranks everything on this screen —
+                someone wrote it to this waiter by name. */}
+            <ManagerMessages session={session} />
             {/* Picked up where you stopped. Above everything else because it is the one
                 card that expires — dismissing it removes it for good. */}
             {resumeOffer && (
