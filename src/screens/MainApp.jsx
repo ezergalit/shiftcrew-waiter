@@ -20,12 +20,6 @@ import {
   todayStr, loadDaily, saveDaily, loadNum, saveNum, FEEDBACK_MS,
 } from "../games/shared";
 import Flashcards from "../games/Flashcards";
-import Quiz from "../games/Quiz";
-import Matching from "../games/Matching";
-import Speed from "../games/Speed";
-import AllergenQuiz from "../games/AllergenQuiz";
-import NameCompletion from "../games/NameCompletion";
-import MenuCheckQuiz from "../games/MenuCheckQuiz";
 import GroupFlashcards from "../games/GroupFlashcards";
 import CategoryExam from "../games/CategoryExam";
 import QuizExam from "../games/QuizExam";
@@ -44,14 +38,11 @@ const DEFAULT_DAILY_MINUTES = 10;
 
 // For the "carry on?" card — the stored value is a mode key, and "quiz" on screen would
 // read as a bug rather than a name.
+// The quiz games were removed (user, 2026-08-20): the app teaches from the menu and
+// tests with the exams, so a shelf of mini-games in between was noise.
 const MODE_LABELS = {
   flashcards: "כרטיסיות",
   quick: "5 דקות לפני משמרת",
-  quiz: "חידון",
-  match: "התאמה",
-  speed: "מהירות",
-  allergens: "לימוד האלרגיות",
-  namecomplete: "התאמת תיאור",
   exam: "מבחן קטגוריה",
   progressive: "תרגול לפי התפריט",
 };
@@ -59,16 +50,6 @@ const DAILY_BONUS = 50;
 
 // First-run tour flag, device-scoped like the welcome slides.
 const TOUR_DONE_KEY = "menu-app-apptour-done";
-
-// One icon per practice mode (the grid on the home screen). Kept beside MODE_LABELS —
-// both are projections of the same mode registry.
-const GAME_ICONS = {
-  quiz: HelpCircle,
-  match: Puzzle,
-  speed: Zap,
-  allergens: ShieldAlert,
-  namecomplete: FileText,
-};
 
 function pubToCard(p) {
   const ing = (p.ingredients || []).filter(Boolean);
@@ -406,10 +387,6 @@ export default function MainApp({ session, onSignOut }) {
     }
   };
 
-  const finishSpeed = (correctCount) => {
-    if (correctCount > bestSpeed) { setBestSpeed(correctCount); saveNum("menu-app-best-speed", session?.teamMemberId, correctCount); }
-  };
-
   // One row per completed exam attempt, so the owner sees exam history (and repeat
   // failures) rather than only the current mastery snapshot. Per-dish scores already
   // went to menu_progress via learnItem — this is the attempt-level record.
@@ -539,13 +516,7 @@ export default function MainApp({ session, onSignOut }) {
 
   if (mode === "flashcards") return <Flashcards items={studySession.deck} session={studySession} onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
   if (mode === "quick") return <Flashcards items={quickSession.deck} session={quickSession} quick onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
-  if (mode === "quiz") return <Quiz items={gameItems} facets={gameFacets} openKeys={path.openKeys} onAnswer={learnItem} onDone={exitMode} />;
-  if (mode === "match") return <Matching items={gameItems} onAnswer={learnItem} onDone={exitMode} session={session} />;
-  if (mode === "speed") return <Speed items={gameItems} onAnswer={learnItem} onDone={exitMode} onFinish={finishSpeed} />;
-  if (mode === "allergens") return <AllergenQuiz items={gameItems} onAnswer={learnItem} onDone={exitMode} />;
-  if (mode === "namecomplete") return <NameCompletion items={gameItems} facets={gameFacets} openKeys={path.openKeys} onAnswer={learnItem} onDone={exitMode} />;
   // Quick carry-list check for thin categories (soft drinks etc.) — see MenuCheckQuiz.
-  if (mode === "menucheck") return <MenuCheckQuiz items={gameItems} allItems={cards} onAnswer={learnItem} onDone={exitMode} />;
   // Thin-category study: group cards (front = "שתייה קלה מוגזת", back = the carry list
   // with prices). A per-item flashcard there flips קולה into קולה — teaches nothing.
   if (mode === "groupcards") return <GroupFlashcards items={gameItems} onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;

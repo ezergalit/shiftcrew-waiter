@@ -24,13 +24,9 @@
 
 // Every practice mode, all available from the start. The list survives because the UI
 // still renders the modes from it — `afterPassed` is gone along with the gating.
-export const GAME_MODES = [
-  { mode: "quiz", label: "חידון" },
-  { mode: "match", label: "התאמה" },
-  { mode: "allergens", label: "אלרגיות" },
-  { mode: "speed", label: "מהירות" },
-  { mode: "namecomplete", label: "התאמת תיאור" },
-];
+// Practice modes. The quiz games were removed (user, 2026-08-20) — what remains is
+// card practice, which lives in the category drill-down rather than in a mode grid.
+export const GAME_MODES = [];
 
 // Kept as the old name so existing imports keep working.
 export const GAME_UNLOCKS = GAME_MODES;
