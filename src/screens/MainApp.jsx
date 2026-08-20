@@ -941,8 +941,45 @@ export default function MainApp({ session, onSignOut }) {
         })()}
         {/* Menus level: only when the restaurant's menu is actually split into menus.
             Nothing changes for a restaurant whose dishes carry no menu_group. */}
+        {/* Menus level: a restaurant has several menus and categories live inside one.
+            Shown only when this restaurant's dishes actually carry a menu_group, so a
+            menu that predates the column behaves exactly as before. */}
         {tab === "categories" && !catView && !groupView && menuGroups.length > 1 && (
           <div className="space-y-2">
+            <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">בחרו תפריט כדי לראות את הקטגוריות שבו.</p>
+            {menuGroups.map(({ g, items, catCount }) => {
+              const pct = scorePct(items);
+              return (
+                <button key={g} onClick={() => setGroupView(g)}
+                  className="w-full text-right bg-[#16181c] rounded-2xl p-3.5 border border-[#22252b] active:scale-[0.99] transition-transform">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-black text-[#eef0f6]">{g}</span>
+                    <span className="text-xs font-black" style={{ color: pct >= 50 ? "#22c08c" : pct > 0 ? "#f3a712" : "#5a5a6e" }}>{pct}%</span>
+                  </div>
+                  <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mt-2">
+                    <div className="h-full transition-all" style={{ width: `${pct}%`, background: pct >= 50 ? "#22c08c" : "#6d5efc" }} />
+                  </div>
+                  <p className="text-[11px] text-[#8a8aa0] mt-1.5">{catCount} קטגוריות · {items.length} מנות</p>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {tab === "categories" && !catView && (groupView || menuGroups.length <= 1) && (
+          <div className="space-y-2">
+            {groupView && (
+              <div className="flex items-center gap-2.5">
+                <button onClick={() => setGroupView(null)} title="חזרה לכל התפריטים"
+                  className="w-10 h-10 rounded-xl bg-[#191b1f] border border-[#22252b] flex items-center justify-center text-[#eef0f6] flex-shrink-0 active:scale-95 transition-transform">
+                  <ChevronRight size={19} />
+                </button>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold text-[#5a5a6e]">התפריטים</p>
+                  <p className="text-sm font-black text-[#eef0f6] line-clamp-1">{groupView}</p>
+                </div>
+              </div>
+            )}
             <button
               onClick={() => { setExamCategory({ key: "general", label: "התפריט המלא" }); setMode("general_exam"); }}
               className="w-full rounded-2xl p-3.5 text-right text-white active:scale-[0.99] transition-transform flex items-center gap-3"
