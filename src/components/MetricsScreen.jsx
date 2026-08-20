@@ -128,7 +128,7 @@ export default function MetricsScreen({ session, cards, masteryById, weekly = []
         { restaurant_id: session.restaurantId, team_member_id: session.teamMemberId, date, amount },
         { onConflict: "team_member_id,date" }
       );
-    if (error) { console.error("shift_earnings", error); return; }
+    if (error) { console.error("shift_earnings", error.message, error.details, error.hint, error.code); return; }
     setEarnings((prev) => [...prev.filter((r) => r.date !== date), { date, amount }]);
     setAddingEarn(false); setEarnAmount("");
   };

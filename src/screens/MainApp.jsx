@@ -404,7 +404,7 @@ export default function MainApp({ session, onSignOut }) {
     });
     // Non-fatal: the exam already counted via menu_progress, so a failed insert loses the
     // history row but not the trainee's progress. Don't interrupt the results screen.
-    if (error) console.error("exam_results insert failed:", error);
+    if (error) console.error("exam_results insert failed:", error.message, error.details, error.hint, error.code);
   };
 
   // Time spent studying, and the periodic measurement points the owner's improvement
@@ -516,7 +516,6 @@ export default function MainApp({ session, onSignOut }) {
 
   if (mode === "flashcards") return <Flashcards items={studySession.deck} session={studySession} onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
   if (mode === "quick") return <Flashcards items={quickSession.deck} session={quickSession} quick onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
-  // Quick carry-list check for thin categories (soft drinks etc.) — see MenuCheckQuiz.
   // Thin-category study: group cards (front = "שתייה קלה מוגזת", back = the carry list
   // with prices). A per-item flashcard there flips קולה into קולה — teaches nothing.
   if (mode === "groupcards") return <GroupFlashcards items={gameItems} onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
@@ -804,12 +803,6 @@ export default function MainApp({ session, onSignOut }) {
                 className="w-full py-3 min-h-[48px] rounded-xl bg-[#6d5efc] text-white text-sm font-black active:scale-[0.99] transition-transform">
                 תרגול {shortCat(catView)}
               </button>
-              {thin && (
-                <button onClick={() => { setModeItems(items); setMode("menucheck"); }}
-                  className="w-full py-3 min-h-[48px] rounded-xl bg-[#15302b] border border-[#22c08c] text-[#22c08c] text-sm font-black active:scale-[0.99] transition-transform">
-                  ⚡ בוחן זריז — מה יש אצלנו?
-                </button>
-              )}
               {/* The exam belongs inside the category page too (user, 2026-08-20) —
                   finishing the dishes here and having to hunt for the exam outside
                   was confusing. Same gate and launch as the list view's button. */}

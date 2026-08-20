@@ -178,7 +178,7 @@ export function useShiftTasks(session) {
     const { error } = next
       ? await db.from("shift_task_done").upsert(row, { onConflict: "team_member_id,task_id,done_date" })
       : await db.from("shift_task_done").delete().match(row);
-    if (error) console.error("shift_task_done", error);
+    if (error) console.error("shift_task_done", error.message, error.details, error.hint, error.code);
   };
 
   return { rows, doneIds, toggle };

@@ -121,7 +121,7 @@ export default function BriefGate({ brief, cards, session, practice = false, onP
     setSaving(false);
     // Even on a write error, let the waiter in — the gate must never brick the app; the
     // owner just won't see the ✓ until the next successful day.
-    if (error) console.error("brief gate ack failed", error);
+    if (error) console.error("brief gate ack failed", error.message, error.details, error.hint, error.code);
     onPassed?.({ read_at: row.read_at, correct: row.correct });
   };
 
