@@ -32,12 +32,20 @@ export default function MenuBrowser({ cards }) {
         .sort((a, b) => (a.menuPosition ?? 0) - (b.menuPosition ?? 0))
     : [];
 
+  // Categories of the open menu, in menu order — this is what makes "the next category"
+  // a real thing and lets the reader walk the whole menu without returning to a list.
+  const catList = [...new Set((cards || []).filter(inMenu)
+    .slice()
+    .sort((a, b) => (a.menuPosition ?? 0) - (b.menuPosition ?? 0))
+    .map((c) => c.category).filter(Boolean))];
+  const nextCat = cat ? catList[catList.indexOf(cat) + 1] || null : null;
+
   // Arrow keys walk the category on a desktop the same way the on-screen arrows do.
   useEffect(() => {
     if (idx === null) return;
     const onKey = (e) => {
       if (e.key === "Escape") setIdx(null);
-      if (e.key === "ArrowLeft") setIdx((i) => Math.min(i + 1, dishes.length - 1));
+      if (e.key === "ArrowLeft") setIdx((i) => Math.min(i + 1, dishes.length));
       if (e.key === "ArrowRight") setIdx((i) => Math.max(i - 1, 0));
     };
     window.addEventListener("keydown", onKey);
@@ -77,6 +85,69 @@ export default function MenuBrowser({ cards }) {
       </div>
     );
   };
+
+  // ---- end of a category: loop back, or walk on to the next one ----
+  // Reaching the last dish used to be a dead end (a disabled arrow). Finishing a category
+  // is the moment a waiter decides what to do next, so it gets a screen: read it again
+  // from the top, or continue into the next category — which chains through the whole
+  // menu without ever returning to a list.
+  if (idx !== null && cat && idx >= dishes.length) {
+    return (
+      <div className="fixed inset-0 z-50 bg-[#0c0d10] flex justify-center" dir="rtl">
+        <div className="w-full max-w-md h-full flex flex-col border-x border-[#1a1d23]">
+          <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 flex items-center justify-between flex-shrink-0">
+            <button onClick={() => setIdx(null)} className="text-[#8a8aa0] flex items-center gap-1 text-xs font-bold" aria-label="סגירה">
+              <X size={16} /> סגירה
+            </button>
+            <p className="text-[11px] font-black text-[#8a8aa0]">{shortCat(cat)} · הושלם</p>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-5 py-8 flex flex-col items-center justify-center text-center gap-5">
+            <span className="w-20 h-20 rounded-full bg-[#15302b] border border-[#22c08c]/40 flex items-center justify-center text-4xl">✓</span>
+            <div className="space-y-2">
+              <h2 className="text-[24px] font-black text-[#eef0f6] leading-tight">עברתם על כל {shortCat(cat)}</h2>
+              <p className="text-[14px] text-[#8a8aa0] leading-relaxed">
+                {dishes.length} מנות. רוצים לחזור עליהן שוב מההתחלה, או להמשיך הלאה?
+              </p>
+            </div>
+
+            <div className="w-full space-y-2.5 pt-2">
+              <button
+                onClick={() => setIdx(0)}
+                className="w-full py-3.5 min-h-[52px] rounded-xl font-black text-[15px] text-white active:scale-[0.99] transition-transform"
+                style={{ background: "linear-gradient(135deg,#22c08c,#17805d)" }}
+              >
+                לחזור על {shortCat(cat)} מההתחלה
+              </button>
+
+              {nextCat ? (
+                <button
+                  onClick={() => { setCat(nextCat); setIdx(0); }}
+                  className="w-full py-3.5 min-h-[52px] rounded-xl font-black text-[15px] bg-[#20232b] text-[#eef0f6] active:scale-[0.99] transition-transform"
+                >
+                  להמשיך ל{shortCat(nextCat)} ←
+                </button>
+              ) : (
+                <button
+                  onClick={() => { setCat(null); setIdx(null); }}
+                  className="w-full py-3.5 min-h-[52px] rounded-xl font-black text-[15px] bg-[#20232b] text-[#eef0f6] active:scale-[0.99] transition-transform"
+                >
+                  {flat ? "סיימתם את התפריט — לרשימת הקטגוריות ←" : `סיימתם את ${menu} — לקטגוריות ←`}
+                </button>
+              )}
+
+              <button
+                onClick={() => setIdx(dishes.length - 1)}
+                className="w-full py-2.5 text-[12px] font-bold text-[#8a8aa0]"
+              >
+                חזרה למנה האחרונה
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ---- full-screen dish, with arrows to walk the category ----
   if (idx !== null && dishes[idx]) {
@@ -147,11 +218,10 @@ export default function MenuBrowser({ cards }) {
           </button>
           <button
             onClick={() => setIdx(idx + 1)}
-            disabled={idx === dishes.length - 1}
-            className="flex-1 py-3 min-h-[48px] rounded-xl font-black text-sm text-white disabled:opacity-30 flex items-center justify-center gap-1.5"
+            className="flex-1 py-3 min-h-[48px] rounded-xl font-black text-sm text-white flex items-center justify-center gap-1.5"
             style={{ background: "linear-gradient(135deg,#22c08c,#17805d)" }}
           >
-            הבאה <ChevronLeft size={17} />
+            {idx === dishes.length - 1 ? "סיימתי את הקטגוריה" : <>הבאה <ChevronLeft size={17} /></>}
           </button>
         </div>
         </div>
