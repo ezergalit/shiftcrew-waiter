@@ -985,7 +985,7 @@ export default function MainApp({ session, onSignOut }) {
         )}
         {/* The menu tab is the menu: menu → category → dishes with descriptions. Read
             only, so checking a dish mid-shift never touches the waiter's score. */}
-        {tab === "categories" && <MenuBrowser cards={cards} />}
+        {tab === "categories" && <MenuBrowser cards={cards} onPractice={(c) => startProgressive(c)} />}
 
         {tab === "daily" && (
           <div className="bg-[#16181c] border border-[#8b5cf6]/40 rounded-2xl p-3.5 space-y-2 relative overflow-hidden">
@@ -1027,7 +1027,7 @@ export default function MainApp({ session, onSignOut }) {
                 onClick={() => setGatePractice(true)}
                 className="w-full py-2.5 min-h-[44px] rounded-lg bg-[#22252b] text-[#eef0f6] text-xs font-black"
               >
-                ↻ לעבור שוב על העדכון היומי והשאלות
+                לעבור שוב על העדכון היומי והשאלות
               </button>
             )}
           </div>

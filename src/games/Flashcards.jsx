@@ -87,7 +87,7 @@ export default function Flashcards({ items, session, quick, onRate, onDone }) {
                   ].filter(Boolean).join(" · ")}
                 </p>
               )}
-              <span className="text-xs font-bold text-[#6d5efc] mt-1">הקישו להפוך את הכרטיס ↻</span>
+              <span className="text-xs font-bold text-[#6d5efc] mt-1">הקישו להפוך את הכרטיס</span>
             </button>
 
             {/* back */}

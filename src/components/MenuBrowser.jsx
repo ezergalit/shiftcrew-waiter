@@ -16,7 +16,7 @@ import { shortCat } from "../games/shared";
 //
 // Read-only by design: nothing here scores the waiter, so looking something up during
 // service never affects their progress.
-export default function MenuBrowser({ cards }) {
+export default function MenuBrowser({ cards, onPractice }) {
   const [menu, setMenu] = useState(null);
   const [cat, setCat] = useState(null);
   const [idx, setIdx] = useState(null);   // index into the open category, or null
@@ -51,6 +51,25 @@ export default function MenuBrowser({ cards }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [idx, dishes.length]);
+
+  const Choice = ({ n, onClick, primary, children }) => (
+    <button
+      onClick={onClick}
+      className={`w-full py-3.5 min-h-[52px] rounded-xl font-black text-[15px] flex items-center gap-3 px-4 text-right active:scale-[0.99] transition-transform ${
+        primary ? "text-white" : "bg-[#20232b] text-[#eef0f6]"
+      }`}
+      style={primary ? { background: "linear-gradient(135deg,#22c08c,#17805d)" } : undefined}
+    >
+      <span
+        className={`w-7 h-7 rounded-lg flex items-center justify-center text-[13px] font-black flex-shrink-0 tabular-nums ${
+          primary ? "bg-white/25 text-white" : "bg-[#2c303a] text-[#8a8aa0]"
+        }`}
+      >
+        {n}
+      </span>
+      <span className="flex-1">{children}</span>
+    </button>
+  );
 
   const Crumb = ({ over, title, onBack }) => (
     <div className="flex items-center gap-2.5 mb-1">
@@ -111,29 +130,28 @@ export default function MenuBrowser({ cards }) {
               </p>
             </div>
 
+            {/* Three named choices, numbered so the decision reads as a short list rather
+                than a stack of similar buttons. Third one hands over to the real practice
+                screen — reading the category is what makes a waiter ready to be tested. */}
             <div className="w-full space-y-2.5 pt-2">
-              <button
-                onClick={() => setIdx(0)}
-                className="w-full py-3.5 min-h-[52px] rounded-xl font-black text-[15px] text-white active:scale-[0.99] transition-transform"
-                style={{ background: "linear-gradient(135deg,#22c08c,#17805d)" }}
-              >
-                לחזור על {shortCat(cat)} מההתחלה
-              </button>
+              <Choice n="1" onClick={() => setIdx(0)} primary>
+                לעבור שוב על {shortCat(cat)}
+              </Choice>
 
               {nextCat ? (
-                <button
-                  onClick={() => { setCat(nextCat); setIdx(0); }}
-                  className="w-full py-3.5 min-h-[52px] rounded-xl font-black text-[15px] bg-[#20232b] text-[#eef0f6] active:scale-[0.99] transition-transform"
-                >
-                  להמשיך ל{shortCat(nextCat)} ←
-                </button>
+                <Choice n="2" onClick={() => { setCat(nextCat); setIdx(0); }}>
+                  להמשיך ל{shortCat(nextCat)}
+                </Choice>
               ) : (
-                <button
-                  onClick={() => { setCat(null); setIdx(null); }}
-                  className="w-full py-3.5 min-h-[52px] rounded-xl font-black text-[15px] bg-[#20232b] text-[#eef0f6] active:scale-[0.99] transition-transform"
-                >
-                  {flat ? "סיימתם את התפריט — לרשימת הקטגוריות ←" : `סיימתם את ${menu} — לקטגוריות ←`}
-                </button>
+                <Choice n="2" onClick={() => { setCat(null); setIdx(null); }}>
+                  {flat ? "לחזור לרשימת הקטגוריות" : `סיימתם את ${menu} — לקטגוריות`}
+                </Choice>
+              )}
+
+              {onPractice && (
+                <Choice n="3" onClick={() => { const c = cat; setIdx(null); setCat(null); onPractice(c); }}>
+                  לתרגל {shortCat(cat)} בכרטיסיות
+                </Choice>
               )}
 
               <button
