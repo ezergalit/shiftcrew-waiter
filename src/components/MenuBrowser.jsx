@@ -160,22 +160,22 @@ export default function MenuBrowser({ cards }) {
   // ---- level 3: the dishes of a category, one airy card each ----
   if (cat) {
     return (
-      <div className="space-y-2.5">
+      <div className="space-y-3.5">
         <Crumb over={flat ? null : menu} title={`${categoryVisual(cat).emoji} ${shortCat(cat)}`} onBack={() => setCat(null)} />
-        <p className="text-[11px] text-[#5a5a6e] px-1">{dishes.length} מנות · הקישו על מנה לקריאה מלאה</p>
+        <p className="text-[11.5px] text-[#5a5a6e] px-1">{dishes.length} מנות · הקישו על מנה לקריאה מלאה</p>
         {dishes.map((d, i) => (
           <button
             key={d.id}
             onClick={() => setIdx(i)}
-            className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-4 space-y-2 active:scale-[0.99] transition-transform"
+            className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-5 space-y-2.5 active:scale-[0.99] transition-transform"
           >
             <div className="flex items-baseline gap-3">
-              <p className="flex-1 text-[15px] font-black text-[#eef0f6] leading-snug">{d.name}</p>
+              <p className="flex-1 text-[19px] font-black text-[#eef0f6] leading-snug">{d.name}</p>
               {Number(d.price) > 0 && (
-                <p className="text-sm font-black text-[#22c08c] tabular-nums flex-shrink-0">{Number(d.price)} ₪</p>
+                <p className="text-[17px] font-black text-[#22c08c] tabular-nums flex-shrink-0">{Number(d.price)} ₪</p>
               )}
             </div>
-            {d.desc && <p className="text-[12px] text-[#8a8aa0] leading-relaxed line-clamp-2">{d.desc}</p>}
+            {d.desc && <p className="text-[13.5px] text-[#a4a4b8] leading-[1.75] line-clamp-2">{d.desc}</p>}
             <Tags d={d} />
           </button>
         ))}
@@ -197,7 +197,7 @@ export default function MenuBrowser({ cards }) {
             <button
               key={c}
               onClick={() => setCat(c)}
-              className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-4 flex items-center gap-3.5 active:scale-[0.99] transition-transform"
+              className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-5 flex items-center gap-4 active:scale-[0.99] transition-transform"
             >
               <span
                 className="w-11 h-11 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
@@ -207,8 +207,8 @@ export default function MenuBrowser({ cards }) {
                 {vis.emoji}
               </span>
               <span className="flex-1 min-w-0">
-                <span className="block text-[15px] font-black text-[#eef0f6] line-clamp-1">{shortCat(c)}</span>
-                <span className="block text-[11px] text-[#8a8aa0] mt-1">{n} מנות</span>
+                <span className="block text-[18px] font-black text-[#eef0f6] line-clamp-1">{shortCat(c)}</span>
+                <span className="block text-[12px] text-[#8a8aa0] mt-1.5">{n} מנות</span>
               </span>
               <ChevronLeft size={18} className="text-[#5a5a6e] flex-shrink-0" />
             </button>
@@ -229,10 +229,10 @@ export default function MenuBrowser({ cards }) {
           <button
             key={m}
             onClick={() => setMenu(m)}
-            className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-4 flex items-center gap-3 active:scale-[0.99] transition-transform"
+            className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-5 flex items-center gap-3 active:scale-[0.99] transition-transform"
           >
             <span className="flex-1 min-w-0">
-              <span className="block text-[15px] font-black text-[#eef0f6]">{m}</span>
+              <span className="block text-[18px] font-black text-[#eef0f6]">{m}</span>
               <span className="block text-[11px] text-[#8a8aa0] mt-1">{catCount} קטגוריות · {inG.length} פריטים</span>
             </span>
             <ChevronLeft size={18} className="text-[#5a5a6e] flex-shrink-0" />

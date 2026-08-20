@@ -39,9 +39,9 @@ export default function WelcomeTutorial({ session, onDone }) {
       body: (
         <div className="space-y-2.5">
           {[
-            ["בית", "מסך הפתיחה — העדכון היומי וכל משחקי הלמידה"],
-            ["יומי", "עדכון יומי מהמנהל/ת — מה חסר, מה חדש, מה בתנור"],
-            ["תפריט", "ההתקדמות שלכם לפי קטגוריה — אפשר גם ללחוץ ולתרגל ישר משם"],
+            ["משימות", "מה עליכם היום — ממוספר, וכל משימה פותחת את מה שצריך לעשות"],
+            ["תפריט", "התפריט עצמו: מנות, תיאורים, מרכיבים ואלרגנים — להצצה מהירה בשירות"],
+            ["תרגול ובחינה", "כאן לומדים ונבחנים — כרטיסיות לפי קטגוריה ומבחני התפריט"],
           ].map(([t, d]) => (
             <div key={t} className="flex items-start gap-2">
               <span className="text-sm font-black text-[#6d5efc] w-14 flex-shrink-0">{t}</span>
@@ -57,14 +57,17 @@ export default function WelcomeTutorial({ session, onDone }) {
       body: (
         <div className="space-y-3">
           <div>
-            <p className="text-sm font-black text-[#eef0f6]">כרטיסיות</p>
-            <p className="text-xs text-[#8a8aa0]">לומדים בקצב שלכם, ומדרגים בעצמכם 1-5 כמה ידעתם</p>
+            <p className="text-sm font-black text-[#eef0f6]">קוראים מהתפריט</p>
+            <p className="text-xs text-[#8a8aa0]">כל מנה נפתחת על כל המסך — תיאור, מרכיבים ואזהרות — וחצים מעבירים למנה הבאה, כך שאפשר לעבור על קטגוריה שלמה ברצף</p>
           </div>
           <div>
-            <p className="text-sm font-black text-[#eef0f6]">חידון · התאמה · מהירות · אלרגיות · התאימו תיאור למנה</p>
-            <p className="text-xs text-[#8a8aa0]">משחקים שבודקים אתכם באמת — הציון נקבע לפי תשובה נכונה, לא לפי מה שתגידו על עצמכם</p>
+            <p className="text-sm font-black text-[#eef0f6]">מתרגלים בכרטיסיות</p>
+            <p className="text-xs text-[#8a8aa0]">מדרגים 1-5 כמה ידעתם; מנה שתכירו פעמיים ברצף מסומנת ✓ ויוצאת מהסבב, והבאה נכנסת במקומה</p>
           </div>
-          <p className="text-xs text-[#8a8aa0] pt-1">מנה נחשבת "נלמדה" מציון 4/5 ומעלה — והציון יכול גם לרדת אם תטעו בה בהמשך.</p>
+          <div>
+            <p className="text-sm font-black text-[#eef0f6]">נבחנים</p>
+            <p className="text-xs text-[#8a8aa0]">המבחנים הם שבודקים אתכם באמת — הציון נקבע לפי תשובה נכונה, לא לפי מה שתגידו על עצמכם</p>
+          </div>
         </div>
       ),
     },
@@ -74,7 +77,7 @@ export default function WelcomeTutorial({ session, onDone }) {
       body: (
         <div className="space-y-3">
           <p className="text-sm text-[#c4c4d4] leading-relaxed">
-            המשחקים כאן הם לא המטרה — הם האימון. המטרה היא שתדעו את התפריט
+            התרגול כאן הוא לא המטרה — הוא האימון. המטרה היא שתדעו את התפריט
             באמת: מרכיבים, אלרגיות, ומה עונים לאורח ששואל.
           </p>
           <div className="bg-[#16181c] border border-[#22252b] rounded-xl p-3 space-y-1.5">
@@ -82,7 +85,7 @@ export default function WelcomeTutorial({ session, onDone }) {
             <p className="text-xs text-[#eef0f6] font-bold">🏆 ובסוף — מבחן התפריט המלא, על הכול</p>
             <p className="text-[11px] text-[#8a8aa0]">המנהל/ת רואה את הציונים שלכם — זו התעודה שלכם במסעדה.</p>
           </div>
-          <p className="text-sm text-[#c4c4d4] text-center pt-1">תתחילו מהעדכון היומי בטאב "בית" — בהצלחה!</p>
+          <p className="text-sm text-[#c4c4d4] text-center pt-1">תתחילו מהמשימות של היום — בהצלחה!</p>
         </div>
       ),
     },
