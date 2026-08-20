@@ -61,7 +61,7 @@ export default function MenuBrowser({ cards }) {
   );
 
   const Tags = ({ d, size = "sm" }) => {
-    const cls = size === "lg" ? "text-[11px] px-2.5 py-1" : "text-[9.5px] px-1.5 py-0.5";
+    const cls = size === "lg" ? "text-[13px] px-3 py-1.5" : "text-[11px] px-2 py-1";
     if (!(d.allergens?.length || d.pregnancy?.length || d.pitfalls?.length)) return null;
     return (
       <div className="flex flex-wrap gap-1.5">
@@ -83,7 +83,8 @@ export default function MenuBrowser({ cards }) {
     const d = dishes[idx];
     const vis = categoryVisual(d.category);
     return (
-      <div className="fixed inset-0 z-50 bg-[#0c0d10] flex flex-col" dir="rtl">
+      <div className="fixed inset-0 z-50 bg-[#0c0d10] flex justify-center" dir="rtl">
+        <div className="w-full max-w-md h-full flex flex-col border-x border-[#1a1d23]">
         <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 flex items-center justify-between flex-shrink-0">
           <button onClick={() => setIdx(null)} className="text-[#8a8aa0] flex items-center gap-1 text-xs font-bold" aria-label="סגירה">
             <X size={16} /> סגירה
@@ -101,25 +102,25 @@ export default function MenuBrowser({ cards }) {
               >
                 {vis.emoji}
               </span>
-              <h2 className="text-2xl font-black text-[#eef0f6] leading-tight text-balance">{d.name}</h2>
+              <h2 className="text-[28px] font-black text-[#eef0f6] leading-tight text-balance">{d.name}</h2>
               {Number(d.price) > 0 && (
-                <p className="text-xl font-black text-[#22c08c] tabular-nums">{Number(d.price)} ₪</p>
+                <p className="text-[22px] font-black text-[#22c08c] tabular-nums">{Number(d.price)} ₪</p>
               )}
             </div>
 
             {d.desc && (
               <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
-                <p className="text-[10px] font-black text-[#5a5a6e] tracking-wide mb-2">התיאור</p>
-                <p className="text-[15px] text-[#c4c4d4] leading-[1.85]">{d.desc}</p>
+                <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide mb-2.5">התיאור</p>
+                <p className="text-[17px] text-[#c4c4d4] leading-[1.9]">{d.desc}</p>
               </div>
             )}
 
             {d.ingredients?.length > 0 && (
               <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
-                <p className="text-[10px] font-black text-[#5a5a6e] tracking-wide mb-2">מרכיבים</p>
+                <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide mb-2.5">מרכיבים</p>
                 <div className="flex flex-wrap gap-1.5">
                   {d.ingredients.map((i) => (
-                    <span key={i} className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-[#20232b] text-[#c4c4d4]">{i}</span>
+                    <span key={i} className="text-[13px] font-bold px-3 py-1.5 rounded-lg bg-[#20232b] text-[#c4c4d4]">{i}</span>
                   ))}
                 </div>
               </div>
@@ -127,7 +128,7 @@ export default function MenuBrowser({ cards }) {
 
             {(d.allergens?.length || d.pregnancy?.length || d.pitfalls?.length) > 0 && (
               <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
-                <p className="text-[10px] font-black text-[#5a5a6e] tracking-wide mb-2">מה חשוב לדעת</p>
+                <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide mb-2.5">מה חשוב לדעת</p>
                 <Tags d={d} size="lg" />
               </div>
             )}
@@ -153,6 +154,7 @@ export default function MenuBrowser({ cards }) {
             הבאה <ChevronLeft size={17} />
           </button>
         </div>
+        </div>
       </div>
     );
   }
@@ -170,12 +172,12 @@ export default function MenuBrowser({ cards }) {
             className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-5 space-y-2.5 active:scale-[0.99] transition-transform"
           >
             <div className="flex items-baseline gap-3">
-              <p className="flex-1 text-[19px] font-black text-[#eef0f6] leading-snug">{d.name}</p>
+              <p className="flex-1 text-[22px] font-black text-[#eef0f6] leading-snug">{d.name}</p>
               {Number(d.price) > 0 && (
-                <p className="text-[17px] font-black text-[#22c08c] tabular-nums flex-shrink-0">{Number(d.price)} ₪</p>
+                <p className="text-[19px] font-black text-[#22c08c] tabular-nums flex-shrink-0">{Number(d.price)} ₪</p>
               )}
             </div>
-            {d.desc && <p className="text-[13.5px] text-[#a4a4b8] leading-[1.75] line-clamp-2">{d.desc}</p>}
+            {d.desc && <p className="text-[14.5px] text-[#a4a4b8] leading-[1.75] line-clamp-2">{d.desc}</p>}
             <Tags d={d} />
           </button>
         ))}
