@@ -3,6 +3,7 @@ import { Trophy } from "lucide-react";
 import { buildWeightedDeck } from "../lib/questionEngine";
 import { FEEDBACK_MS } from "./shared";
 import NotEnoughData from "./NotEnoughData";
+import DishReveal from "./DishReveal";
 
 
 // Objective: show the dish name, tap the correct description among 2 distractors.
@@ -23,8 +24,11 @@ export default function NameCompletion({ items, facets, openKeys, onAnswer, onDo
   const [i, setI] = useState(0);
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState(null);
+  // Wrong answer → full dish card (see DishReveal) before the next question.
+  const [reveal, setReveal] = useState(null);
   if (deck.length < 3) return <NotEnoughData what="אתגר" openKeys={openKeys} onDone={onDone} />;
   if (i >= deck.length) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Trophy size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">{score}/{deck.length}</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
+  if (reveal) return <DishReveal item={reveal} onNext={() => { setReveal(null); setI(x => x + 1); }} />;
   const q = deck[i];
   const answer = (opt) => {
     if (picked) return;
@@ -32,7 +36,11 @@ export default function NameCompletion({ items, facets, openKeys, onAnswer, onDo
     const correct = opt === q.correct;
     if (correct) setScore(s => s + 1);
     onAnswer(q.itemId, correct ? 5 : 2);
-    setTimeout(() => { setPicked(null); setI(x => x + 1); }, FEEDBACK_MS);
+    const dish = correct ? null : pool.find(x => x.id === q.itemId);
+    setTimeout(() => {
+      setPicked(null);
+      if (dish) setReveal(dish); else setI(x => x + 1);
+    }, FEEDBACK_MS);
   };
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">

@@ -4,6 +4,7 @@ import { Trophy } from "lucide-react";
 import { buildWeightedDeck } from "../lib/questionEngine";
 import { FEEDBACK_MS } from "./shared";
 import NotEnoughData from "./NotEnoughData";
+import DishReveal from "./DishReveal";
 
 
 // Objective — right/wrong is checkable, so the game grades itself: correct → 5,
@@ -25,6 +26,9 @@ export default function Quiz({ items, facets, openKeys, onAnswer, onDone }) {
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState(null);
   const [streak, setStreak] = useState(0);
+  // After a wrong answer: the full dish card, so the mistake teaches (user request,
+  // 2026-08-20). Holds the dish being studied; null = normal question flow.
+  const [reveal, setReveal] = useState(null);
   const pool = useMemo(() => items || [], [items]);
   // Weighted by what the owner said matters, not a fixed builder list — otherwise the
   // ranking on their settings screen would quietly do nothing here.
@@ -34,6 +38,7 @@ export default function Quiz({ items, facets, openKeys, onAnswer, onDone }) {
   const qs = useMemo(() => buildWeightedDeck(pool, 8, facets), [pool, facetKey]);
   if (qs.length < 3) return <NotEnoughData what="חידון" openKeys={openKeys} onDone={onDone} />;
   if (i >= qs.length) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Trophy size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">{score}/{qs.length}</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
+  if (reveal) return <DishReveal item={reveal} onNext={() => { setReveal(null); setI(x => x + 1); }} />;
   const q = qs[i];
   const next = (opt) => {
     setPicked(opt);
@@ -41,7 +46,11 @@ export default function Quiz({ items, facets, openKeys, onAnswer, onDone }) {
     if (correct) setScore(s => s + 1);
     setStreak((n) => (correct ? n + 1 : 0));
     onAnswer(q.itemId, correct ? 5 : 2);
-    setTimeout(() => { setPicked(null); setI(i + 1); }, FEEDBACK_MS);
+    const dish = correct ? null : pool.find(x => x.id === q.itemId);
+    setTimeout(() => {
+      setPicked(null);
+      if (dish) setReveal(dish); else setI(x => x + 1);
+    }, FEEDBACK_MS);
   };
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10]" dir="rtl">

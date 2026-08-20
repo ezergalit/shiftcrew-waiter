@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Zap } from "lucide-react";
 import { pickDistractors, dishLabel } from "../lib/questionEngine";
 import { shuffle } from "./shared";
+import DishReveal from "./DishReveal";
 
 
 // Objective, faster-paced version of the name→ingredient idea (3 options, 30s overall
@@ -26,16 +27,20 @@ export default function Speed({ items, onAnswer, onDone, onFinish }) {
   const [time, setTime] = useState(SPEED_SECONDS);
   const [picked, setPicked] = useState(null);
   const [streak, setStreak] = useState(0);
+  // Wrong answer → full dish card. The 30s clock pauses while it is on screen —
+  // studying the dish must not eat the round's time.
+  const [reveal, setReveal] = useState(null);
   useEffect(() => {
-    if (time <= 0) return;
+    if (time <= 0 || reveal) return;
     const t = setInterval(() => setTime(x => x - 1), 1000);
     return () => clearInterval(t);
-  }, [time]);
+  }, [time, reveal]);
   const finished = time <= 0 || i >= deck.length;
   // Fires exactly once on the false→true transition (both `time` and `i` only move forward).
   useEffect(() => { if (finished) onFinish?.(correct); }, [finished]);
   if (!deck.length) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>אין מספיק פריטים</p></div>;
   if (finished) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Zap size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">{correct} נכונים!</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
+  if (reveal) return <DishReveal item={reveal} onNext={() => { setReveal(null); setPicked(null); setI(x => x + 1); }} />;
   const q = deck[i];
   const answer = (opt) => {
     setPicked(opt);
@@ -43,7 +48,12 @@ export default function Speed({ items, onAnswer, onDone, onFinish }) {
     if (isCorrect) setCorrect(c => c + 1);
     setStreak((n) => (isCorrect ? n + 1 : 0));
     onAnswer(q.it.id, isCorrect ? 5 : 2);
-    setTimeout(() => { setPicked(null); setI(x => x + 1); }, 350);
+    if (isCorrect) {
+      setTimeout(() => { setPicked(null); setI(x => x + 1); }, 350);
+    } else {
+      // Long enough to see the red highlight, then the study card takes over.
+      setTimeout(() => setReveal(q.it), 700);
+    }
   };
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">

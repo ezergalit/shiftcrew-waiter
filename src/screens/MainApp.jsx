@@ -869,7 +869,7 @@ export default function MainApp({ session, onSignOut }) {
                     className="w-full text-right bg-[#16181c] rounded-lg p-2.5 active:scale-[0.99] transition-transform">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs font-black text-[#eef0f6] flex-1 line-clamp-1">{dishLabel(it)}</p>
-                      {done && <span className="text-[11px] font-black text-[#22c08c] flex-shrink-0">✓ הובנה</span>}
+                      {done && <span className="text-[11px] font-black text-[#22c08c] flex-shrink-0">✓ מכירים</span>}
                     </div>
                     {it.desc && <p className="text-[11px] text-[#8a8aa0] mt-0.5 line-clamp-1">{it.desc}</p>}
                     <div className="h-1 bg-[#22252b] rounded-full overflow-hidden mt-1.5 max-w-[110px]">

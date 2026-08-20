@@ -3,6 +3,7 @@ import { useState, useMemo } from "react";
 import { Trophy } from "lucide-react";
 import { dishLabel } from "../lib/questionEngine";
 import { shuffle, ALLERGENS } from "./shared";
+import DishReveal from "./DishReveal";
 
 export default function AllergenQuiz({ items, onAnswer, onDone }) {
   const deck = useMemo(() => shuffle(items || []).slice(0, 8), [items]);
@@ -11,8 +12,11 @@ export default function AllergenQuiz({ items, onAnswer, onDone }) {
   const [selected, setSelected] = useState(new Set());
   const [submitted, setSubmitted] = useState(false);
   const [streak, setStreak] = useState(0);
+  // Wrong answer → after the verdict screen, the full dish card (see DishReveal).
+  const [reveal, setReveal] = useState(null);
   if (!deck.length) return <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6]"><p>אין פריטים</p></div>;
   if (i >= deck.length) return <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]"><Trophy size={40} className="text-[#f3c14b]" /><p className="font-black text-lg">{score}/{deck.length}</p><button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white">חזור</button></div>;
+  if (reveal) return <DishReveal item={reveal} onNext={() => { setReveal(null); setI(x => x + 1); }} />;
   const it = deck[i];
   const actual = new Set(it.allergens || []);
   const toggle = (a) => { if (submitted) return; setSelected(prev => { const n = new Set(prev); n.has(a) ? n.delete(a) : n.add(a); return n; }); };
@@ -29,7 +33,11 @@ export default function AllergenQuiz({ items, onAnswer, onDone }) {
     onAnswer(it.id, correct ? 5 : 2);
     setSubmitted(true);
     // A wrong answer needs longer on screen than a right one — there is something to read.
-    setTimeout(() => { setSubmitted(false); setSelected(new Set()); setI(x => x + 1); }, correct ? 1400 : 2600);
+    // After the verdict, a wrong answer opens the full dish card instead of advancing.
+    setTimeout(() => {
+      setSubmitted(false); setSelected(new Set());
+      if (correct) setI(x => x + 1); else setReveal(it);
+    }, correct ? 1400 : 2600);
   };
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
