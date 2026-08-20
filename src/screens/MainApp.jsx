@@ -71,7 +71,7 @@ function pubToCard(p) {
   // Four separate warning groups, never merged: "fish" is an allergy, "raw fish" is a
   // pregnancy warning, "coriander" is a preference. A waiter reading one combined list
   // can't tell which one could put a guest in hospital. See src/lib/dishFlags.js.
-  return { id: p.source_item_id, name: p.name, price: Number(p.price), category: p.category, desc: p.description || "", ingredients: ing, allergens: (p.allergens || []).filter(Boolean), pregnancy: (p.pregnancy || []).filter(Boolean), pitfalls: (p.pitfalls || []).filter(Boolean), kashrut: (p.kashrut || []).filter(Boolean), menuPosition: p.menu_position, createdAt: p.created_at, // `starred` is the manager's emphasis toggle (owner app, 2026-08-13); `is_special` is
+  return { id: p.source_item_id, name: p.name, price: Number(p.price), category: p.category, menuGroup: p.menu_group || null, desc: p.description || "", ingredients: ing, allergens: (p.allergens || []).filter(Boolean), pregnancy: (p.pregnancy || []).filter(Boolean), pitfalls: (p.pitfalls || []).filter(Boolean), kashrut: (p.kashrut || []).filter(Boolean), menuPosition: p.menu_position, createdAt: p.created_at, // `starred` is the manager's emphasis toggle (owner app, 2026-08-13); `is_special` is
   // the older flag some seeded dishes still carry. Either one lights the star — reading
   // only the old column silently disconnected the manager's button from the waiter side.
   isSpecial: !!(p.starred || p.is_special) };
@@ -127,6 +127,7 @@ export default function MainApp({ session, onSignOut }) {
   // Menu-tab drill-down (2026-08-19): a tapped category shows its dish list instead of
   // launching a deck, and a tapped dish opens the continuous progressive session.
   const [catView, setCatView] = useState(null); // category key or null
+  const [groupView, setGroupView] = useState(null); // menu (menu_group) key or null
   const [prog, setProg] = useState(null); // { items, label, progress, firstId }
   // Re-running the gate from the daily tab is practice — it never rewrites the ack row.
   const [gatePractice, setGatePractice] = useState(false);
@@ -591,13 +592,26 @@ export default function MainApp({ session, onSignOut }) {
   // any restaurant whose menu was built in the owner app — where categories are free-text
   // Hebrew — got an empty "תפריט" tab, and with no category rows there was no way to reach
   // an exam either. Known keys keep their canonical order; anything else follows in menu order.
-  const cats = (() => {
-    const seen = [...new Set((cards || []).map(x => x.category).filter(Boolean))];
+  // A restaurant has several menus, and categories live inside one (menu_group, 2026-08-20).
+  // Menus are the level above categories in the menu tab, so finding one dish is two taps
+  // instead of scrolling the whole list. A menu with no group set falls back to one bucket,
+  // which is exactly how every restaurant that predates the column keeps working.
+  const menuGroups = (() => {
+    const seen = [...new Set((cards || []).map(x => x.menuGroup).filter(Boolean))];
+    if (!seen.length) return [];
+    const firstPos = (g) => Math.min(...(cards || []).filter(x => x.menuGroup === g).map(x => x.menuPosition ?? 1e9));
+    return seen.sort((a, b) => firstPos(a) - firstPos(b)).map(g => {
+      const items = (cards || []).filter(x => x.menuGroup === g);
+      return { g, items, catCount: new Set(items.map(x => x.category)).size };
+    });
+  })();
+
+  const cats = (() => {    const seen = [...new Set(pool.map(x => x.category).filter(Boolean))];
     const ordered = [
       ...CAT_ORDER.filter(c => seen.includes(c)),
       ...seen.filter(c => !CAT_ORDER.includes(c)),
     ];
-    return ordered.map(c => ({ c, items: (cards || []).filter(x => x.category === c) }))
+    return ordered.map(c => ({ c, items: pool.filter(x => x.category === c) }))
       .filter(g => g.items.length > 0);
   })();
 
@@ -923,7 +937,9 @@ export default function MainApp({ session, onSignOut }) {
             </div>
           );
         })()}
-        {tab === "categories" && !catView && (
+        {/* Menus level: only when the restaurant's menu is actually split into menus.
+            Nothing changes for a restaurant whose dishes carry no menu_group. */}
+        {tab === "categories" && !catView && !groupView && menuGroups.length > 1 && (
           <div className="space-y-2">
             <button
               onClick={() => { setExamCategory({ key: "general", label: "התפריט המלא" }); setMode("general_exam"); }}
@@ -944,7 +960,9 @@ export default function MainApp({ session, onSignOut }) {
               {path.recommended ? ` ממליצים להתחיל ב${shortCat(path.recommended.key)}.` : ""}
               {path.scopedToOpen ? " מבחן שעוברים מוסיף את הקטגוריה לתרגול." : ""}
             </p>
-            {path.categories.map((cat) => {
+            {/* `path.categories` is built from the whole menu — inside a menu, show only
+                that menu's categories, or the header and the list disagree. */}
+            {path.categories.filter((cat) => !groupView || cat.items?.[0]?.menuGroup === groupView).map((cat) => {
               // A category can't be examined on dishes with no ingredients to ask about.
               // Reaching the threshold is the only condition. A category with thin data
               // gets the multiple-choice exam instead of the chip one, but it is never
