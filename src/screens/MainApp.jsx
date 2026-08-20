@@ -5,6 +5,7 @@ import MetricsScreen from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
 import BriefGate, { briefHasContent } from "../components/BriefGate";
 import AppTour from "../components/AppTour";
+import TasksTab, { useShiftTasks } from "../components/TasksTab";
 import { isUnderstood } from "../lib/progressiveSession";
 import ProgressiveFlashcards from "../games/ProgressiveFlashcards";
 import { buildStudySession, nextConsecutiveFives, isRetired, QUICK_SESSION_SIZE } from "../lib/studySession";
@@ -134,6 +135,7 @@ export default function MainApp({ session, onSignOut }) {
   const [groupView, setGroupView] = useState(null); // menu (menu_group) key or null
   const [tourOpen, setTourOpen] = useState(() =>
     !!session?.teamMemberId && localStorage.getItem(`menu-app-apptour-done-${session.teamMemberId}`) !== "1");
+  const { tasks: shiftTasks, doneIds: taskDone, toggle: toggleTask } = useShiftTasks(session);
   const [prog, setProg] = useState(null); // { items, label, progress, firstId }
   // Re-running the gate from the daily tab is practice — it never rewrites the ack row.
   const [gatePractice, setGatePractice] = useState(false);
@@ -643,6 +645,17 @@ export default function MainApp({ session, onSignOut }) {
     ? path.categories.find((c) => c.key === path.recommended.key)
     : path.categories.find((c) => !c.passed) || path.categories[0];
 
+  // The two learning tasks the app closes on the waiter's behalf, from real progress:
+  // reading today's brief, and reaching the owner's daily minute goal. A tick a waiter
+  // can give themselves for studying would measure tapping, not studying.
+  const goalMinutes = examConfig?.daily_goal_minutes || DEFAULT_DAILY_MINUTES;
+  const autoDone = {};
+  for (const t of shiftTasks) {
+    if (t.kind !== "learning") continue;
+    if (t.action === "brief") autoDone[t.id] = briefRead || !hasBrief;
+    else autoDone[t.id] = todaySeconds >= goalMinutes * 60;
+  }
+
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       {/* First-run interactive tour: walks the real screens, one step per tab. Shown once
@@ -684,7 +697,15 @@ export default function MainApp({ session, onSignOut }) {
       {/* Content */}
       <div key={tab} className="flex-1 overflow-y-auto px-4 py-3 animate-fadeIn">
         {tab === "home" && (
-          <div className="space-y-3">
+          <TasksTab
+            session={session}
+            tasks={shiftTasks}
+            doneIds={taskDone}
+            onToggle={toggleTask}
+            auto={autoDone}
+            onOpenBrief={() => setTab("daily")}
+            onOpenLearning={() => (focusCat ? startProgressive(focusCat.key) : (setModeItems(null), setMode("flashcards")))}
+          >
             {/* Picked up where you stopped. Above everything else because it is the one
                 card that expires — dismissing it removes it for good. */}
             {resumeOffer && (
@@ -793,6 +814,13 @@ export default function MainApp({ session, onSignOut }) {
                 </button>
               )}
             </div>
+          </TasksTab>
+        )}
+        {/* Learning tab: the practice grid and overall progress. It used to sit at the
+            bottom of the old home screen, under the cards — which meant the thing the
+            app exists for was the last thing on the page. */}
+        {tab === "learn" && (
+          <div className="space-y-3">
             <div className="bg-[#16181c] rounded-2xl p-3.5">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-black text-[#eef0f6]">תרגול</p>
@@ -1082,9 +1110,11 @@ export default function MainApp({ session, onSignOut }) {
 
 function BottomNav({ tab, setTab, hasDailyUpdate }) {
   const items = [
-    ["home", Home, "בית", false],
-    ["daily", BookOpen, "יומי", hasDailyUpdate],
-    ["categories", BarChart3, "תפריט", false],
+    // Tasks · Menu · Learning (user, 2026-08-20). "בית" was never a place — it was a
+    // pile of cards; the shift checklist is what a waiter actually opens the app for.
+    ["home", ListChecks, "משימות", hasDailyUpdate],
+    ["categories", BookOpen, "תפריט", false],
+    ["learn", GraduationCap, "לימוד", false],
   ];
   return (
     <div
