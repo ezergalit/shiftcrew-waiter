@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Flame, Clock, Trophy, Trash2, Loader2 } from "lucide-react";
+import { colorFor } from "../games/shared";
 import { supabase } from "../lib/supabase";
 import { setSessionToken } from "../lib/appSession";
 
@@ -16,12 +17,6 @@ const db = supabase.schema("menu_app");
 // The owner has their own view of this (ProgressChart in the owner app). This one answers
 // a different question — "how am I doing?" rather than "how is my team doing?" — so it is
 // deliberately not the same component.
-
-const RANGES = [
-  { key: 7, label: "7 ימים" },
-  { key: 30, label: "30 יום" },
-  { key: 365, label: "שנה" },
-];
 
 const fmtHours = (secs) => {
   if (!secs) return "0";
@@ -86,40 +81,10 @@ function Ring({ pct, counts, total }) {
   );
 }
 
-// Bar chart with no chart library — same approach as the owner's ProgressChart. Bars are
-// divs, so an empty range still lays out correctly instead of collapsing.
-function Bars({ data, color, emptyNote }) {
-  const max = Math.max(1, ...data.map((d) => d.value));
-  const total = data.reduce((s, d) => s + d.value, 0);
-  const avg = data.length ? total / data.length : 0;
-  if (!total) return <p className="text-[11px] text-[#8a8aa0] py-6 text-center">{emptyNote}</p>;
-  return (
-    <>
-      <div className="flex items-end justify-between gap-[3px] h-[110px] mb-1.5">
-        {data.map((d, i) => (
-          <div key={i} className="flex-1 flex flex-col justify-end items-center h-full" title={`${d.label}: ${d.value}`}>
-            <div
-              className="w-full rounded-t-sm min-h-[2px] transition-all"
-              style={{ height: `${(d.value / max) * 100}%`, background: d.value ? `linear-gradient(180deg, ${color}, ${color}88)` : "#22252b" }}
-            />
-          </div>
-        ))}
-      </div>
-      <div className="flex justify-between text-[9px] text-[#8a8aa0] font-bold">
-        {data.map((d, i) => (
-          <span key={i} className="flex-1 text-center truncate">{d.showLabel ? d.label : ""}</span>
-        ))}
-      </div>
-      <p className="text-[10px] font-bold mt-2 text-center" style={{ color }}>ממוצע: {avg.toFixed(1)}</p>
-    </>
-  );
-}
-
-export default function MetricsScreen({ session, cards, masteryById, onDone }) {
+export default function MetricsScreen({ session, cards, masteryById, weekly = [], leaderboard = [], onDone }) {
   const [snaps, setSnaps] = useState(null);
   const [member, setMember] = useState(null);
   const [streak, setStreak] = useState(0);
-  const [range, setRange] = useState(7);
 
   useEffect(() => {
     let alive = true;
@@ -159,38 +124,6 @@ export default function MetricsScreen({ session, cards, masteryById, onDone }) {
     return { pct, mastered, touched, counts, total: list.length, totalSeconds, estLeft };
   }, [cards, masteryById, member]);
 
-  const series = useMemo(() => {
-    const days = [];
-    const now = new Date();
-    const n = range === 365 ? 52 : range; // a year is bucketed by week, not by day
-    for (let i = n - 1; i >= 0; i--) {
-      const d = new Date(now);
-      if (range === 365) d.setDate(d.getDate() - i * 7);
-      else d.setDate(d.getDate() - i);
-      days.push(d);
-    }
-    const bucket = (d) => (range === 365
-      ? `w${Math.floor((now - d) / (7 * 86400000))}`
-      : dayKey(d));
-    const mins = new Map(), pts = new Map();
-    for (const s of snaps || []) {
-      const d = new Date(s.taken_at);
-      const k = bucket(d);
-      mins.set(k, (mins.get(k) || 0) + Math.round((s.seconds_delta || 0) / 60));
-      pts.set(k, (pts.get(k) || 0) + (s.points || 0));
-    }
-    const label = (d) => (range === 7
-      ? ["א", "ב", "ג", "ד", "ה", "ו", "ש"][d.getDay()]
-      : `${d.getDate()}/${d.getMonth() + 1}`);
-    const every = range === 7 ? 1 : range === 30 ? 5 : 8;
-    return days.map((d, i) => ({
-      label: label(d),
-      showLabel: i % every === 0,
-      minutes: mins.get(bucket(d)) || 0,
-      points: pts.get(bucket(d)) || 0,
-    }));
-  }, [snaps, range]);
-
   const record = useMemo(
     () => recordStreak((snaps || []).map((s) => dayKey(s.taken_at))),
     [snaps]
@@ -199,7 +132,7 @@ export default function MetricsScreen({ session, cards, masteryById, onDone }) {
   // Each card carries its own accent so the screen reads as sections at a glance rather
   // than one long grey column.
   const Card = ({ title, accent = "#6d5efc", children }) => (
-    <div className="bg-[#16181c] rounded-xl p-4 border border-[#22252b] relative overflow-hidden">
+    <div className="bg-[#16181c] rounded-2xl p-4 border border-[#22252b] relative overflow-hidden">
       <span className="absolute top-0 right-0 h-full w-[3px]" style={{ background: accent }} />
       <p className="text-xs font-black mb-3" style={{ color: accent }}>{title}</p>
       {children}
@@ -263,40 +196,11 @@ export default function MetricsScreen({ session, cards, masteryById, onDone }) {
           <div className="flex">
             <Stat label="מנות שלמדתם" value={stats.touched} color="#4aa8ff" />
             <Stat label="מנות שנשלטו" value={stats.mastered} color="#22c08c" />
-            <Stat label="זמן לימוד" value={fmtHours(stats.totalSeconds)} color="#f3c14b" />
           </div>
         </Card>
 
-        <p className="text-[11px] font-black text-[#f3c14b] pt-1">התמדה</p>
-        <div className="flex gap-1.5">
-          {RANGES.map((r) => (
-            <button
-              key={r.key}
-              onClick={() => setRange(r.key)}
-              className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${
-                range === r.key
-                  ? "bg-[#6d5efc] text-white border-[#6d5efc]"
-                  : "bg-[#16181c] text-[#8a8aa0] border-[#3a3d47]"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-
-        <Card title="דקות לימוד ליום" accent="#6d5efc">
-          {snaps === null
-            ? <p className="text-[11px] text-[#8a8aa0] py-6 text-center">טוען…</p>
-            : <Bars data={series.map((d) => ({ ...d, value: d.minutes }))} color="#6d5efc"
-                    emptyNote="עוד לא נרשם זמן לימוד בטווח הזה" />}
-        </Card>
-
-        <Card title="נקודות ליום" accent="#22c08c">
-          {snaps === null
-            ? <p className="text-[11px] text-[#8a8aa0] py-6 text-center">טוען…</p>
-            : <Bars data={series.map((d) => ({ ...d, value: d.points }))} color="#22c08c"
-                    emptyNote="עוד לא נצברו נקודות בטווח הזה" />}
-        </Card>
+        <p className="text-[11px] font-black text-[#f3c14b] pt-1">הדירוג בצוות</p>
+        <Board session={session} weekly={weekly} leaderboard={leaderboard} />
 
         <Card title="רצפים" accent="#f3c14b">
           <div className="flex">
@@ -325,6 +229,71 @@ export default function MetricsScreen({ session, cards, masteryById, onDone }) {
         )}
 
         {!session?.offline && <DeleteProfile />}
+      </div>
+    </div>
+  );
+}
+
+// The team leaderboard, moved here from its own bottom-nav tab (user request, 2026-08-20):
+// ranking matters, but not enough for prime navigation — it lives "hidden" behind the
+// stats button now. Same rules as before: weekly is the default (a lifetime total means
+// whoever started first wins forever), all-time behind a toggle.
+function Board({ session, weekly, leaderboard }) {
+  const [scope, setScope] = useState("week");
+  const weeklyRows = weekly.map((w) => {
+    const all = leaderboard.find((r) => r.team_member_id === w.team_member_id);
+    return { ...w, mastered_count: all?.mastered_count ?? 0, streak: all?.streak ?? 0 };
+  });
+  const rows = scope === "week" ? weeklyRows : leaderboard;
+  const myRank = rows.findIndex((r) => r.team_member_id === session?.teamMemberId) + 1;
+
+  return (
+    <div className="space-y-2">
+      {myRank > 0 && (
+        <div className="bg-[#16181c] border border-[#f3c14b]/40 rounded-xl p-3 text-center">
+          <p className="text-base font-black text-[#f3c14b]">אתם במקום {myRank}!</p>
+          <p className="text-[11px] text-[#8a8aa0] font-bold mt-0.5">
+            {scope === "week" ? "בדירוג של השבוע" : "בדירוג כל הזמנים"}
+          </p>
+        </div>
+      )}
+      <div className="flex gap-1.5">
+        {[{ k: "week", label: "השבוע" }, { k: "all", label: "כל הזמנים" }].map((o) => (
+          <button
+            key={o.k}
+            onClick={() => setScope(o.k)}
+            className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${
+              scope === o.k
+                ? "bg-[#6d5efc] text-white border-[#6d5efc]"
+                : "bg-[#16181c] text-[#8a8aa0] border-[#22252b]"
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      {scope === "week" && (
+        <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">
+          הניקוד מתאפס בכל יום ראשון — כל שבוע מתחיל מחדש, וגם מי שהצטרף אתמול יכול לנצח.
+        </p>
+      )}
+      <div className="bg-[#16181c] rounded-2xl overflow-hidden">
+        {rows.length === 0 && (
+          <p className="text-xs text-[#8a8aa0] p-4 text-center">
+            {scope === "week" ? "עוד לא נצברו נקודות השבוע — אתם יכולים להיות ראשונים" : "עדיין אין נתונים — התחילו ללמוד!"}
+          </p>
+        )}
+        {rows.slice(0, 10).map((r, i) => (
+          <div key={r.team_member_id} className={`flex items-center gap-2 px-3 py-2 ${i > 0 ? "border-t border-[#22252b]" : ""}`}>
+            <span className="text-xs font-black w-5" style={{ color: ["#f3c14b", "#c7ccd6", "#cd8b5b"][i] || "#8a8aa0" }}>{i + 1}</span>
+            <span className="w-6 h-6 rounded-full text-[9px] font-black flex items-center justify-center text-white flex-shrink-0" style={{ background: colorFor(r.name) }}>{r.name[0]}</span>
+            <div className="flex-1">
+              <p className={`text-xs font-bold ${r.team_member_id === session?.teamMemberId ? "text-[#6d5efc]" : "text-[#eef0f6]"}`}>{r.name}{r.team_member_id === session?.teamMemberId ? " (אני)" : ""}</p>
+              <p className="text-[11px] text-[#8a8aa0] flex items-center gap-1">{r.mastered_count} נלמדו{r.streak > 1 && <span className="flex items-center gap-0.5"><Flame size={9} className="text-[#ff7a59]" />{r.streak}</span>}</p>
+            </div>
+            <p className="text-xs font-black text-[#6d5efc]">{r.points}</p>
+          </div>
+        ))}
       </div>
     </div>
   );

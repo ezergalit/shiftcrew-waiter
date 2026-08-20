@@ -19,8 +19,9 @@ import { shortCat, shuffle, ALLERGENS } from "./shared";
 export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, onFinish }) {
   const deck = useMemo(() => {
     const pool = (items || []).filter((it) => it.ingredients?.length > 0);
+    // 2026-08-20 (user request): exams are long now — up to 12 dishes instead of 4.
     return shuffle(pool)
-      .slice(0, 4)
+      .slice(0, 12)
       .map((it) => {
         const real = it.ingredients || [];
         const isReal = (x) => real.some((r) => r.trim() === x.trim());
@@ -47,7 +48,8 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
 
   // A real exam is timed. Each dish here is two multi-selects (ingredients + allergens),
   // heavier than a single multiple-choice, so it gets more room than the intake exam's 12s.
-  const SECONDS_PER_DISH = 45;
+  // 25s/dish (was 45) — tightened 2026-08-20 by user request to make exams harder.
+  const SECONDS_PER_DISH = 25;
   const [secondsLeft, setSecondsLeft] = useState(0);
   const started = deck.length >= 2;
   useEffect(() => {

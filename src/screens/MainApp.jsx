@@ -1,8 +1,11 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { Trophy, BookOpen, Zap, BarChart3, Home, LogOut, Flame, WifiOff, Target, Sparkles, Check, ChevronLeft, AlertTriangle, ListChecks, GraduationCap, Star, Repeat } from "lucide-react";
+import { BookOpen, BarChart3, Home, LogOut, WifiOff, Check, ChevronRight, ListChecks, GraduationCap, Repeat, Layers, HelpCircle, Puzzle, Zap, ShieldAlert, FileText } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import MetricsScreen from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
+import BriefGate, { briefHasContent } from "../components/BriefGate";
+import { isUnderstood } from "../lib/progressiveSession";
+import ProgressiveFlashcards from "../games/ProgressiveFlashcards";
 import { buildStudySession, nextConsecutiveFives, isRetired, QUICK_SESSION_SIZE } from "../lib/studySession";
 import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
 import { pickDistractors, buildWeightedDeck, availableFacets, dishLabel, withDisplayNames } from "../lib/questionEngine";
@@ -45,8 +48,19 @@ const MODE_LABELS = {
   allergens: "לימוד האלרגיות",
   namecomplete: "התאמת תיאור",
   exam: "מבחן קטגוריה",
+  progressive: "תרגול לפי התפריט",
 };
 const DAILY_BONUS = 50;
+
+// One icon per practice mode (the grid on the home screen). Kept beside MODE_LABELS —
+// both are projections of the same mode registry.
+const GAME_ICONS = {
+  quiz: HelpCircle,
+  match: Puzzle,
+  speed: Zap,
+  allergens: ShieldAlert,
+  namecomplete: FileText,
+};
 
 function pubToCard(p) {
   const ing = (p.ingredients || []).filter(Boolean);
@@ -98,7 +112,6 @@ export default function MainApp({ session, onSignOut }) {
   // of how many dishes are mastered right now, while "earned this week" is a running sum
   // of events that no amount of current state can reconstruct.
   const [weekly, setWeekly] = useState([]);
-  const [boardScope, setBoardScope] = useState("week");
   const [brief, setBrief] = useState(null);
   const [briefAck, setBriefAck] = useState(null);
   const [mode, setMode] = useState(null);
@@ -109,6 +122,12 @@ export default function MainApp({ session, onSignOut }) {
   // Store the category key (e.g. "starters") for the DB record, and its Hebrew label for
   // display — the exam_results row keys off the former so it stays stable if labels change.
   const [examCategory, setExamCategory] = useState(null); // { key, label }
+  // Menu-tab drill-down (2026-08-19): a tapped category shows its dish list instead of
+  // launching a deck, and a tapped dish opens the continuous progressive session.
+  const [catView, setCatView] = useState(null); // category key or null
+  const [prog, setProg] = useState(null); // { items, label, progress, firstId }
+  // Re-running the gate from the daily tab is practice — it never rewrites the ack row.
+  const [gatePractice, setGatePractice] = useState(false);
   // The staged path: what the owner configured, and which category exams this member has
   // already passed. Both feed learningPath.pathState, which derives every unlock.
   const [examConfig, setExamConfig] = useState(null);
@@ -116,6 +135,8 @@ export default function MainApp({ session, onSignOut }) {
   // useStudyTime so the ring moves while the waiter studies instead of jumping every two
   // minutes when a flush lands.
   const [todaySeconds, setTodaySeconds] = useState(0);
+  // Minutes studied since Sunday — feeds the personal greeting ("השבוע למדת X דקות").
+  const [weekSeconds, setWeekSeconds] = useState(0);
   const [passedCats, setPassedCats] = useState([]);
   const [daily, setDaily] = useState(() => loadDaily(session?.teamMemberId));
   const [bonusTotal, setBonusTotal] = useState(() => loadNum("menu-app-bonus", session?.teamMemberId));
@@ -128,11 +149,26 @@ export default function MainApp({ session, onSignOut }) {
     setModeItems(null);
   };
 
+  // Continuous practice from the menu tab: category scope (or the whole menu), optionally
+  // opening on one specific dish. The progress snapshot seeds the session; from there the
+  // component keeps its own live copy so each pick sees the rating just given.
+  const startProgressive = (catKey, firstId = null) => {
+    const items = catKey ? (cards || []).filter((c) => c.category === catKey) : (cards || []);
+    if (!items.length) return;
+    const progress = {};
+    for (const it of items) progress[it.id] = { mastery: masteryById?.[it.id] ?? null, consecutiveFives: fivesById?.[it.id] || 0 };
+    setProg({ items, label: catKey ? shortCat(catKey) : "התפריט", progress, firstId, catKey });
+    setMode("progressive");
+  };
+
   // Remember the current round so closing the app mid-way can be picked up later. Category
   // rounds store the category so the same scope comes back, not a fresh full-menu deck.
   useEffect(() => {
     if (!session?.teamMemberId) return;
-    if (!mode) return;
+    // Progressive sessions are excluded from resume: they are picked one card at a time
+    // from live progress, so there is no fixed deck to come back to — reopening the list
+    // and tapping again rebuilds the exact same state.
+    if (!mode || mode === "progressive") return;
     saveResume(session.teamMemberId, {
       mode,
       categoryKey: modeItems?.length ? modeItems[0]?.category ?? null : null,
@@ -211,14 +247,23 @@ export default function MainApp({ session, onSignOut }) {
       }
       const { data: l } = await db.from("leaderboard").select("*").eq("restaurant_id", session?.restaurantId).order("points", { ascending: false });
       if (alive) setLeaderboard(l || []);
+      // Weekly was only ever fetched after a scoring event or a realtime ping, so a
+      // fresh load showed an empty weekly board even when points existed for this week.
+      void refetchWeekly();
       const { data: cfg } = await db.from("exam_config").select("*").eq("restaurant_id", session?.restaurantId).maybeSingle();
       if (alive) setExamConfig(cfg || {});
-      // Everything already recorded for today, so the goal survives a refresh.
+      // Everything already recorded, so the numbers survive a refresh. One fetch since
+      // Sunday serves both sums: the whole range is the week, today's rows are the day.
       const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-      const { data: todaySnaps } = await db.from("progress_snapshots")
-        .select("seconds_delta").eq("team_member_id", session?.teamMemberId)
-        .gte("taken_at", dayStart.toISOString());
-      if (alive) setTodaySeconds((todaySnaps || []).reduce((n, r) => n + (r.seconds_delta || 0), 0));
+      const wkStart = new Date(dayStart); wkStart.setDate(wkStart.getDate() - wkStart.getDay());
+      const { data: weekSnaps } = await db.from("progress_snapshots")
+        .select("seconds_delta, taken_at").eq("team_member_id", session?.teamMemberId)
+        .gte("taken_at", wkStart.toISOString());
+      if (alive) {
+        setWeekSeconds((weekSnaps || []).reduce((n, r) => n + (r.seconds_delta || 0), 0));
+        setTodaySeconds((weekSnaps || []).filter((r) => new Date(r.taken_at) >= dayStart)
+          .reduce((n, r) => n + (r.seconds_delta || 0), 0));
+      }
       const { data: exams } = await db.from("exam_results")
         .select("category").eq("team_member_id", session?.teamMemberId).eq("passed", true);
       if (alive) setPassedCats([...new Set((exams || []).map(r => r.category))]);
@@ -458,9 +503,27 @@ export default function MainApp({ session, onSignOut }) {
     );
   }, [cards, masteryById]);
 
+  // עדכון יומי של המסעדה — the daily-brief gate. First entry of the day (per waiter, per
+  // the daily_brief_reads row) blocks everything until the brief's questions are answered.
+  // Requires the menu to be loaded (distractors come from it); never shown offline, and
+  // never shown when today's brief has no content at all.
+  if (!session?.offline && cards?.length > 0 && brief !== null && briefHasContent(brief) && !briefAck?.read_at)
+    return <BriefGate brief={brief} cards={cards} session={session} onPassed={setBriefAck} />;
+  if (gatePractice)
+    return <BriefGate brief={brief} cards={cards} session={session} practice onClose={() => setGatePractice(false)} />;
+
   // Full-screen, above the tabs: it is a place you go to, not a tab you live in.
   if (showMetrics)
-    return <MetricsScreen session={session} cards={cards} masteryById={masteryById} onDone={() => setShowMetrics(false)} />;
+    return <MetricsScreen session={session} cards={cards} masteryById={masteryById} weekly={weekly} leaderboard={leaderboard} onDone={() => setShowMetrics(false)} />;
+
+  if (mode === "progressive" && prog)
+    return <ProgressiveFlashcards items={prog.items} label={prog.label} firstId={prog.firstId} initialProgress={prog.progress}
+      onExam={prog.catKey ? () => {
+        setExamCategory({ key: prog.catKey, label: catLabel(prog.catKey) });
+        setModeItems(prog.items);
+        setMode("exam");
+      } : null}
+      onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={() => { setMode(null); setProg(null); }} />;
 
   if (mode === "flashcards") return <Flashcards items={studySession.deck} session={studySession} onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
   if (mode === "quick") return <Flashcards items={quickSession.deck} session={quickSession} quick onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
@@ -476,6 +539,20 @@ export default function MainApp({ session, onSignOut }) {
   // When either of those isn't true, the category still has to be passable — otherwise the
   // whole path deadlocks behind a button that can never be pressed — so it falls back to a
   // multiple-choice exam built from the owner's own facets.
+  // The whole-menu exam (user request, 2026-08-20): ~40 timed questions across every
+  // category, sized by the owner (exam_config.general_exam_questions). This is the goal
+  // the tutorial points at — everything else in the app is training for this.
+  if (mode === "general_exam") {
+    return <QuizExam
+      items={cards}
+      facets={gameFacets}
+      categoryLabel="התפריט המלא"
+      deckSize={examConfig?.general_exam_questions || 40}
+      onAnswer={learnItem}
+      onDone={exitMode}
+      onFinish={recordExam}
+    />;
+  }
   if (mode === "exam") {
     const examItems = modeItems || cards;
     const label = examCategory ? shortCat(examCategory.key) : "התפריט";
@@ -503,7 +580,6 @@ export default function MainApp({ session, onSignOut }) {
   const myRank = (weekly.length
     ? weekly.findIndex(r => r.team_member_id === session?.teamMemberId)
     : leaderboard.findIndex(r => r.team_member_id === session?.teamMemberId)) + 1;
-  const myStreak = leaderboard.find(r => r.team_member_id === session?.teamMemberId)?.streak || 0;
   // Derived from the menu itself, not a fixed list. Hardcoding the four English keys meant
   // any restaurant whose menu was built in the owner app — where categories are free-text
   // Hebrew — got an empty "תפריט" tab, and with no category rows there was no way to reach
@@ -518,163 +594,31 @@ export default function MainApp({ session, onSignOut }) {
       .filter(g => g.items.length > 0);
   })();
 
-  // The daily goal, in minutes, set by the owner.
-  const goalMinutes = examConfig?.daily_goal_minutes || DEFAULT_DAILY_MINUTES;
-  const studiedMinutes = Math.floor(todaySeconds / 60);
-  const goalPct = Math.min(100, Math.round((todaySeconds / (goalMinutes * 60)) * 100));
-  const goalMet = studiedMinutes >= goalMinutes;
-
-  const dailyDone = daily.count >= DAILY_TARGET;
-  // A challenge whose game is still locked shows what it takes to open it instead of a
-  // button that would launch a mode the path hasn't reached.
-  // Every mode is open now (see learningPath.js) — these stay only so the challenge cards
-  // keep one shape, and they never withhold anything.
-  const gameLock = (mode) => path.games.find((g) => g.mode === mode);
-  const lockedNote = () => null;
-  const gatedAction = (mode, label) => ({ label, onClick: () => { setModeItems(null); setMode(mode); } });
-  const challenges = cards ? [
-    // Drops off the list once it is done for the day. A finished challenge with no action
-    // left is just a spent row at the top of the page; the bonus was already awarded and
-    // announced, and it comes back on its own tomorrow.
-    goalMet ? null : {
-      id: "daily-minutes", icon: Target, color: "#f3a712", title: "היעד היומי",
-      desc: `${goalMinutes} דקות לימוד היום — נשארו ${Math.max(0, goalMinutes - studiedMinutes)}`,
-      progress: Math.min(studiedMinutes, goalMinutes), target: goalMinutes, done: false,
-      action: { label: "להתחיל ללמוד", onClick: () => { setModeItems(null); setMode("quick"); } },
-    },
-    // Game launchers used to live here too (allergen study, description match). They
-    // duplicated the practice grid, and the duplication is what made "challenges" hard to
-    // read — this tab now holds only things with a state to beat: a goal, a record, a
-    // streak, full mastery. The games moved to the practice grid, all in one place.
-    {
-      // No action button — this one is a status card, so the whole card is the target and
-      // it opens the menu itself, where the remaining dishes actually are.
-      id: "full", icon: Trophy, color: "#22c08c", title: "שליטה מלאה בתפריט",
-      desc: "למדו את כל המנות בתפריט", progress: mastered.size, target: cards.length,
-      done: cards.length > 0 && mastered.size >= cards.length, action: null,
-      onCardClick: () => setTab("categories"),
-    },
-    {
-      id: "speed", icon: Zap, color: "#ff7a59", title: "שיא מהירות",
-      desc: lockedNote("speed") || (bestSpeed > 0 ? `השיא שלכם: ${bestSpeed} תשובות נכונות ב-30 שניות` : "ענו נכון על כמה שיותר מנות תוך 30 שניות"),
-      progress: null, target: null, done: false,
-      action: gatedAction("speed", bestSpeed > 0 ? "נסו לשבור את השיא" : "התחילו אתגר מהירות"),
-    },
-    {
-      id: "streak", icon: Flame, color: "#e0315a", title: "רצף למידה",
-      desc: myStreak > 0 ? `${myStreak} ימים ברצף — כל הכבוד!` : "תרגלו יום אחרי יום כדי לפתוח רצף",
-      progress: Math.min(myStreak, 3), target: 3, done: myStreak >= 3, action: null,
-    },
-  ].filter(Boolean) : [];
-
-  // Home-page carousel — exactly three slides, by request: today's briefing, what is new
-  // to learn, and the study round to do next. Everything else that used to live here (the
-  // daily challenge, team leaders, game teasers) already has its own place further down
-  // the home screen or in the challenges tab; repeating it up here was noise, and it
-  // buried the three things that actually matter before a shift.
-  // Slides 2 and 3 always render a card — never a gap — so the count stays at three.
-  // Dishes started but not yet solid — the fallback for slide 2 on a menu with nothing new.
-  const reviewDishes = (cards || [])
-    .filter((c) => { const m = masteryById?.[c.id] || 0; return m > 0 && m < 4; })
-    .sort((a, b) => (masteryById?.[a.id] || 0) - (masteryById?.[b.id] || 0));
-
-  // Group new dishes by category so slide 2 reads like a manager's question ("have you
-  // learned the new cocktail menu?") instead of a list of dish names.
-  const newByCat = newDishes.reduce((acc, d) => {
-    const c = shortCat(d.category) || "התפריט";
-    (acc[c] = acc[c] || []).push(d);
-    return acc;
-  }, {});
-  const biggestNewCat = Object.entries(newByCat).sort((a, b) => b[1].length - a[1].length)[0];
-
   const briefItems = [
     ...(brief?.missing_items || []).map((x) => `חסר: ${x}`),
     ...(brief?.new_items || []).map((x) => `חדש: ${x}`),
     ...(brief?.oven_items || []).map((x) => `מוגבל: ${x}`),
   ];
   const hasBrief = briefItems.length > 0 || !!brief?.notes;
+  const briefRead = !!briefAck?.read_at;
 
-  // The three lead slides, in this order, by request: today's briefing, then what is new
-  // to learn, then whether the waiter is ready to move up. Everything after them is the
-  // pre-existing hype (team leaders, game modes) and only shows when it applies.
-  const promos = cards ? [
-    {
-      id: "brief", gradient: "linear-gradient(135deg,#e8a33d,#c2410c)", icon: ListChecks,
-      kicker: "עדכון יומי",
-      title: hasBrief
-        ? (briefItems[0] || "יש הודעה מהמנהל")
-        : "אין כרגע עדכון יומי",
-      subtitle: hasBrief
-        ? (briefItems.length > 1
-            ? `${countLabel(briefItems.slice(1), "עדכון נוסף", "עדכונים נוספים")}${brief?.notes ? " + הודעה מהמנהל" : ""}`
-            : (brief?.notes || "לפני שמתחילים את המשמרת"))
-        : "אבל תמיד כדאי לחזור על התפריט — בואו נלמד",
-      cta: hasBrief ? "לעדכון המלא" : "ללמידה",
-      onClick: hasBrief
-        ? () => setTab("daily")
-        : () => { setModeItems(null); setMode("quick"); },
-    },
-    // Slide 2 always exists: new dishes if there are any, otherwise what needs review.
-    newDishes.length > 0 ? {
-      id: "new-dishes", gradient: "linear-gradient(135deg,#8b5cf6,#6d28d9)", icon: Sparkles,
-      kicker: "מנות חדשות ללמידה",
-      title: biggestNewCat && biggestNewCat[1].length >= 3
-        ? `כבר למדת את תפריט ${biggestNewCat[0]} החדש?`
-        : newDishes.length === 1
-          ? `נוספה מנה חדשה: ${dishLabel(newDishes[0])}`
-          : `נוספו ${newDishes.length} מנות חדשות לתפריט`,
-      subtitle: `${newDishes.length} מנות שעוד לא למדת`,
-      cta: "ללמוד עכשיו",
-      onClick: () => { setModeItems(newDishes); setMode("flashcards"); },
-    } : reviewDishes.length > 0 ? {
-      id: "review", gradient: "linear-gradient(135deg,#8b5cf6,#6d28d9)", icon: Sparkles,
-      kicker: "מנות ללמידה",
-      title: "אין מנות חדשות — זמן לחזק את מה שיש",
-      subtitle: `${reviewDishes.length} מנות עוד לא נעולות על 5/5`,
-      cta: "לחזרה",
-      onClick: () => { setModeItems(reviewDishes.slice(0, 10)); setMode("flashcards"); },
-    } : {
-      id: "all-known", gradient: "linear-gradient(135deg,#8b5cf6,#6d28d9)", icon: Sparkles,
-      kicker: "מנות ללמידה",
-      title: "כל התפריט בשליטה מלאה 🎉",
-      subtitle: "תרגול חוזר שומר על הרמה לפני משמרת",
-      cta: "לתרגול",
-      onClick: () => { setModeItems(null); setMode("flashcards"); },
-    },
-    // Slide 3: where the staged path says this waiter stands. Like slide 2 it never
-    // disappears — with every category already passed there is still something to do,
-    // and an empty third slot would leave the carousel with two.
-    path.nextStep ? {
-      id: "next-stage", gradient: "linear-gradient(135deg,#14b8a6,#0d7f74)", icon: GraduationCap,
-      kicker: path.nextStep.kind === "exam" ? "מוכנים לשלב הבא" : "השלב הנוכחי שלכם",
-      title: path.nextStep.kind === "exam"
-        ? `מבחן ${shortCat(path.nextStep.category)}`
-        : `לימוד ${shortCat(path.nextStep.category)}`,
-      subtitle: path.nextStep.kind === "exam"
-        ? "עברתם את הסף — אפשר להיבחן ולפתוח את הקטגוריה הבאה"
-        : `${Math.round(path.nextStep.pct || 0)}% מתוך ${path.nextStep.threshold}% שנדרשים כדי להיבחן`,
-      cta: path.nextStep.kind === "exam" ? "למבחן" : "להמשיך ללמוד",
-      onClick: () => {
-        const cat = path.categories.find((c) => c.key === path.nextStep.category);
-        if (!cat) return;
-        if (path.nextStep.kind === "exam") { setExamCategory({ key: cat.key, label: catLabel(cat.key) }); setMode("exam"); }
-        else { setModeItems(cat.items); setMode("flashcards"); }
-      },
-    } : {
-      id: "study-round", gradient: "linear-gradient(135deg,#14b8a6,#0d7f74)", icon: GraduationCap,
-      kicker: "לימוד מנות",
-      title: "סבב לימוד מותאם אליכם",
-      subtitle: "המנות שהכי כדאי לחזור עליהן, לפי איך שהצלחתם בפעם הקודמת",
-      cta: "לסבב לימוד",
-      onClick: () => { setModeItems(null); setMode("flashcards"); },
-    },
-  ].filter(Boolean) : [];
+  // Home layout follows the user's 2026-08-20 sketch: a personal greeting bubble up top
+  // (manager-to-team voice, with this waiter's own week), then the daily update and the
+  // next category to learn as two cards side by side, then the untouched practice block.
+  // Same palette as everywhere else — the sketch changed the layout, not the colours.
+  const firstName = (session?.name || "").split(" ")[0];
+  const weekMinutes = Math.floor(weekSeconds / 60);
+  // The category the greeting cards steer toward: the path's recommendation, or the
+  // weakest not-yet-passed category as a fallback so the card never goes blank.
+  const focusCat = path.recommended
+    ? path.categories.find((c) => c.key === path.recommended.key)
+    : path.categories.find((c) => !c.passed) || path.categories[0];
 
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       {/* Header */}
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 flex items-center justify-between flex-shrink-0">
-        <button onClick={onSignOut} className="w-8 h-8 rounded-lg bg-[#191b1f] flex items-center justify-center text-[#8a8aa0]"><LogOut size={16} /></button>
+        <SignOutButton onSignOut={onSignOut} />
         <div className="text-center">
           <p className="text-sm font-black">{session?.name}</p>
           {session?.restaurantName && <p className="text-[11px] text-[#8a8aa0] font-semibold">{session.restaurantName}</p>}
@@ -698,7 +642,7 @@ export default function MainApp({ session, onSignOut }) {
       )}
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-4 py-3">
+      <div key={tab} className="flex-1 overflow-y-auto px-4 py-3 animate-fadeIn">
         {tab === "home" && (
           <div className="space-y-3">
             {/* Picked up where you stopped. Above everything else because it is the one
@@ -735,60 +679,104 @@ export default function MainApp({ session, onSignOut }) {
               </div>
             )}
 
-            {/* THE hero: one card, one action, one number. The quick round is what a
-                waiter actually has time for before service, and the ring is today's goal
-                — so starting the round and seeing where you stand are the same glance.
-                Everything else on this screen is secondary to this card. */}
-            <button
-              onClick={() => { setModeItems(null); setMode("quick"); }}
-              className="w-full rounded-2xl p-5 text-right flex items-center gap-4 bg-gradient-to-l from-[#1b3a36] via-[#16241f] to-[#16181c] border border-[#22c08c]/60 active:scale-[0.99] transition-transform"
-            >
-              <div className="relative w-[64px] h-[64px] flex-shrink-0">
-                <svg viewBox="0 0 64 64" className="w-[64px] h-[64px] -rotate-90">
-                  <circle cx="32" cy="32" r="27" fill="none" stroke="#22252b" strokeWidth="7" />
-                  <circle
-                    cx="32" cy="32" r="27" fill="none"
-                    stroke={goalMet ? "#22c08c" : "#f3a712"} strokeWidth="7" strokeLinecap="round"
-                    strokeDasharray={`${(goalPct / 100) * 2 * Math.PI * 27} ${2 * Math.PI * 27}`}
-                  />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-sm font-black"
-                      style={{ color: goalMet ? "#22c08c" : "#eef0f6" }}>
-                  {goalMet ? "✓" : `${goalPct}%`}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-base font-black text-[#eef0f6] flex items-center gap-1.5">
-                  <Zap size={16} className="text-[#22c08c]" /> 5 דקות לפני משמרת
+            {/* Personal greeting bubble — the manager's voice opening the shift (user's
+                sketch, 2026-08-20). The waiter's own week + the manager's note, if any. */}
+            <div className="rounded-2xl p-4 relative overflow-hidden text-[#EEF0F6]"
+                 style={{ background: "linear-gradient(135deg,#0F5C46,#0a3d2f)" }}>
+              <p className="text-base font-black">שלום {firstName || "לך"} 👋</p>
+              <p className="text-xs font-bold text-[#EEF0F6]/80 mt-1">
+                {newDishes.length > 0
+                  ? `נשאר לך ללמוד ${newDishes.length === 1 ? "מנה חדשה אחת" : `${newDishes.length} מנות חדשות`} בתפריט 🍽️`
+                  : weekMinutes === 1 ? "השבוע למדת דקה אחת 💪" : weekMinutes > 0 ? `השבוע למדת ${weekMinutes} דקות 💪` : "שבוע חדש — זמן טוב להתחיל ללמוד 💪"}
+                {myRank > 0 && <span className="text-[#f3c14b] font-black"> · מקום #{myRank}</span>}
+              </p>
+              {newDishes.length > 0 && (
+                <button
+                  onClick={() => { setModeItems(newDishes); setMode("flashcards"); }}
+                  className="mt-2 text-[11px] font-black text-[#0F5C46] bg-[#EEF0F6] rounded-lg px-3 py-1.5 min-h-[36px] active:scale-[0.98] transition-transform"
+                >
+                  ללמידת המנות החדשות ←
+                </button>
+              )}
+            </div>
+
+            {/* The daily update and the next thing to learn, side by side — the two
+                answers to "מה לפני המשמרת?": what changed today, and what to study. */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setTab("daily")}
+                className="rounded-2xl p-3 text-right text-white active:scale-[0.98] transition-transform flex flex-col"
+                style={{ background: "linear-gradient(135deg,#8b5cf6,#6d28d9)" }}
+              >
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <ListChecks size={13} />
+                  <p className="text-[11px] font-black opacity-90">העדכון היומי</p>
+                </div>
+                <p className="text-lg font-black">
+                  {!hasBrief ? "—" : briefRead ? "✓" : "0/1"}
                 </p>
-                <p className="text-xs font-bold text-[#8a8aa0] mt-0.5">
-                  {quickSession.deck.length} מנות — מה שסומן, מה שחדש, ומה שחלש
+                <p className="text-[11px] font-bold opacity-90 mt-0.5">
+                  {!hasBrief ? "אין עדכון היום" : briefRead ? "קראתם כבר היום" : "טרם נקרא"}
                 </p>
-                <p className="text-xs font-bold mt-1" style={{ color: goalMet ? "#22c08c" : "#f3a712" }}>
-                  {goalMet ? "השלמתם את היעד היומי 🎉" : `${studiedMinutes}/${goalMinutes} דקות מהיעד היומי`}
+                <p className="text-[11px] font-black mt-1.5" style={{ color: briefRead ? "#22c08c" : "#f3c14b" }}>
+                  {briefRead ? "לחזרה ←" : "לקריאה ←"}
                 </p>
-              </div>
-              <ChevronLeft size={18} className="text-[#22c08c] flex-shrink-0" />
-            </button>
-            <PromoCarousel items={promos} />
-            <div className="bg-[#16181c] rounded-xl p-3">
+              </button>
+              {focusCat ? (
+                <button
+                  onClick={() => startProgressive(focusCat.key)}
+                  className="rounded-2xl p-3 text-right text-white active:scale-[0.98] transition-transform flex flex-col"
+                  style={{ background: "linear-gradient(135deg,#22c08c,#0F5C46)" }}
+                >
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <GraduationCap size={13} />
+                    <p className="text-[11px] font-black opacity-90 line-clamp-1">למידת {shortCat(focusCat.key)}</p>
+                  </div>
+                  <p className="text-lg font-black">{focusCat.pct}%</p>
+                  <div className="h-1 bg-white/25 rounded-full overflow-hidden mt-1 mb-0.5">
+                    <div className="h-full bg-white" style={{ width: `${focusCat.pct}%` }} />
+                  </div>
+                  <p className="text-[11px] font-black mt-auto pt-1"><span className="bg-white/20 rounded-lg px-2 py-1 inline-block">ללמידה ←</span></p>
+                </button>
+              ) : (
+                <button
+                  onClick={() => { setModeItems(null); setMode("flashcards"); }}
+                  className="rounded-2xl p-3 text-right text-white active:scale-[0.98] transition-transform"
+                  style={{ background: "linear-gradient(135deg,#22c08c,#0F5C46)" }}
+                >
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <GraduationCap size={13} />
+                    <p className="text-[11px] font-black opacity-90">סבב לימוד</p>
+                  </div>
+                  <p className="text-lg font-black">{pct}%</p>
+                  <p className="text-[11px] font-black mt-1.5 bg-white/20 rounded-lg px-2 py-1 inline-block">ללמידה ←</p>
+                </button>
+              )}
+            </div>
+            <div className="bg-[#16181c] rounded-2xl p-3.5">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-black text-[#eef0f6]">תרגול</p>
                 <p className="text-xs font-bold text-[#8a8aa0]">{pct}% · {mastered.size}/{cards?.length || 0} נלמדו</p>
               </div>
               <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mb-3">
-                <div className="h-full bg-[#6d5efc] transition-all" style={{ width: `${pct}%` }} />
+                <div className="h-full bg-[#22c08c] transition-all" style={{ width: `${pct}%` }} />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={() => { setModeItems(null); setMode("flashcards"); }}
-                  className="bg-[#6d5efc] text-white font-bold text-xs py-2.5 rounded-lg">כרטיסיות</button>
-                {path.games.map((g) => (
-                  <button key={g.mode}
-                    onClick={() => { setModeItems(null); setMode(g.mode); }}
-                    className="font-bold text-xs py-2.5 rounded-lg flex items-center justify-center gap-1 bg-[#22252b] text-[#eef0f6]">
-                    {g.label}
-                  </button>
-                ))}
+                  className="text-white font-bold text-xs min-h-[44px] rounded-xl flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform"
+                  style={{ background: "linear-gradient(135deg,#22c08c,#17805d)" }}>
+                  <Layers size={14} /> כרטיסיות
+                </button>
+                {path.games.map((g) => {
+                  const GameIcon = GAME_ICONS[g.mode] || HelpCircle;
+                  return (
+                    <button key={g.mode}
+                      onClick={() => { setModeItems(null); setMode(g.mode); }}
+                      className="font-bold text-xs min-h-[44px] rounded-xl flex items-center justify-center gap-1.5 bg-[#22252b] text-[#eef0f6] active:scale-[0.98] transition-transform">
+                      <GameIcon size={14} className="text-[#8a8aa0]" /> {g.label}
+                    </button>
+                  );
+                })}
               </div>
               {/* Nothing is locked, so the note explains SCOPE instead: practice draws
                   from the categories already passed, and passing another widens it. */}
@@ -800,19 +788,12 @@ export default function MainApp({ session, onSignOut }) {
                 </p>
               )}
             </div>
-
-            {/* The old preview here still counted 3 dishes — the goal moved to minutes
-                and lives in the hero ring, so this is now just the door to the tab. */}
-            <button onClick={() => setTab("challenges")} className="w-full bg-[#16181c] border border-[#22252b] rounded-xl px-4 py-3 min-h-[48px] flex items-center gap-2.5 text-right active:scale-[0.99] transition-transform">
-              <Sparkles size={15} className="text-[#f3a712] flex-shrink-0" />
-              <p className="flex-1 text-sm font-bold text-[#eef0f6]">האתגרים והשיאים שלכם</p>
-              <ChevronLeft size={15} className="text-[#8a8aa0] flex-shrink-0" />
-            </button>
           </div>
         )}
         {tab === "daily" && (
-          <div className="bg-[#16181c] rounded-lg p-3 space-y-2">
-            <p className="text-xs font-bold text-[#8a8aa0] mb-2">עדכון המנהל</p>
+          <div className="bg-[#16181c] border border-[#8b5cf6]/40 rounded-2xl p-3.5 space-y-2 relative overflow-hidden">
+            <span className="absolute top-0 right-0 h-full w-[3px]" style={{ background: "linear-gradient(180deg,#8b5cf6,#6d28d9)" }} />
+            <p className="text-xs font-black text-[#a79bff] mb-2">עדכון יומי של המסעדה</p>
             {brief?.missing_items?.length > 0 && <div><span className="text-[10px] font-bold text-[#f3c14b]">❌ חסרים:</span><p className="text-xs text-[#f3c14b] mt-0.5">{brief.missing_items.join(", ")}</p></div>}
             {brief?.new_items?.length > 0 && <div><span className="text-[10px] font-bold text-[#22c08c]">⭐ חדש:</span><p className="text-xs text-[#22c08c] mt-0.5">{brief.new_items.join(", ")}</p></div>}
             {brief?.oven_items?.length > 0 && <div><span className="text-[10px] font-bold text-[#6d5efc]">📦 מעלה:</span><p className="text-xs text-[#6d5efc] mt-0.5">{brief.oven_items.join(", ")}</p></div>}
@@ -842,64 +823,79 @@ export default function MainApp({ session, onSignOut }) {
                 />
               </div>
             )}
+            {/* Re-run the gate as practice — reading is already recorded, so this never
+                touches the ack row; it exists for a waiter who wants to drill the brief. */}
+            {!session?.offline && briefAck?.read_at && briefHasContent(brief) && (
+              <button
+                onClick={() => setGatePractice(true)}
+                className="w-full py-2.5 min-h-[44px] rounded-lg bg-[#22252b] text-[#eef0f6] text-xs font-black"
+              >
+                ↻ לעבור שוב על העדכון היומי והשאלות
+              </button>
+            )}
           </div>
         )}
-        {tab === "leaderboard" && (() => {
-          // Weekly is the default view: a lifetime total means whoever started first wins
-          // forever, and a waiter who joined on Sunday can never catch up. All-time is
-          // kept behind a toggle because the total is still something people are proud of.
-          const weeklyRows = weekly.map((w) => {
-            const all = leaderboard.find((r) => r.team_member_id === w.team_member_id);
-            return { ...w, mastered_count: all?.mastered_count ?? 0, streak: all?.streak ?? 0 };
-          });
-          const rows = boardScope === "week" ? weeklyRows : leaderboard;
+                {tab === "categories" && catView && (() => {
+          // Drill-down (2026-08-19): the category's dishes, one by one, under "לתרגול X:".
+          // Tapping a dish opens it as the first card of a progressive session; the big
+          // button starts the same session without choosing an opener.
+          const items = (cards || []).filter((c) => c.category === catView);
           return (
             <div className="space-y-2">
-              <div className="flex gap-1.5">
-                {[{ k: "week", label: "השבוע" }, { k: "all", label: "כל הזמנים" }].map((o) => (
-                  <button
-                    key={o.k}
-                    onClick={() => setBoardScope(o.k)}
-                    className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${
-                      boardScope === o.k
-                        ? "bg-[#6d5efc] text-white border-[#6d5efc]"
-                        : "bg-[#16181c] text-[#8a8aa0] border-[#22252b]"
-                    }`}
-                  >
-                    {o.label}
-                  </button>
-                ))}
+              {/* Back sits top-right (user request, 2026-08-20) — in RTL that is the
+                  "backwards" side, and a real button reads better than a text link. */}
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={() => setCatView(null)}
+                  title="חזרה לכל הקטגוריות"
+                  className="w-10 h-10 rounded-xl bg-[#191b1f] border border-[#22252b] flex items-center justify-center text-[#eef0f6] flex-shrink-0 active:scale-95 transition-transform"
+                >
+                  <ChevronRight size={19} />
+                </button>
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-[#eef0f6]">לתרגול {shortCat(catView)}:</p>
+                  <p className="text-[11px] text-[#8a8aa0]">הקישו על מנה ללימוד ממוקד, או התחילו תרגול מלא</p>
+                </div>
               </div>
-
-              {boardScope === "week" && (
-                <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">
-                  הניקוד מתאפס בכל יום ראשון — כל שבוע מתחיל מחדש, וגם מי שהצטרף אתמול יכול לנצח.
-                </p>
-              )}
-
-              <div className="bg-[#16181c] rounded-lg overflow-hidden">
-                {rows.length === 0 && (
-                  <p className="text-xs text-[#8a8aa0] p-4 text-center">
-                    {boardScope === "week" ? "עוד לא נצברו נקודות השבוע — אתם יכולים להיות ראשונים" : "עדיין אין נתונים — התחילו ללמוד!"}
-                  </p>
-                )}
-                {rows.slice(0, 10).map((r, i) => (
-                  <div key={r.team_member_id} className={`flex items-center gap-2 px-3 py-2 ${i > 0 ? "border-t border-[#22252b]" : ""}`}>
-                    <span className="text-xs font-black w-5" style={{ color: ["#f3c14b", "#c7ccd6", "#cd8b5b"][i] || "#8a8aa0" }}>{i + 1}</span>
-                    <span className="w-6 h-6 rounded-full text-[9px] font-black flex items-center justify-center text-white flex-shrink-0" style={{ background: colorFor(r.name) }}>{r.name[0]}</span>
-                    <div className="flex-1">
-                      <p className={`text-xs font-bold ${r.team_member_id === session?.teamMemberId ? "text-[#6d5efc]" : "text-[#eef0f6]"}`}>{r.name}{r.team_member_id === session?.teamMemberId ? " (אני)" : ""}</p>
-                      <p className="text-[11px] text-[#8a8aa0] flex items-center gap-1">{r.mastered_count} נלמדו{r.streak > 1 && <span className="flex items-center gap-0.5"><Flame size={9} className="text-[#ff7a59]" />{r.streak}</span>}</p>
+              <button onClick={() => startProgressive(catView)}
+                className="w-full py-3 min-h-[48px] rounded-xl bg-[#6d5efc] text-white text-sm font-black active:scale-[0.99] transition-transform">
+                תרגול {shortCat(catView)}
+              </button>
+              {items.map((it) => {
+                const m = masteryById?.[it.id] || 0;
+                const done = isUnderstood(fivesById?.[it.id]);
+                return (
+                  <button key={it.id} onClick={() => startProgressive(catView, it.id)}
+                    className="w-full text-right bg-[#16181c] rounded-lg p-2.5 active:scale-[0.99] transition-transform">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-black text-[#eef0f6] flex-1 line-clamp-1">{dishLabel(it)}</p>
+                      {done && <span className="text-[11px] font-black text-[#22c08c] flex-shrink-0">✓ הובנה</span>}
                     </div>
-                    <p className="text-xs font-black text-[#6d5efc]">{r.points}</p>
-                  </div>
-                ))}
-              </div>
+                    {it.desc && <p className="text-[11px] text-[#8a8aa0] mt-0.5 line-clamp-1">{it.desc}</p>}
+                    <div className="h-1 bg-[#22252b] rounded-full overflow-hidden mt-1.5 max-w-[110px]">
+                      <div className="h-full" style={{ width: `${done ? 100 : m * 20}%`, background: done ? "#22c08c" : "#6d5efc" }} />
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           );
         })()}
-        {tab === "categories" && (
+        {tab === "categories" && !catView && (
           <div className="space-y-2">
+            <button
+              onClick={() => { setExamCategory({ key: "general", label: "התפריט המלא" }); setMode("general_exam"); }}
+              className="w-full rounded-2xl p-3.5 text-right text-white active:scale-[0.99] transition-transform flex items-center gap-3"
+              style={{ background: "linear-gradient(135deg,#14b8a6,#0d7f74)" }}
+            >
+              <GraduationCap size={20} className="flex-shrink-0" />
+              <span className="flex-1">
+                <span className="block text-sm font-black">מבחן התפריט המלא</span>
+                <span className="block text-[11px] font-bold opacity-90">
+                  {examConfig?.general_exam_questions || 40} שאלות על כל התפריט, עם שעון — זו המטרה הסופית
+                </span>
+              </span>
+            </button>
             <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">
               {/* No order is imposed any more — say so, and steer without blocking. */}
               כל הקטגוריות פתוחות — אפשר להתחיל מאיפה שרוצים.
@@ -913,9 +909,9 @@ export default function MainApp({ session, onSignOut }) {
               // unpassable — a locked graduation would stall every category behind it.
               const examReady = cat.examUnlocked;
               return (
-                <div key={cat.key} className="rounded-lg p-2.5 bg-[#16181c]">
+                <div key={cat.key} className="rounded-2xl p-3 bg-[#16181c]">
                   <button
-                    onClick={() => { setModeItems(cat.items); setMode("flashcards"); }}
+                    onClick={() => setCatView(cat.key)}
                     className="w-full text-right active:scale-[0.99] transition-transform"
                   >
                     <div className="flex items-start justify-between gap-2 mb-1.5">
@@ -960,63 +956,18 @@ export default function MainApp({ session, onSignOut }) {
             })}
           </div>
         )}
-        {tab === "challenges" && (
-          <div className="space-y-2">
-            {challenges.map(ch => {
-              // A card with a destination becomes the button itself; the rest stay static.
-              const Tag = ch.onCardClick ? "button" : "div";
-              return (
-              <Tag
-                key={ch.id}
-                onClick={ch.onCardClick}
-                className={`bg-[#16181c] rounded-lg p-3 block w-full text-right ${ch.onCardClick ? "cursor-pointer active:bg-[#191b1f]" : ""}`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${ch.color}22` }}>
-                    <ch.icon size={16} style={{ color: ch.color }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs font-black text-[#eef0f6]">{ch.title}</p>
-                      {ch.done && <Check size={14} className="text-[#22c08c] flex-shrink-0" />}
-                    </div>
-                    <p className="text-[11px] text-[#8a8aa0] mt-0.5">{ch.desc}</p>
-                  </div>
-                </div>
-                {ch.target != null && (
-                  <div className="mt-2">
-                    <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden">
-                      <div className="h-full" style={{ width: `${Math.min(100, (ch.progress / ch.target) * 100)}%`, background: ch.color }} />
-                    </div>
-                    <p className="text-[11px] text-[#8a8aa0] mt-1">{ch.progress}/{ch.target}</p>
-                  </div>
-                )}
-                {ch.action && !ch.done && (
-                  <button onClick={ch.action.onClick} className="w-full mt-2 py-2 rounded-lg text-[11px] font-bold text-white" style={{ background: ch.color }}>{ch.action.label}</button>
-                )}
-                {ch.onCardClick && (
-                  <p className="text-[10px] font-bold mt-2" style={{ color: ch.color }}>לצפייה בתפריט ←</p>
-                )}
-              </Tag>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              </div>
 
       <BottomNav tab={tab} setTab={setTab}
-        hasDailyUpdate={!!(brief?.missing_items?.length || brief?.new_items?.length || brief?.oven_items?.length)}
-        hasChallenge={!dailyDone} />
+        hasDailyUpdate={!!(brief?.missing_items?.length || brief?.new_items?.length || brief?.oven_items?.length)} />
     </div>
   );
 }
 
-function BottomNav({ tab, setTab, hasDailyUpdate, hasChallenge }) {
+function BottomNav({ tab, setTab, hasDailyUpdate }) {
   const items = [
     ["home", Home, "בית", false],
-    ["challenges", Target, "אתגרים", hasChallenge],
     ["daily", BookOpen, "יומי", hasDailyUpdate],
-    ["leaderboard", Trophy, "דירוג", false],
     ["categories", BarChart3, "תפריט", false],
   ];
   return (
@@ -1043,58 +994,56 @@ function BottomNav({ tab, setTab, hasDailyUpdate, hasChallenge }) {
   );
 }
 
-// "Ad"-style promo carousel: one full-width slide at a time, auto-advances, swipeable,
-// dot indicators. Each slide hypes up something real (daily challenge, a teammate's
-// streak, the points leader) or teases a game mode — tapping jumps straight into it.
-function PromoCarousel({ items }) {
-  const [index, setIndex] = useState(0);
-  const touchStartX = useRef(null);
+// Sign-out with a confirmation and a 5-second cool-off (user request, 2026-08-20):
+// tapping the header icon opens a confirmation whose "התנתקות" button stays LOCKED for
+// five counted-down seconds — only after the timer runs out can it be pressed. Nothing
+// disconnects on its own; cancel is available the whole time.
+function SignOutButton({ onSignOut }) {
+  const [open, setOpen] = useState(false);
+  const [secs, setSecs] = useState(5);
 
   useEffect(() => {
-    if (items.length < 2) return;
-    const t = setInterval(() => setIndex(i => (i + 1) % items.length), 4500);
-    return () => clearInterval(t);
-  }, [items.length]);
+    if (!open || secs <= 0) return;
+    const t = setTimeout(() => setSecs((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [open, secs]);
 
-  const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
-  const onTouchEnd = (e) => {
-    if (touchStartX.current == null) return;
-    const dx = e.changedTouches[0].clientX - touchStartX.current;
-    touchStartX.current = null;
-    if (Math.abs(dx) < 40) return;
-    setIndex(i => dx < 0 ? (i + 1) % items.length : (i - 1 + items.length) % items.length);
-  };
-
-  if (!items.length) return null;
-  const p = items[Math.min(index, items.length - 1)];
   return (
-    <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+    <>
       <button
-        key={p.id} onClick={p.onClick}
-        className="animate-fadeIn w-full text-right rounded-2xl p-4 text-white flex flex-col justify-between min-h-[112px]"
-        style={{ background: p.gradient }}
+        onClick={() => { setSecs(5); setOpen(true); }}
+        title="התנתקות"
+        className="w-8 h-8 rounded-lg bg-[#191b1f] flex items-center justify-center text-[#8a8aa0]"
       >
-        <div className="flex items-center gap-1.5">
-          <p.icon size={13} />
-          <span className="text-[10px] font-black opacity-90">{p.kicker}</span>
-        </div>
-        <div>
-          <p className="text-base font-black leading-tight mb-1">{p.title}</p>
-          <p className="text-xs opacity-90 mb-2.5">{p.subtitle}</p>
-          <span className="inline-flex items-center gap-1 bg-white/20 rounded-lg px-3 py-1.5 text-xs font-bold">
-            {p.cta} <ChevronLeft size={12} />
-          </span>
-        </div>
+        <LogOut size={16} />
       </button>
-      {items.length > 1 && (
-        <div className="flex items-center justify-center gap-1.5 mt-2">
-          {items.map((_, i) => (
-            <button key={i} onClick={() => setIndex(i)} className="p-1" aria-label={`שקופית ${i + 1}`}>
-              <span className="block rounded-full transition-all duration-300" style={{ width: i === index ? 16 : 6, height: 6, background: i === index ? "#eef0f6" : "#3a3d45" }} />
-            </button>
-          ))}
+      {open && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center px-6" dir="rtl">
+          <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-5 w-full max-w-xs text-center space-y-3">
+            <p className="text-sm font-black text-[#eef0f6]">להתנתק מהחשבון?</p>
+            <p className="text-[11px] text-[#8a8aa0] leading-relaxed">
+              ההתקדמות שלכם שמורה — בכניסה הבאה פשוט מזינים שוב את הקוד והשם.
+            </p>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setOpen(false)}
+                className="flex-1 py-2.5 min-h-[44px] rounded-xl bg-[#22252b] text-[#eef0f6] text-xs font-black"
+              >
+                ביטול
+              </button>
+              <button
+                onClick={onSignOut}
+                disabled={secs > 0}
+                className={`flex-1 py-2.5 min-h-[44px] rounded-xl text-xs font-black transition-colors ${
+                  secs > 0 ? "bg-[#1c1e22] text-[#5a5a6e]" : "bg-[#e0315a] text-white"
+                }`}
+              >
+                {secs > 0 ? `התנתקות (${secs})` : "התנתקות מהחשבון"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

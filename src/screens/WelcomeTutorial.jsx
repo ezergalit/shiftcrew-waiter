@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, Home, Target, Sparkles, Utensils } from "lucide-react";
+import { ChevronRight, Home, Target, GraduationCap, Utensils } from "lucide-react";
 
 // Shown once, right after a brand-new team member is created (see TeamLogin.jsx's
 // `showTutorial` flag — not shown when we just matched someone back to an existing
@@ -39,10 +39,8 @@ export default function WelcomeTutorial({ session, onDone }) {
       body: (
         <div className="space-y-2.5">
           {[
-            ["בית", "מסך הפתיחה — אתגר יומי, מה קורה בצוות, וקיצורים למשחקים"],
-            ["אתגרים", "כל משחקי הלמידה במקום אחד"],
+            ["בית", "מסך הפתיחה — העדכון היומי וכל משחקי הלמידה"],
             ["יומי", "עדכון יומי מהמנהל/ת — מה חסר, מה חדש, מה בתנור"],
-            ["דירוג", "טבלת הצוות לפי נקודות"],
             ["תפריט", "ההתקדמות שלכם לפי קטגוריה — אפשר גם ללחוץ ולתרגל ישר משם"],
           ].map(([t, d]) => (
             <div key={t} className="flex items-start gap-2">
@@ -71,9 +69,22 @@ export default function WelcomeTutorial({ session, onDone }) {
       ),
     },
     {
-      icon: Sparkles,
-      title: "בואו נתחיל!",
-      body: <p className="text-sm text-[#c4c4d4] text-center">תתחילו מהאתגר היומי בטאב "בית" ותצברו נקודות. בהצלחה!</p>,
+      icon: GraduationCap,
+      title: "המטרה: לעבור את מבחן התפריט",
+      body: (
+        <div className="space-y-3">
+          <p className="text-sm text-[#c4c4d4] leading-relaxed">
+            המשחקים כאן הם לא המטרה — הם האימון. המטרה היא שתדעו את התפריט
+            באמת: מרכיבים, אלרגיות, ומה עונים לאורח ששואל.
+          </p>
+          <div className="bg-[#16181c] border border-[#22252b] rounded-xl p-3 space-y-1.5">
+            <p className="text-xs text-[#eef0f6] font-bold">🎓 כל קטגוריה מסתיימת במבחן עם שעון</p>
+            <p className="text-xs text-[#eef0f6] font-bold">🏆 ובסוף — מבחן התפריט המלא, על הכול</p>
+            <p className="text-[11px] text-[#8a8aa0]">המנהל/ת רואה את הציונים שלכם — זו התעודה שלכם במסעדה.</p>
+          </div>
+          <p className="text-sm text-[#c4c4d4] text-center pt-1">תתחילו מהעדכון היומי בטאב "בית" — בהצלחה!</p>
+        </div>
+      ),
     },
   ];
 

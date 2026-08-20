@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { GraduationCap } from "lucide-react";
+import { GraduationCap, Timer } from "lucide-react";
 import { buildWeightedDeck } from "../lib/questionEngine";
 import { FEEDBACK_MS } from "./shared";
 
@@ -8,13 +8,22 @@ import { FEEDBACK_MS } from "./shared";
 // lists, or an owner who ranked ingredients and allergens out of their programme. Same
 // pass mark and the same onFinish contract as CategoryExam, so the path treats them
 // identically — what differs is only which knowledge is being checked.
-export default function QuizExam({ items, facets, categoryLabel, onAnswer, onDone, onFinish }) {
+//
+// 2026-08-20 (user request): exams got harder — long decks (20 questions per category,
+// 40 for the whole-menu exam via deckSize) and a short per-question clock. Running out
+// of time on a question counts as a wrong answer and moves on; an exam you can sit on
+// forever measures patience, not knowledge.
+const DEFAULT_DECK_SIZE = 20;
+const SECONDS_PER_QUESTION = 12;
+
+export default function QuizExam({ items, facets, categoryLabel, deckSize = DEFAULT_DECK_SIZE, onAnswer, onDone, onFinish }) {
   const pool = useMemo(() => items || [], [items]);
   const facetKey = (facets || []).join(",");
-  const deck = useMemo(() => buildWeightedDeck(pool, 8, facets), [pool, facetKey]);
+  const deck = useMemo(() => buildWeightedDeck(pool, deckSize, facets), [pool, facetKey, deckSize]);
   const [i, setI] = useState(0);
   const [picked, setPicked] = useState(null);
   const [correctCount, setCorrectCount] = useState(0);
+  const [secs, setSecs] = useState(SECONDS_PER_QUESTION);
   const reportedRef = useRef(false);
 
   const finished = deck.length > 0 && i >= deck.length;
@@ -29,6 +38,23 @@ export default function QuizExam({ items, facets, categoryLabel, onAnswer, onDon
       onFinish?.({ score, passed, dishCount: deck.length });
     }
   }, [finished, score, passed, deck.length]);
+
+  // Per-question countdown. Freezes during the feedback flash (picked != null) and
+  // resets on every new question; hitting zero is answered as wrong on the waiter's
+  // behalf — the clock is part of the exam.
+  useEffect(() => { setSecs(SECONDS_PER_QUESTION); }, [i]);
+  useEffect(() => {
+    if (finished || picked || deck.length < 3) return;
+    if (secs <= 0) {
+      const q = deck[i];
+      setPicked("__timeout__");
+      onAnswer(q.itemId, 2);
+      setTimeout(() => { setPicked(null); setI((x) => x + 1); }, FEEDBACK_MS);
+      return;
+    }
+    const t = setTimeout(() => setSecs((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [secs, picked, finished, i, deck]);
 
   if (deck.length < 3) return (
     <div className="h-screen flex flex-col items-center justify-center gap-3 px-8 text-center bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
@@ -45,6 +71,7 @@ export default function QuizExam({ items, facets, categoryLabel, onAnswer, onDon
       </div>
       <p className="text-4xl font-black" style={{ color: passed ? "#22c08c" : "#e0315a" }}>{score}%</p>
       <p className="text-sm font-bold">{passed ? "עברת! אתה מכיר את הקטגוריה הזו טוב." : "עוד לא עברת — תרגלו את הקטגוריה ותנסו שוב."}</p>
+      <p className="text-xs text-[#8a8aa0]">{correctCount}/{deck.length} תשובות נכונות</p>
       <button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white text-xs font-bold mt-2">חזרה</button>
     </div>
   );
@@ -64,7 +91,12 @@ export default function QuizExam({ items, facets, categoryLabel, onAnswer, onDon
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-2.5 flex items-center justify-between flex-shrink-0">
         <button onClick={onDone} className="text-xs text-[#8a8aa0]">← יציאה</button>
         <p className="text-xs font-bold">מבחן {categoryLabel}</p>
-        <p className="text-xs font-bold text-[#8a8aa0]">{i + 1}/{deck.length}</p>
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-black flex items-center gap-1 ${secs <= 4 ? "text-[#e0315a]" : "text-[#f3c14b]"}`}>
+            <Timer size={12} />{picked ? "•" : secs}
+          </span>
+          <p className="text-xs font-bold text-[#8a8aa0]">{i + 1}/{deck.length}</p>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto px-4 py-3">
         {/* Question dominant, subject secondary — mirrors Quiz.jsx. */}
@@ -87,6 +119,9 @@ export default function QuizExam({ items, facets, categoryLabel, onAnswer, onDon
             );
           })}
         </div>
+        {picked === "__timeout__" && (
+          <p className="text-[11px] font-black text-[#e0315a] text-center mt-2">נגמר הזמן — נספר כטעות</p>
+        )}
       </div>
     </div>
   );
