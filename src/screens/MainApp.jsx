@@ -606,7 +606,9 @@ export default function MainApp({ session, onSignOut }) {
     });
   })();
 
-  const cats = (() => {    const seen = [...new Set(pool.map(x => x.category).filter(Boolean))];
+  const cats = (() => {
+    const pool = groupView ? (cards || []).filter(x => x.menuGroup === groupView) : (cards || []);
+    const seen = [...new Set(pool.map(x => x.category).filter(Boolean))];
     const ordered = [
       ...CAT_ORDER.filter(c => seen.includes(c)),
       ...seen.filter(c => !CAT_ORDER.includes(c)),
