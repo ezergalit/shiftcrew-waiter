@@ -117,6 +117,8 @@ export default function MainApp({ session, onSignOut }) {
   // launching a deck, and a tapped dish opens the continuous progressive session.
   const [catView, setCatView] = useState(null); // category key or null
   const [groupView, setGroupView] = useState(null); // menu (menu_group) key or null
+  // Bumped to remount MenuBrowser at its top level (see the tour's onNavigate).
+  const [browseKey, setBrowseKey] = useState(0);
   const [tourOpen, setTourOpen] = useState(() =>
     !!session?.teamMemberId && localStorage.getItem(`menu-app-apptour-done-${session.teamMemberId}`) !== "1");
   const { rows: shiftRows, doneIds: taskDone, toggle: toggleTask } = useShiftTasks(session);
@@ -686,6 +688,10 @@ export default function MainApp({ session, onSignOut }) {
   const catsWithExam = path.categories || [];
   const examsLeft = catsWithExam.filter((c) => !c.passed);
   const generalUnlocked = catsWithExam.length > 0 && examsLeft.length === 0;
+  // ⚠️ Locked ⇒ renders NOTHING (user, 2026-08-20). A "you can't do this yet" banner at
+  // the top of the learning tab is the first thing a new waiter reads, and it frames the
+  // screen as blocked. The tour explains the path; this tab just shows what to practise,
+  // and the exam appears the day it is actually available.
   const generalExamCard = () =>
     generalUnlocked ? (
       <button
@@ -701,19 +707,7 @@ export default function MainApp({ session, onSignOut }) {
           </span>
         </span>
       </button>
-    ) : (
-      <div className="w-full rounded-2xl p-3.5 bg-[#16181c] border border-[#22252b] flex items-center gap-3">
-        <Lock size={18} className="text-[#5a5a6e] flex-shrink-0" />
-        <span className="flex-1 min-w-0">
-          <span className="block text-sm font-black text-[#8a8aa0]">מבחן התפריט המלא</span>
-          <span className="block text-[11px] font-bold text-[#5a5a6e] leading-snug">
-            {catsWithExam.length === 0
-              ? "ייפתח אחרי שהתפריט ייטען"
-              : `נפתח אחרי שעוברים את כל מבחני הקטגוריות — נשארו ${examsLeft.length}: ${examsLeft.slice(0, 3).map((c) => shortCat(c.key)).join(" · ")}${examsLeft.length > 3 ? " ועוד" : ""}`}
-          </span>
-        </span>
-      </div>
-    );
+    ) : null;
 
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
@@ -721,7 +715,21 @@ export default function MainApp({ session, onSignOut }) {
           per member — the flag is device-scoped, same as the welcome slides. */}
       {tourOpen && (
         <AppTour
-          onNavigate={(t) => setTab(t)}
+          onNavigate={(t) => {
+            setTab(t);
+            // ⚠️ The tour points at the TOP level of each tab ("tap a menu", "tap a
+            // category"), but both tabs keep their own drill-down state. Landing on a
+            // dish list with the spotlight looking for a menu card leaves the waiter
+            // staring at a dimmed screen, so send each tab back to its first level.
+            // ⚠️ Only when the tab actually CHANGES. Consecutive steps share a tab
+            // ("tap a menu" then "tap a category"), and resetting on every step remounted
+            // the browser right after the waiter's tap — undoing the tap they were just
+            // told to make.
+            if (t !== tab) {
+              if (t === "categories") setBrowseKey((k) => k + 1);
+              if (t === "learn") { setCatView(null); setGroupView(null); }
+            }
+          }}
           onDone={() => {
             setTourOpen(false);
             if (session?.teamMemberId) localStorage.setItem(`${TOUR_DONE_KEY}-${session.teamMemberId}`, "1");
@@ -860,18 +868,16 @@ export default function MainApp({ session, onSignOut }) {
                 const cat = (path.categories || []).find((c) => c.key === catView);
                 if (!cat) return null;
                 const examReady = cat.examUnlocked;
+                // Same rule as the list: until the exam is actually available there is
+                // no row for it here either.
+                if (!examReady) return null;
                 return (
                   <button
-                    disabled={!examReady}
                     onClick={() => { setModeItems(cat.items); setExamCategory({ key: cat.key, label: catLabel(cat.key) }); setMode("exam"); }}
-                    className={`w-full py-3 min-h-[48px] rounded-xl font-black text-sm flex items-center justify-center gap-1.5 active:scale-[0.99] transition-transform ${
-                      examReady ? "bg-[#22c08c] text-white" : "bg-[#1c1e22] text-[#8a8aa0]"
-                    }`}
+                    className="w-full py-3 min-h-[48px] rounded-xl font-black text-sm flex items-center justify-center gap-1.5 active:scale-[0.99] transition-transform bg-[#22c08c] text-white"
                   >
                     <GraduationCap size={15} />
-                    {cat.passed ? "עברתם! אפשר להיבחן שוב"
-                      : examReady ? `מבחן ${shortCat(catView)}`
-                      : `הגיעו ל-${cat.threshold}% כדי להיבחן`}
+                    {cat.passed ? "עברתם! אפשר להיבחן שוב" : `מבחן ${shortCat(catView)}`}
                   </button>
                 );
               })()}
@@ -905,11 +911,13 @@ export default function MainApp({ session, onSignOut }) {
             {/* The whole-menu exam is the goal this tab exists for, so it sits at the top
                 level rather than one drill-down in. */}
             {generalExamCard()}
-            <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">בחרו תפריט כדי לתרגל אותו או להיבחן עליו.</p>
+            <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">
+              קודם עוברים על המנות בתפריט, אחר כך נבחנים בכל קטגוריה.
+            </p>
             {menuGroups.map(({ g, items, catCount }) => {
               const pct = scorePct(items);
               return (
-                <button key={g} onClick={() => setGroupView(g)}
+                <button key={g} data-tour="learn-menu" onClick={() => setGroupView(g)}
                   className="w-full text-right bg-[#16181c] rounded-2xl p-3.5 border border-[#22252b] active:scale-[0.99] transition-transform">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-black text-[#eef0f6]">{g}</span>
@@ -919,6 +927,9 @@ export default function MainApp({ session, onSignOut }) {
                     <div className="h-full transition-all" style={{ width: `${pct}%`, background: pct >= 50 ? "#22c08c" : "#6d5efc" }} />
                   </div>
                   <p className="text-[11px] text-[#8a8aa0] mt-1.5">{catCount} קטגוריות · {items.length} מנות</p>
+                  {/* Say what the tap does, in the words the waiter would use for it
+                      (user, 2026-08-20) — "לתרגול תפריט סושי", not a bare menu name. */}
+                  <p className="text-[11px] font-black text-[#22c08c] mt-1.5">לתרגול {g} ←</p>
                 </button>
               );
             })}
@@ -941,10 +952,9 @@ export default function MainApp({ session, onSignOut }) {
             )}
             {generalExamCard()}
             <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">
-              {/* No order is imposed any more — say so, and steer without blocking. */}
-              כל הקטגוריות פתוחות — אפשר להתחיל מאיפה שרוצים.
+              {/* No order is imposed — steer, never block. */}
+              בוחרים קטגוריה, עוברים על המנות שבה, וכשמכירים אותן — נבחנים.
               {path.recommended ? ` ממליצים להתחיל ב${shortCat(path.recommended.key)}.` : ""}
-              {path.scopedToOpen ? " מבחן שעוברים מוסיף את הקטגוריה לתרגול." : ""}
             </p>
             {/* `path.categories` is built from the whole menu — inside a menu, show only
                 that menu's categories, or the header and the list disagree. */}
@@ -957,6 +967,7 @@ export default function MainApp({ session, onSignOut }) {
               return (
                 <div key={cat.key} className="rounded-2xl p-3 bg-[#16181c]">
                   <button
+                    data-tour="learn-category"
                     onClick={() => setCatView(cat.key)}
                     className="w-full text-right active:scale-[0.99] transition-transform"
                   >
@@ -983,19 +994,41 @@ export default function MainApp({ session, onSignOut }) {
                         : path.recommended?.key === cat.key ? " · מומלץ להתחיל כאן" : ""}
                     </p>
                   </button>
-                  {(
-                    <button
-                      disabled={!examReady}
-                      onClick={() => { setModeItems(cat.items); setExamCategory({ key: cat.key, label: catLabel(cat.key) }); setMode("exam"); }}
-                      className={`w-full mt-2 py-2 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1.5 ${
-                        examReady ? "bg-[#15302b] text-[#22c08c]" : "bg-[#1c1e22] text-[#8a8aa0]"
-                      }`}
-                    >
-                      <GraduationCap size={13} />
-                      {cat.passed ? `עברתם! אפשר להיבחן שוב`
-                        : examReady ? `מוכנים למבחן ${shortCat(cat.key)}?`
-                        : `הגיעו ל-${cat.threshold}% כדי להיבחן`}
-                    </button>
+                  {/* ⚠️ Not ready ⇒ no exam row at all (user, 2026-08-20). The old
+                      "reach 50% to take the exam" line named a number the waiter has no
+                      way to interpret and put a dead button on every category. The exam
+                      shows up the moment it is actually available — and then it asks,
+                      rather than sitting there greyed out. */}
+                  {examReady && (
+                    cat.passed ? (
+                      <button
+                        onClick={() => { setModeItems(cat.items); setExamCategory({ key: cat.key, label: catLabel(cat.key) }); setMode("exam"); }}
+                        className="w-full mt-2 py-2 min-h-[36px] rounded-lg font-bold text-[11px] flex items-center justify-center gap-1.5 bg-[#15302b] text-[#22c08c]"
+                      >
+                        <GraduationCap size={13} />
+                        עברתם! אפשר להיבחן שוב
+                      </button>
+                    ) : (
+                      <div className="mt-2 rounded-xl bg-[#15302b]/60 border border-[#22c08c]/40 p-2.5 space-y-2">
+                        <p className="text-[11px] font-black text-[#22c08c] leading-snug">
+                          אתם מכירים מספיק מ{shortCat(cat.key)} — להיבחן עכשיו?
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setModeItems(cat.items); setExamCategory({ key: cat.key, label: catLabel(cat.key) }); setMode("exam"); }}
+                            className="flex-1 py-2 min-h-[36px] rounded-lg font-black text-[11px] bg-[#22c08c] text-[#06231a]"
+                          >
+                            למבחן {shortCat(cat.key)}
+                          </button>
+                          <button
+                            onClick={() => startProgressive(cat.key)}
+                            className="flex-1 py-2 min-h-[36px] rounded-lg font-bold text-[11px] bg-[#22252b] text-[#c4c4d4]"
+                          >
+                            להמשיך ללמוד
+                          </button>
+                        </div>
+                      </div>
+                    )
                   )}
                 </div>
               );
@@ -1004,7 +1037,7 @@ export default function MainApp({ session, onSignOut }) {
         )}
         {/* The menu tab is the menu: menu → category → dishes with descriptions. Read
             only, so checking a dish mid-shift never touches the waiter's score. */}
-        {tab === "categories" && <MenuBrowser cards={cards} onPractice={(c) => startProgressive(c)} />}
+        {tab === "categories" && <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} />}
 
         {tab === "daily" && (
           <div className="space-y-2.5">
@@ -1090,7 +1123,7 @@ function BottomNav({ tab, setTab, hasDailyUpdate }) {
         {items.map(([t, Icon, label, badge]) => {
           const active = tab === t;
           return (
-            <button key={t} onClick={() => setTab(t)} className="flex-1 flex flex-col items-center gap-1 py-1 relative transition-colors">
+            <button key={t} data-tour={`nav-${t}`} onClick={() => setTab(t)} className="flex-1 flex flex-col items-center gap-1 py-1 relative transition-colors">
               {active && <div className="absolute inset-x-2 top-0 h-9 bg-white/[0.07] rounded-2xl" />}
               <div className="relative">
                 <Icon size={20} strokeWidth={active ? 2.3 : 1.6} className={active ? "text-white" : "text-[#8a8aa0]"} />

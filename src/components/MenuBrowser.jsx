@@ -287,6 +287,7 @@ export default function MenuBrowser({ cards, onPractice }) {
             <button
               key={c}
               onClick={() => setCat(c)}
+              data-tour="browse-category"
               className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-5 flex items-center gap-4 active:scale-[0.99] transition-transform"
             >
               <span
@@ -319,6 +320,7 @@ export default function MenuBrowser({ cards, onPractice }) {
           <button
             key={m}
             onClick={() => setMenu(m)}
+            data-tour="browse-menu"
             className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-5 flex items-center gap-3 active:scale-[0.99] transition-transform"
           >
             <span className="flex-1 min-w-0">

@@ -92,8 +92,10 @@ export default function QuizExam({ items, facets, categoryLabel, deckSize = DEFA
         <button onClick={onDone} className="text-xs text-[#8a8aa0]">← יציאה</button>
         <p className="text-xs font-bold">מבחן {categoryLabel}</p>
         <div className="flex items-center gap-2">
-          <span className={`text-xs font-black flex items-center gap-1 ${secs <= 4 ? "text-[#e0315a]" : "text-[#f3c14b]"}`}>
-            <Timer size={12} />{picked ? "•" : secs}
+          {/* The clock is part of what makes this an exam — it was an 12px icon and a
+              bare number, and waiters didn't notice they were being timed. */}
+          <span className={`text-sm font-black flex items-center gap-1 tabular-nums ${secs <= 4 ? "text-[#e0315a]" : "text-[#f3c14b]"}`}>
+            <Timer size={14} />{picked ? "•" : `${secs}s`}
           </span>
           <p className="text-xs font-bold text-[#8a8aa0]">{i + 1}/{deck.length}</p>
         </div>
