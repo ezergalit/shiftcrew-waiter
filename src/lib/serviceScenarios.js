@@ -12,6 +12,8 @@
 // line 16 — a question with a second correct answer teaches the waiter that the app is
 // wrong, and on a pregnancy or allergy question it teaches something worse.
 
+import { maskNameLeak } from "./questionEngine.js";  // explicit extension: the tests import this module in plain node
+
 export const norm = (s) => (s || "").toString().trim().toLowerCase();
 
 // Token match, not substring: "אגוזי מלך" must not make "אגוז" match "אגוזי לוז" by
@@ -195,13 +197,139 @@ export function qCompose(cards, rnd = Math.random) {
   };
 }
 
-const BUILDERS = [qCompose, qPregnancy, qAllergy, qWithIngredient, qPitfall, qCompose];
+
+// ── 6. Which menu is it on? ───────────────────────────────────────────────────────────
+// A guest asks for something and the waiter has to know which menu it lives on. Only
+// built for a restaurant whose menu is actually split into several (bar, sushi, food…).
+export function qMenuGroup(cards, rnd = Math.random) {
+  const groups = [...new Set(cards.map((c) => c.menuGroup).filter(Boolean))];
+  if (groups.length < 3) return null;
+  const pool = cards.filter((c) => c.menuGroup);
+  if (!pool.length) return null;
+  const it = pick(pool, rnd);
+  const others = shuffleWith(groups.filter((g) => g !== it.menuGroup), rnd).slice(0, 3);
+  if (others.length < 2) return null;
+  return {
+    kind: "menugroup",
+    subjectId: it.id,
+    prompt: `אורח מבקש את ${label(it)}. באיזה תפריט זה נמצא?`,
+    options: shuffleWith([it.menuGroup, ...others], rnd).map((g) => ({
+      id: `g:${g}`, label: g, correct: g === it.menuGroup,
+    })),
+  };
+}
+
+// ── 7. Price ──────────────────────────────────────────────────────────────────────────
+// The one question a guest asks that has exactly one right answer and no room to
+// improvise. Distractors are real prices from the same category — a waiter who knows the
+// range but not this dish still has to actually know this dish.
+export function qPrice(cards, rnd = Math.random) {
+  const priced = cards.filter((c) => Number(c.price) > 0);
+  if (priced.length < 4) return null;
+  const it = pick(priced, rnd);
+  const real = Number(it.price);
+  const sameCat = priced.filter((c) => c.category === it.category && Number(c.price) !== real);
+  const from = sameCat.length >= 3 ? sameCat : priced.filter((c) => Number(c.price) !== real);
+  // Distinct prices only — two options showing the same number is two correct answers.
+  const decoys = [...new Set(shuffleWith(from, rnd).map((c) => Number(c.price)))].slice(0, 3);
+  if (decoys.length < 3) return null;
+  return {
+    kind: "price",
+    subjectId: it.id,
+    prompt: `אורח שואל כמה עולה ${label(it)}. מה תגידו לו?`,
+    options: shuffleWith([real, ...decoys], rnd).map((p) => ({
+      id: `p:${p}`, label: `${p} ₪`, correct: p === real,
+    })),
+  };
+}
+
+// ── 8. Guest describes a dish ─────────────────────────────────────────────────────────
+// The guest doesn't remember the name, only what's in it — the everyday version of
+// "table 6 wants the one with the truffle". The description is masked so the dish name
+// can't leak out of its own description (see maskNameLeak in questionEngine).
+export function qFromDescription(cards, rnd = Math.random) {
+  const pool = cards.filter((c) => (c.desc || "").split(/\s+/).length >= 5);
+  if (pool.length < 4) return null;
+  const it = pick(pool, rnd);
+  const masked = maskNameLeak(it.desc, it.name);
+  if (masked.split(/\s+/).filter(Boolean).length < 4) return null;
+  const siblings = pool.filter((c) => c.id !== it.id && c.category === it.category);
+  const from = siblings.length >= 3 ? siblings : pool.filter((c) => c.id !== it.id);
+  const decoys = shuffleWith(from, rnd).slice(0, 3);
+  if (decoys.length < 3) return null;
+  return {
+    kind: "describe",
+    subjectId: it.id,
+    prompt: `אורח מתאר: "${masked}" — על איזו מנה הוא מדבר?`,
+    options: shuffleWith([it, ...decoys], rnd).map((d) => ({
+      id: d.id, label: label(d), correct: d.id === it.id,
+    })),
+  };
+}
+
+// ── 9. Allergens of one dish ──────────────────────────────────────────────────────────
+// Closed list, exact set — the same contract as the category exam's allergen chips, but
+// asked the way a guest asks it. Only for dishes whose allergens were actually filled in:
+// an empty list can mean "none" or "nobody wrote it down", and we must not test the
+// difference between those.
+export function qAllergenSet(cards, rnd = Math.random) {
+  const declared = cards.filter((c) => (c.allergens || []).length);
+  if (declared.length < 3) return null;
+  const it = pick(declared, rnd);
+  const real = it.allergens || [];
+  const others = [...new Set(declared.flatMap((c) => c.allergens || []))].filter((a) => !real.includes(a));
+  if (!others.length) return null;
+  return {
+    kind: "allergenset",
+    subjectId: it.id,
+    multi: true,
+    exactSet: true,
+    prompt: `אורח שואל אילו אלרגנים יש ב${label(it)}. מה תגידו לו?`,
+    hint: "בחרו את כל האלרגנים שבמנה — ורק אותם.",
+    options: shuffleWith([
+      ...real.map((a) => ({ id: `a:${a}`, label: a, correct: true })),
+      ...shuffleWith(others, rnd).slice(0, 3).map((a) => ({ id: `a:${a}`, label: a, correct: false })),
+    ], rnd),
+  };
+}
+
+// ── 10. What comes out first ──────────────────────────────────────────────────────────
+// ⚠️ Built ONLY from the owner's own category order (exam_config.category_order). We do
+// not guess a course from a category name: "ראשונות" reads like a starter to us, but the
+// restaurant that wrote the menu is the only authority on what leaves the pass first, and
+// a wrong answer here teaches the waiter something false about their own service.
+export function qServingOrder(cards, rnd = Math.random, categoryOrder = []) {
+  const rank = new Map(categoryOrder.map((c, i) => [c, i]));
+  const usable = cards.filter((c) => rank.has(c.category));
+  const cats = [...new Set(usable.map((c) => c.category))];
+  if (cats.length < 3) return null;
+  const chosen = shuffleWith(cats, rnd).slice(0, 3).sort((a, b) => rank.get(a) - rank.get(b));
+  const dishes = chosen.map((c) => pick(usable.filter((x) => x.category === c), rnd));
+  const first = dishes[0];
+  return {
+    kind: "order",
+    subjectId: first.id,
+    prompt: `שולחן הזמין: ${dishes.map((d) => label(d)).join(" · ")}. מה יוצא ראשון?`,
+    hint: "לפי סדר ההגשה שהמסעדה קבעה.",
+    options: shuffleWith(dishes, rnd).map((d) => ({
+      id: d.id, label: label(d), correct: d.id === first.id,
+      why: d.category,
+    })),
+  };
+}
+
+// Rotation order decides the exam's texture: compose → guest scenario → recall → back.
+// qServingOrder takes the owner's category order as a third argument; the rest ignore it.
+const BUILDERS = [
+  qCompose, qPregnancy, qFromDescription, qAllergy, qPrice, qWithIngredient,
+  qCompose, qAllergenSet, qMenuGroup, qPitfall, qServingOrder, qFromDescription,
+];
 
 // Rotate through the builders so the deck mixes types, and skip any that this particular
 // menu can't support — a bar with no pregnancy data simply gets more of the others.
 // Duplicate prompts are dropped: the same "which starter suits a pregnant guest" twice in
 // one exam reads as a bug even when the options differ.
-export function buildMenuExamDeck(cards, size = 40, rnd = Math.random) {
+export function buildMenuExamDeck(cards, size = 40, rnd = Math.random, categoryOrder = []) {
   const list = (cards || []).filter((c) => c.id && (c.name || c.displayName));
   const deck = [];
   const seen = new Set();
@@ -209,7 +337,7 @@ export function buildMenuExamDeck(cards, size = 40, rnd = Math.random) {
   while (deck.length < size && guard < size * 12) {
     const build = BUILDERS[guard % BUILDERS.length];
     guard++;
-    const q = build(list, rnd);
+    const q = build(list, rnd, categoryOrder);
     if (!q) continue;
     const key = `${q.kind}|${q.prompt}`;
     if (seen.has(key)) continue;

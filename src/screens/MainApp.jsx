@@ -543,6 +543,7 @@ export default function MainApp({ session, onSignOut }) {
     return <MenuExam
       items={cards}
       deckSize={examConfig?.general_exam_questions || 40}
+      categoryOrder={examConfig?.category_order || []}
       onAnswer={learnItem}
       onDone={exitMode}
       onFinish={recordExam}

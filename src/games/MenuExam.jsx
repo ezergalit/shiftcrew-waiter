@@ -15,14 +15,24 @@ import { buildMenuExamDeck } from "../lib/serviceScenarios";
 //
 // The questions themselves are built in lib/serviceScenarios.js, which refuses to produce
 // anything it can't guarantee has one right answer.
-const SECONDS = { compose: 35, multi: 30, pregnancy: 20, allergy: 20, pitfall: 20 };
+const SECONDS = {
+  compose: 35, multi: 30, allergenset: 30,
+  pregnancy: 20, allergy: 20, pitfall: 20, order: 20, describe: 20, menugroup: 15, price: 15,
+};
 const KIND_TAG = {
-  compose: "הרכבת מנה", multi: "המלצה לאורח",
+  compose: "הרכבת מנה", multi: "המלצה לאורח", allergenset: "אלרגנים במנה",
   pregnancy: "אורחת בהריון", allergy: "אלרגיה", pitfall: "העדפת אורח",
+  order: "סדר הגשה", describe: "אורח מתאר מנה", menugroup: "איפה בתפריט", price: "מחיר",
 };
 
-export default function MenuExam({ items, deckSize = 40, passMark = 70, onAnswer, onDone, onFinish }) {
-  const deck = useMemo(() => buildMenuExamDeck(items || [], deckSize), [items, deckSize]);
+export default function MenuExam({ items, deckSize = 40, passMark = 70, categoryOrder, onAnswer, onDone, onFinish }) {
+  // ⚠️ categoryOrder is the owner's own serving order (exam_config.category_order). The
+  // serving-order question is built only from it — guessing a course from a category name
+  // would teach the waiter something false about their own restaurant's service.
+  const deck = useMemo(
+    () => buildMenuExamDeck(items || [], deckSize, Math.random, categoryOrder || []),
+    [items, deckSize, categoryOrder],
+  );
 
   const [i, setI] = useState(0);
   const [picked, setPicked] = useState(new Set());

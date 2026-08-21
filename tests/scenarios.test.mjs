@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import {
   qPregnancy, qAllergy, qWithIngredient, qPitfall, qCompose,
+  qMenuGroup, qPrice, qFromDescription, qAllergenSet, qServingOrder,
   buildMenuExamDeck, hasIngredient, mentions, MULTI_TARGET,
 } from "../src/lib/serviceScenarios.js";
 
@@ -9,21 +10,23 @@ import {
 const dish = (id, category, name, o = {}) => ({
   id, category, name,
   ingredients: o.ing || [], allergens: o.all || [], pregnancy: o.preg || [], pitfalls: o.pit || [],
-  desc: o.desc || "",
+  desc: o.desc || "", price: o.price || 0, menuGroup: o.group || null,
 });
 
 const menu = [
-  dish("r1", "רולים", "ספייסי סלמון", { ing: ["סלמון", "אורז", "מיונז חריף"], all: ["סויה"], pit: ["חריף"] }),
-  dish("r2", "רולים", "סלמון אבוקדו", { ing: ["סלמון", "אורז", "אבוקדו"], all: ["סויה"] }),
-  dish("r3", "רולים", "סלמון סקין", { ing: ["סלמון", "אורז", "בצל ירוק"], all: ["סויה"] }),
-  dish("r4", "רולים", "טונה קראנץ׳", { ing: ["טונה", "אורז", "טמפורה"], all: ["גלוטן"] }),
+  dish("r1", "רולים", "ספייסי סלמון", { ing: ["סלמון", "אורז", "מיונז חריף"], all: ["סויה"], pit: ["חריף"], price: 52, group: "תפריט סושי", desc: "רול במילוי דג עם רוטב פיקנטי ובצל ירוק מעל" }),
+  dish("r2", "רולים", "סלמון אבוקדו", { ing: ["סלמון", "אורז", "אבוקדו"], all: ["סויה"], price: 48, group: "תפריט סושי", desc: "רול קלאסי עם פרי ירוק קרמי ואצה בחוץ" }),
+  dish("r3", "רולים", "סלמון סקין", { ing: ["סלמון", "אורז", "בצל ירוק"], all: ["סויה"], price: 54, group: "תפריט סושי", desc: "רול עם עור צרוב פריך וציפוי טריאקי מתקתק" }),
+  dish("r4", "רולים", "טונה קראנץ׳", { ing: ["טונה", "אורז", "טמפורה"], all: ["גלוטן"], price: 58, group: "תפריט סושי", desc: "רול עם שבבים פריכים מעל ורוטב חמצמץ בצד" }),
   dish("r5", "רולים", "ירקות", { ing: ["מלפפון", "אורז", "אבוקדו"], all: ["שומשום"] }),
   dish("r6", "רולים", "צלופח", { ing: ["צלופח", "אורז"], all: ["סויה"] }),
   dish("s1", "ראשונות", "סשימי בס", { ing: ["בס", "לימון"], preg: ["דג נא"], all: ["סויה"] }),
   dish("s2", "ראשונות", "טרטר טונה", { ing: ["טונה", "שמן זית"], preg: ["דג נא"], all: ["סויה"] }),
   dish("s3", "ראשונות", "קרפצ׳ו בקר", { ing: ["בקר", "פרמזן"], preg: ["בשר נא"], all: ["לקטוז"] }),
   dish("s4", "ראשונות", "אדממה", { ing: ["אדממה", "מלח"], all: ["סויה"] }),
-  dish("d1", "קינוחים", "מוצי", { ing: ["אורז דביק", "גלידה"] }),
+  dish("d1", "קינוחים", "מוצי", { ing: ["אורז דביק", "גלידה"], price: 32, group: "תפריט קינוחים", desc: "כדורי בצק רך במילוי קר ומתוק לסיום הארוחה" }),
+  dish("b1", "קוקטיילים", "נגרוני", { ing: ["ג׳ין", "קמפרי", "ורמוט"], price: 62, group: "תפריט בר" }),
+  dish("b2", "קוקטיילים", "מוחיטו", { ing: ["רום", "נענע", "ליים"], price: 58, group: "תפריט בר" }),
 ];
 
 const seq = (nums) => { let i = 0; return () => nums[i++ % nums.length]; };
@@ -114,6 +117,91 @@ const seq = (nums) => { let i = 0; return () => nums[i++ % nums.length]; };
 {
   assert.deepEqual(buildMenuExamDeck([dish("x", "קפה", "אספרסו")], 10), []);
   assert.deepEqual(buildMenuExamDeck([], 10), []);
+}
+
+// 8. Menu group: the correct answer is the dish's own menu; distractors are other menus.
+{
+  for (let i = 0; i < 40; i++) {
+    const q = qMenuGroup(menu);
+    if (!q) continue;
+    assert.equal(q.options.filter((o) => o.correct).length, 1);
+    const byId = Object.fromEntries(menu.map((d) => [d.id, d]));
+    assert.equal(q.options.find((o) => o.correct).label, byId[q.subjectId].menuGroup);
+  }
+}
+
+// 9. Price: exactly one correct, and no two options show the same number — two options
+//    with the same price would be two correct answers wearing different labels.
+{
+  let built = 0;
+  for (let i = 0; i < 60; i++) {
+    const q = qPrice(menu);
+    if (!q) continue;
+    built++;
+    assert.equal(q.options.filter((o) => o.correct).length, 1);
+    assert.equal(new Set(q.options.map((o) => o.label)).size, q.options.length);
+    const byId = Object.fromEntries(menu.map((d) => [d.id, d]));
+    assert.equal(q.options.find((o) => o.correct).label, `${byId[q.subjectId].price} ₪`);
+  }
+  assert.ok(built > 0, "price question must be buildable");
+}
+
+// 10. Description: the dish's own name must not survive in the masked prompt.
+{
+  let built = 0;
+  for (let i = 0; i < 60; i++) {
+    const q = qFromDescription(menu);
+    if (!q) continue;
+    built++;
+    assert.equal(q.options.filter((o) => o.correct).length, 1);
+    const byId = Object.fromEntries(menu.map((d) => [d.id, d]));
+    for (const w of byId[q.subjectId].name.split(/\s+/).filter((x) => x.length > 2))
+      assert.ok(!q.prompt.includes(w), `name word "${w}" leaked into the description prompt`);
+  }
+  assert.ok(built > 0, "description question must be buildable");
+}
+
+// 11. Allergen set: only for dishes that actually declare allergens, and the chips split
+//     cleanly into the dish's own allergens and ones it doesn't have.
+{
+  const byId = Object.fromEntries(menu.map((d) => [d.id, d]));
+  for (let i = 0; i < 40; i++) {
+    const q = qAllergenSet(menu);
+    if (!q) continue;
+    const real = byId[q.subjectId].allergens;
+    assert.ok(real.length > 0, "never ask about a dish with no declared allergens");
+    for (const o of q.options)
+      assert.equal(real.includes(o.label), o.correct, `${o.label} mislabelled`);
+  }
+}
+
+// 12. Serving order: built only from the owner's category order, and the answer is the
+//     dish from the earliest category in it. With no order configured — no question.
+{
+  const order = ["ראשונות", "רולים", "קוקטיילים", "קינוחים"];
+  assert.equal(qServingOrder(menu, Math.random, []), null, "no category order ⇒ no question");
+  const byId = Object.fromEntries(menu.map((d) => [d.id, d]));
+  for (let i = 0; i < 40; i++) {
+    const q = qServingOrder(menu, Math.random, order);
+    if (!q) continue;
+    assert.equal(q.options.filter((o) => o.correct).length, 1);
+    const correct = q.options.find((o) => o.correct);
+    const ranks = q.options.map((o) => order.indexOf(byId[o.id].category));
+    assert.equal(order.indexOf(byId[correct.id].category), Math.min(...ranks),
+      "the correct answer must be the earliest category in the owner's order");
+  }
+}
+
+// 13. The whole deck, with a category order supplied: still one right answer per
+//     single-answer question, and now visibly more varied.
+{
+  const deck = buildMenuExamDeck(menu, 24, Math.random, ["ראשונות", "רולים", "קוקטיילים", "קינוחים"]);
+  assert.ok(new Set(deck.map((q) => q.kind)).size >= 5, `deck not varied enough: ${[...new Set(deck.map((q) => q.kind))]}`);
+  for (const q of deck) {
+    const correct = q.options.filter((o) => o.correct).length;
+    if (!q.multi) assert.equal(correct, 1, `${q.kind}: "${q.prompt}" has ${correct} correct answers`);
+    assert.equal(new Set(q.options.map((o) => o.label)).size, q.options.length, `${q.kind}: duplicate option labels`);
+  }
 }
 
 console.log("scenarios.test.mjs OK");
