@@ -24,6 +24,7 @@ import Flashcards from "../games/Flashcards";
 import GroupFlashcards from "../games/GroupFlashcards";
 import CategoryExam from "../games/CategoryExam";
 import QuizExam from "../games/QuizExam";
+import MenuExam from "../games/MenuExam";
 
 
 const db = supabase.schema("menu_app");
@@ -530,14 +531,17 @@ export default function MainApp({ session, onSignOut }) {
   // When either of those isn't true, the category still has to be passable — otherwise the
   // whole path deadlocks behind a button that can never be pressed — so it falls back to a
   // multiple-choice exam built from the owner's own facets.
-  // The whole-menu exam (user request, 2026-08-20): ~40 timed questions across every
-  // category, sized by the owner (exam_config.general_exam_questions). This is the goal
-  // the tutorial points at — everything else in the app is training for this.
+  // The whole-menu exam (user request, 2026-08-20): timed service scenarios across every
+  // category, sized by the owner (exam_config.general_exam_questions). Rebuilt the same
+  // day from multiple-choice recall into the questions the floor actually asks — compose
+  // the dish, recommend for a pregnant guest, three rolls with salmon. This is the goal
+  // the tutorial points at; everything else in the app is training for it.
+  // ⚠️ The pass mark is MenuExam's own 70, NOT exam_config.pass_threshold — that column is
+  // the mastery % needed to SIT a category exam, not the mark needed to pass one. Both
+  // exams in this app pass at 70, so the number means the same thing wherever it appears.
   if (mode === "general_exam") {
-    return <QuizExam
+    return <MenuExam
       items={cards}
-      facets={gameFacets}
-      categoryLabel="התפריט המלא"
       deckSize={examConfig?.general_exam_questions || 40}
       onAnswer={learnItem}
       onDone={exitMode}
