@@ -55,13 +55,21 @@ const fresh = () => ({});
 {
   assert.equal(nextConsecutiveFives(1, 2), 0);
   const progress = { d0: { mastery: 2, consecutiveFives: 0 } };
-  let count = 0;
-  for (let i = 0; i < 400; i++) {
+  // ⚠️ This is a sampling assertion, so the sample has to be big enough to out-shout
+  // the noise. At 400 draws the expected share (8/29 ≈ 110) sat barely above the 100
+  // threshold — about one standard deviation — so the test failed on roughly 1 run in
+  // 20 with nothing wrong. A flaky test is worse than no test: it teaches you to
+  // re-run instead of to look. 4000 draws puts the same threshold ~3.5σ away.
+  const DRAWS = 4000;
+  const count = {};
+  for (let i = 0; i < DRAWS; i++) {
     const { item } = pickNext(dishes, progress);
-    if (item.id === "d0") count++;
+    count[item.id] = (count[item.id] || 0) + 1;
   }
   // Doubled weight: d0 (weight 8) vs d1-d3 untouched (7 each) — should lead the pack.
-  assert.ok(count > 400 / WINDOW_SIZE, `weak dish under-served: ${count}`);
+  assert.ok((count.d0 || 0) > DRAWS / WINDOW_SIZE, `weak dish under-served: ${count.d0}`);
+  const rival = Math.max(...Object.entries(count).filter(([id]) => id !== "d0").map(([, n]) => n));
+  assert.ok(count.d0 > rival, `weak dish did not lead: ${JSON.stringify(count)}`);
 }
 
 // 6. Empty scope → null, no crash.

@@ -42,8 +42,13 @@ export default function TasksTab({ tasks, onDone, children }) {
     document.querySelector("[data-next-task]")?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [bump]);
 
-  const open = tasks.filter((t) => !t.done);
-  const shut = tasks.filter((t) => t.done);
+  // Two lists, not one (user, 2026-08-20). "לקרוא את העדכון" and "לספור את הבר" are
+  // things this shift needs; "ללמוד ראשונות" is not tied to a day at all. Mixing them
+  // made one numbered list whose numbers meant nothing.
+  const GROUPS = [
+    { key: "daily", title: "משימות היום", hint: "בריף, פתיחה, סגירה ומשימות המשמרת" },
+    { key: "general", title: "משימות כלליות", hint: "למידת התפריט ותרגול" },
+  ];
 
   const Row = (t, isNext) => (
     <button
@@ -67,7 +72,7 @@ export default function TasksTab({ tasks, onDone, children }) {
               : "w-[30px] h-[30px] text-[15px] bg-[#20232b] text-[#eef0f6]"
         }`}
       >
-        {t.done ? "✓" : t.position}
+        {t.done ? "✓" : t.rank}
       </span>
       <span className="flex-1 min-w-0">
         {/* A weekly task shown as "done" alongside daily ones is confusing unless it says
@@ -105,27 +110,43 @@ export default function TasksTab({ tasks, onDone, children }) {
           </p>
         </div>
       ) : (
-        <>
-          <div className="flex items-baseline justify-between px-1">
-            <p className="text-[15px] font-black text-[#eef0f6]">המשימות שלי היום</p>
-            <p className="text-xs font-black text-[#22c08c] tabular-nums">{shut.length}/{tasks.length}</p>
-          </div>
-          <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mx-1">
-            <div className="h-full bg-[#22c08c] transition-all" style={{ width: `${(shut.length / tasks.length) * 100}%` }} />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            {open.map((t, i) => Row(t, i === 0))}
-            {shut.length > 0 && (
-              <div className="flex items-center gap-2 text-[10px] font-black text-[#5a5a6e] tracking-wide mt-1 mb-0.5">
-                <span className="flex-1 h-px bg-[#22252b]" />
-                בוצע · {shut.length}
-                <span className="flex-1 h-px bg-[#22252b]" />
+        GROUPS.map((g, gi) => {
+          const mine = tasks.filter((t) => (t.group || "daily") === g.key);
+          if (!mine.length) return null;
+          const open = mine.filter((t) => !t.done);
+          const shut = mine.filter((t) => t.done);
+          // ⚠️ The number is the CURRENT place in the queue, not a fixed id (user,
+          // 2026-08-20): finish #3 and the old #4 becomes the new #3. It is recomputed
+          // from `open` on every render, so it can never drift from what is on screen.
+          const ranked = open.map((t, i) => ({ ...t, rank: i + 1 }));
+          // "הבא בתור" marks one task in the whole screen — the first open daily one,
+          // or the first general one on a day with no daily work left.
+          const firstOpenGroup = GROUPS.find((x) => tasks.some((t) => (t.group || "daily") === x.key && !t.done));
+          return (
+            <div key={g.key} className={`space-y-2 ${gi ? "pt-1" : ""}`}>
+              <div className="flex items-baseline justify-between px-1">
+                <p className="text-[15px] font-black text-[#eef0f6]">{g.title}</p>
+                <p className="text-xs font-black text-[#22c08c] tabular-nums">{shut.length}/{mine.length}</p>
               </div>
-            )}
-            {shut.map((t) => Row(t, false))}
-          </div>
-        </>
+              <p className="text-[10.5px] text-[#5a5a6e] px-1 -mt-1">{g.hint}</p>
+              <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mx-1">
+                <div className="h-full bg-[#22c08c] transition-all" style={{ width: `${(shut.length / mine.length) * 100}%` }} />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                {ranked.map((t, i) => Row(t, i === 0 && firstOpenGroup?.key === g.key))}
+                {shut.length > 0 && (
+                  <div className="flex items-center gap-2 text-[10px] font-black text-[#5a5a6e] tracking-wide mt-1 mb-0.5">
+                    <span className="flex-1 h-px bg-[#22252b]" />
+                    בוצע · {shut.length}
+                    <span className="flex-1 h-px bg-[#22252b]" />
+                  </div>
+                )}
+                {shut.map((t) => Row(t, false))}
+              </div>
+            </div>
+          );
+        })
       )}
 
       {/* A manager instruction has no screen to jump to, so tapping it opens the
@@ -135,7 +156,7 @@ export default function TasksTab({ tasks, onDone, children }) {
           <div className="w-full max-w-md bg-[#16181c] border-t border-[#22252b] rounded-t-2xl p-5 space-y-3">
             <div className="flex items-start gap-3">
               <span className="w-8 h-8 rounded-lg bg-[#20232b] text-[#eef0f6] flex items-center justify-center font-black text-sm flex-shrink-0 tabular-nums">
-                {sheet.position}
+                {sheet.done ? "✓" : sheet.rank}
               </span>
               <p className="flex-1 text-base font-black text-[#eef0f6] leading-snug">{sheet.title}</p>
               <button onClick={() => setSheet(null)} className="text-[#8a8aa0] flex-shrink-0" aria-label="סגירה">

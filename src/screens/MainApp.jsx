@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { BookOpen, BarChart3, Home, LogOut, WifiOff, Check, ChevronRight, ListChecks, GraduationCap, Repeat, Layers, HelpCircle, Puzzle, Zap, ShieldAlert, FileText } from "lucide-react";
+import { BookOpen, BarChart3, Home, LogOut, WifiOff, Check, ChevronRight, ListChecks, GraduationCap, Repeat, Layers, HelpCircle, Puzzle, Zap, ShieldAlert, FileText, Lock } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import MetricsScreen from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
@@ -262,7 +262,10 @@ export default function MainApp({ session, onSignOut }) {
         .select("category").eq("team_member_id", session?.teamMemberId).eq("passed", true);
       if (alive) setPassedCats([...new Set((exams || []).map(r => r.category))]);
       const today = new Date().toISOString().slice(0, 10);
-      const { data: b } = await db.from("daily_brief").select("*").eq("restaurant_id", session?.restaurantId).eq("date", today).maybeSingle();
+      const { data: b, error: bErr } = await db.from("daily_brief").select("*").eq("restaurant_id", session?.restaurantId).eq("date", today).maybeSingle();
+      // A brief that fails to load looks exactly like a day with no brief — the same
+      // shape of silent failure that hid the empty team tab on the owner side.
+      if (bErr) console.error("daily_brief", bErr.message, bErr.details, bErr.hint, bErr.code);
       if (alive) setBrief(b || {});
       // Whether THIS waiter has already acknowledged today's brief. Reading is no longer
       // recorded automatically on load: that measured "opened the app", and the owner saw
@@ -624,12 +627,14 @@ export default function MainApp({ session, onSignOut }) {
   // The task list is built from real content only — a row exists because the restaurant
   // sent something or the waiter has something concrete to do. Nothing here is a bare
   // checkbox: every entry either opens a screen or opens the manager's own instruction.
+  // Two lists (user, 2026-08-20): what this shift needs, and what the waiter is
+  // working on in general. The numbers are assigned by TasksTab from the open rows,
+  // so finishing one renumbers the rest — nothing here carries a fixed position.
   const dayTasks = [];
-  let pos = 0;
 
   if (hasBrief) {
     dayTasks.push({
-      id: "brief", position: ++pos,
+      id: "brief", group: "daily",
       title: "לקרוא את העדכון היומי",
       subtitle: briefItems.slice(0, 2).join(" · ") || brief?.notes || "מה קורה היום במסעדה",
       done: briefRead, cta: briefRead ? "לצפייה ←" : "לקריאה ←",
@@ -639,7 +644,7 @@ export default function MainApp({ session, onSignOut }) {
 
   if (newDishes.length > 0) {
     dayTasks.push({
-      id: "newdishes", position: ++pos,
+      id: "newdishes", group: "general",
       title: `ללמוד ${newDishes.length === 1 ? "מנה חדשה בתפריט" : `${newDishes.length} מנות חדשות בתפריט`}`,
       subtitle: newDishes.slice(0, 3).map((d) => d.name).join(" · "),
       done: false, cta: "ללמידה ←",
@@ -649,7 +654,7 @@ export default function MainApp({ session, onSignOut }) {
 
   if (focusCat) {
     dayTasks.push({
-      id: "focus", position: ++pos,
+      id: "focus", group: "general",
       title: `ללמוד ${shortCat(focusCat.key)}`,
       subtitle: `${focusCat.pct}% · ${focusCat.items?.length || 0} מנות בקטגוריה`,
       done: todaySeconds >= goalMinutes * 60, cta: "לתרגול ←",
@@ -662,13 +667,48 @@ export default function MainApp({ session, onSignOut }) {
   for (const r of shiftRows) {
     if (r.kind === "learning") continue;   // handled above, from real progress
     dayTasks.push({
-      id: r.id, position: ++pos,
+      id: r.id, group: r.kind === "training" ? "general" : "daily",
       title: r.title, subtitle: r.subtitle,
       body: r.subtitle || r.title,
       periodLabel: PERIOD_LABEL[r.kind],
       done: taskDone.has(r.id), cta: "לפתיחה ←",
     });
   }
+
+  // The whole-menu exam is the certificate, so it opens only after every category exam
+  // has been passed (user, 2026-08-20). Until then the card stays on screen but states
+  // exactly what is left — a locked button with no reason is just a dead end.
+  const catsWithExam = path.categories || [];
+  const examsLeft = catsWithExam.filter((c) => !c.passed);
+  const generalUnlocked = catsWithExam.length > 0 && examsLeft.length === 0;
+  const generalExamCard = () =>
+    generalUnlocked ? (
+      <button
+        onClick={() => { setExamCategory({ key: "general", label: "התפריט המלא" }); setMode("general_exam"); }}
+        className="w-full rounded-2xl p-3.5 text-right text-white active:scale-[0.99] transition-transform flex items-center gap-3"
+        style={{ background: "linear-gradient(135deg,#14b8a6,#0d7f74)" }}
+      >
+        <GraduationCap size={20} className="flex-shrink-0" />
+        <span className="flex-1">
+          <span className="block text-sm font-black">מבחן התפריט המלא</span>
+          <span className="block text-[11px] font-bold opacity-90">
+            {examConfig?.general_exam_questions || 40} שאלות על כל התפריט, עם שעון — זו המטרה הסופית
+          </span>
+        </span>
+      </button>
+    ) : (
+      <div className="w-full rounded-2xl p-3.5 bg-[#16181c] border border-[#22252b] flex items-center gap-3">
+        <Lock size={18} className="text-[#5a5a6e] flex-shrink-0" />
+        <span className="flex-1 min-w-0">
+          <span className="block text-sm font-black text-[#8a8aa0]">מבחן התפריט המלא</span>
+          <span className="block text-[11px] font-bold text-[#5a5a6e] leading-snug">
+            {catsWithExam.length === 0
+              ? "ייפתח אחרי שהתפריט ייטען"
+              : `נפתח אחרי שעוברים את כל מבחני הקטגוריות — נשארו ${examsLeft.length}: ${examsLeft.slice(0, 3).map((c) => shortCat(c.key)).join(" · ")}${examsLeft.length > 3 ? " ועוד" : ""}`}
+          </span>
+        </span>
+      </div>
+    );
 
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
@@ -859,19 +899,7 @@ export default function MainApp({ session, onSignOut }) {
           <div className="space-y-2">
             {/* The whole-menu exam is the goal this tab exists for, so it sits at the top
                 level rather than one drill-down in. */}
-            <button
-              onClick={() => { setExamCategory({ key: "general", label: "התפריט המלא" }); setMode("general_exam"); }}
-              className="w-full rounded-2xl p-3.5 text-right text-white active:scale-[0.99] transition-transform flex items-center gap-3"
-              style={{ background: "linear-gradient(135deg,#14b8a6,#0d7f74)" }}
-            >
-              <GraduationCap size={20} className="flex-shrink-0" />
-              <span className="flex-1">
-                <span className="block text-sm font-black">מבחן התפריט המלא</span>
-                <span className="block text-[11px] font-bold opacity-90">
-                  {examConfig?.general_exam_questions || 40} שאלות על כל התפריט, עם שעון — זו המטרה הסופית
-                </span>
-              </span>
-            </button>
+            {generalExamCard()}
             <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">בחרו תפריט כדי לתרגל אותו או להיבחן עליו.</p>
             {menuGroups.map(({ g, items, catCount }) => {
               const pct = scorePct(items);
@@ -906,19 +934,7 @@ export default function MainApp({ session, onSignOut }) {
                 </div>
               </div>
             )}
-            <button
-              onClick={() => { setExamCategory({ key: "general", label: "התפריט המלא" }); setMode("general_exam"); }}
-              className="w-full rounded-2xl p-3.5 text-right text-white active:scale-[0.99] transition-transform flex items-center gap-3"
-              style={{ background: "linear-gradient(135deg,#14b8a6,#0d7f74)" }}
-            >
-              <GraduationCap size={20} className="flex-shrink-0" />
-              <span className="flex-1">
-                <span className="block text-sm font-black">מבחן התפריט המלא</span>
-                <span className="block text-[11px] font-bold opacity-90">
-                  {examConfig?.general_exam_questions || 40} שאלות על כל התפריט, עם שעון — זו המטרה הסופית
-                </span>
-              </span>
-            </button>
+            {generalExamCard()}
             <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">
               {/* No order is imposed any more — say so, and steer without blocking. */}
               כל הקטגוריות פתוחות — אפשר להתחיל מאיפה שרוצים.
@@ -986,6 +1002,19 @@ export default function MainApp({ session, onSignOut }) {
         {tab === "categories" && <MenuBrowser cards={cards} onPractice={(c) => startProgressive(c)} />}
 
         {tab === "daily" && (
+          <div className="space-y-2.5">
+          {/* A waiter who lands here from a task row has no obvious way out (user,
+              2026-08-20). RTL puts the first flex child on the right, which is where
+              a back control belongs. */}
+          <button
+            onClick={() => setTab("home")}
+            className="flex items-center gap-2 text-[#eef0f6] active:scale-95 transition-transform"
+          >
+            <span className="w-9 h-9 rounded-xl bg-[#191b1f] border border-[#22252b] flex items-center justify-center">
+              <ChevronRight size={18} />
+            </span>
+            <span className="text-xs font-black text-[#8a8aa0]">חזרה למשימות</span>
+          </button>
           <div className="bg-[#16181c] border border-[#8b5cf6]/40 rounded-2xl p-3.5 space-y-2 relative overflow-hidden">
             <span className="absolute top-0 right-0 h-full w-[3px]" style={{ background: "linear-gradient(180deg,#8b5cf6,#6d28d9)" }} />
             <p className="text-xs font-black text-[#a79bff] mb-2">עדכון יומי של המסעדה</p>
@@ -1028,6 +1057,7 @@ export default function MainApp({ session, onSignOut }) {
                 לעבור שוב על העדכון היומי והשאלות
               </button>
             )}
+          </div>
           </div>
         )}
               </div>
