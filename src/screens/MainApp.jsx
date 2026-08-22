@@ -7,6 +7,8 @@ import BriefGate, { briefHasContent } from "../components/BriefGate";
 import AppTour from "../components/AppTour";
 import TasksTab, { useShiftTasks, PERIOD_LABEL } from "../components/TasksTab";
 import ManagerMessages from "../components/ManagerMessages";
+import { ShiftQuestion, ShiftChip, ShiftGate } from "../components/ShiftPicker";
+import { loadShift, saveShift, loadRole, saveRole, taskFitsShift, taskFitsRole } from "../lib/shiftChoice";
 import MenuBrowser from "../components/MenuBrowser";
 import { isUnderstood } from "../lib/progressiveSession";
 import ProgressiveFlashcards from "../games/ProgressiveFlashcards";
@@ -45,7 +47,7 @@ const DEFAULT_DAILY_MINUTES = 10;
 const MODE_LABELS = {
   flashcards: "כרטיסיות",
   quick: "5 דקות לפני משמרת",
-  exam: "מבחן קטגוריה",
+  exam: "בוחן קטגוריה",
   progressive: "תרגול לפי התפריט",
 };
 const DAILY_BONUS = 50;
@@ -119,6 +121,11 @@ export default function MainApp({ session, onSignOut }) {
   const [groupView, setGroupView] = useState(null); // menu (menu_group) key or null
   // Bumped to remount MenuBrowser at its top level (see the tour's onNavigate).
   const [browseKey, setBrowseKey] = useState(0);
+  // Today's shift (opening/closing/none) + stable role (waiter/bar). The shift is a
+  // daily answer — loadShift returns null on a new day, which reopens the question.
+  const [myShift, setMyShift] = useState(() => loadShift(session?.teamMemberId));
+  const [myRole, setMyRole] = useState(() => loadRole(session?.teamMemberId));
+  const [shiftEditing, setShiftEditing] = useState(false);
   const [tourOpen, setTourOpen] = useState(() =>
     !!session?.teamMemberId && localStorage.getItem(`menu-app-apptour-done-${session.teamMemberId}`) !== "1");
   const { rows: shiftRows, doneIds: taskDone, toggle: toggleTask } = useShiftTasks(session);
@@ -503,7 +510,20 @@ export default function MainApp({ session, onSignOut }) {
   // the daily_brief_reads row) blocks everything until the brief's questions are answered.
   // Requires the menu to be loaded (distractors come from it); never shown offline, and
   // never shown when today's brief has no content at all.
-  if (!session?.offline && cards?.length > 0 && brief !== null && briefHasContent(brief) && !briefAck?.read_at)
+  // The day starts with one question: are you on shift? (user, 2026-08-20). Asked before
+  // the brief gate — someone who isn't working today gets no daily tasks and no brief,
+  // just the learning path. Answered once per day; changeable any time from the chip.
+  if (!session?.offline && cards?.length > 0 && myShift === null)
+    return (
+      <ShiftGate
+        role={myRole}
+        onPick={(sh, role) => {
+          setMyShift(sh); saveShift(session?.teamMemberId, sh);
+          if (role) { setMyRole(role); saveRole(session?.teamMemberId, role); }
+        }}
+      />
+    );
+  if (!session?.offline && cards?.length > 0 && brief !== null && briefHasContent(brief) && !briefAck?.read_at && myShift !== "none")
     return <BriefGate brief={brief} cards={cards} session={session} onPassed={setBriefAck} />;
   if (gatePractice)
     return <BriefGate brief={brief} cards={cards} session={session} practice onClose={() => setGatePractice(false)} />;
@@ -639,13 +659,28 @@ export default function MainApp({ session, onSignOut }) {
   // so finishing one renumbers the rest — nothing here carries a fixed position.
   const dayTasks = [];
 
-  if (hasBrief) {
+  if (hasBrief && myShift !== "none") {
     dayTasks.push({
       id: "brief", group: "daily",
       title: "לקרוא את העדכון היומי",
       subtitle: briefItems.slice(0, 2).join(" · ") || brief?.notes || "מה קורה היום במסעדה",
       done: briefRead, cta: briefRead ? "לצפייה ←" : "לקריאה ←",
       onOpen: () => setTab("daily"),
+    });
+  }
+
+  // The learning group steers INTO the menu first (user, 2026-08-20): someone who has
+  // barely practised gets "read the menu" as task #1 — reading before drilling. The
+  // second step depends on how much they've studied today: not much ⇒ keep learning the
+  // focus category from the menu itself; enough ⇒ move to practising it.
+  const touchedCount = Object.keys(masteryById || {}).length;
+  if (touchedCount < 10) {
+    dayTasks.push({
+      id: "readmenu", group: "general",
+      title: "לעבור על התפריט ולהכיר את המנות",
+      subtitle: "קוראים מנה-מנה — מרכיבים, אלרגנים ומה אומרים לאורח",
+      done: false, cta: "לתפריט ←",
+      onOpen: () => setTab("categories"),
     });
   }
 
@@ -660,19 +695,26 @@ export default function MainApp({ session, onSignOut }) {
   }
 
   if (focusCat) {
+    // Under half of today's goal studied ⇒ still in reading mode; past it ⇒ practise.
+    const studiedEnough = todaySeconds >= (goalMinutes * 60) / 2;
     dayTasks.push({
       id: "focus", group: "general",
-      title: `ללמוד ${shortCat(focusCat.key)}`,
+      title: studiedEnough ? `לתרגל ${shortCat(focusCat.key)}` : `ללמוד ${shortCat(focusCat.key)} מהתפריט`,
       subtitle: `${focusCat.pct}% · ${focusCat.items?.length || 0} מנות בקטגוריה`,
-      done: todaySeconds >= goalMinutes * 60, cta: "לתרגול ←",
-      onOpen: () => startProgressive(focusCat.key),
+      done: todaySeconds >= goalMinutes * 60, cta: studiedEnough ? "לתרגול ←" : "ללימוד ←",
+      onOpen: () => (studiedEnough ? startProgressive(focusCat.key) : setTab("categories")),
     });
   }
 
   // The manager's own instructions. They carry their text as `body`, so tapping opens the
   // instruction to read before it can be closed.
+  // Filtered by today's answer: openers see the opening checklist, closers the closing
+  // one, "not working today" hides all shift chores, and role-tagged tasks reach only
+  // that role. Both filters default to VISIBLE for anything they don't recognise.
   for (const r of shiftRows) {
     if (r.kind === "learning") continue;   // handled above, from real progress
+    if (myShift && !taskFitsShift(r.kind, myShift)) continue;
+    if (!taskFitsRole(r.role, myRole)) continue;
     dayTasks.push({
       id: r.id, group: r.kind === "training" ? "general" : "daily",
       title: r.title, subtitle: r.subtitle,
@@ -768,6 +810,22 @@ export default function MainApp({ session, onSignOut }) {
             {/* A personal note from the manager outranks everything on this screen —
                 someone wrote it to this waiter by name. */}
             <ManagerMessages session={session} />
+            {/* Which shift is this? Until it's answered the manager's checklists can't be
+                filtered, so the question sits first; afterwards it collapses to a chip
+                that reopens it — the answer is changeable at any moment. Only shown when
+                the manager actually uses shift tasks. */}
+            {shiftRows.length > 0 && ((!myShift || shiftEditing) ? (
+              <ShiftQuestion
+                role={myRole}
+                onPick={(sh, role) => {
+                  setMyShift(sh); saveShift(session?.teamMemberId, sh);
+                  setMyRole(role); saveRole(session?.teamMemberId, role);
+                  setShiftEditing(false);
+                }}
+              />
+            ) : (
+              <ShiftChip shift={myShift} role={myRole} onChange={() => setShiftEditing(true)} />
+            ))}
             {/* Picked up where you stopped. Above everything else because it is the one
                 card that expires — dismissing it removes it for good. */}
             {resumeOffer && (
@@ -877,7 +935,7 @@ export default function MainApp({ session, onSignOut }) {
                     className="w-full py-3 min-h-[48px] rounded-xl font-black text-sm flex items-center justify-center gap-1.5 active:scale-[0.99] transition-transform bg-[#22c08c] text-white"
                   >
                     <GraduationCap size={15} />
-                    {cat.passed ? "עברתם! אפשר להיבחן שוב" : `מבחן ${shortCat(catView)}`}
+                    {cat.passed ? "עברתם את הבוחן! אפשר לגשת שוב" : `מבחן ${shortCat(catView)}`}
                   </button>
                 );
               })()}
@@ -1006,19 +1064,19 @@ export default function MainApp({ session, onSignOut }) {
                         className="w-full mt-2 py-2 min-h-[36px] rounded-lg font-bold text-[11px] flex items-center justify-center gap-1.5 bg-[#15302b] text-[#22c08c]"
                       >
                         <GraduationCap size={13} />
-                        עברתם! אפשר להיבחן שוב
+                        עברתם את הבוחן! אפשר לגשת שוב
                       </button>
                     ) : (
                       <div className="mt-2 rounded-xl bg-[#15302b]/60 border border-[#22c08c]/40 p-2.5 space-y-2">
                         <p className="text-[11px] font-black text-[#22c08c] leading-snug">
-                          אתם מכירים מספיק מ{shortCat(cat.key)} — להיבחן עכשיו?
+                          אתם מכירים מספיק מ{shortCat(cat.key)} — מוכנים לבוחן?
                         </p>
                         <div className="flex gap-2">
                           <button
                             onClick={() => { setModeItems(cat.items); setExamCategory({ key: cat.key, label: catLabel(cat.key) }); setMode("exam"); }}
                             className="flex-1 py-2 min-h-[36px] rounded-lg font-black text-[11px] bg-[#22c08c] text-[#06231a]"
                           >
-                            למבחן {shortCat(cat.key)}
+                            לבוחן {shortCat(cat.key)}
                           </button>
                           <button
                             onClick={() => startProgressive(cat.key)}

@@ -41,7 +41,7 @@ export default function WelcomeTutorial({ session, onDone }) {
           {[
             ["משימות", "מה עליכם היום — ממוספר, וכל משימה פותחת את מה שצריך לעשות"],
             ["תפריט", "התפריט עצמו: מנות, תיאורים, מרכיבים ואלרגנים — להצצה מהירה בשירות"],
-            ["תרגול ובחינה", "כאן לומדים ונבחנים — כרטיסיות לפי קטגוריה ומבחני התפריט"],
+            ["תרגול ובחינה", "כאן לומדים ונבחנים — כרטיסיות לפי קטגוריה, בוחן לכל קטגוריה ומבחן התפריט"],
           ].map(([t, d]) => (
             <div key={t} className="flex items-start gap-2">
               <span className="text-sm font-black text-[#6d5efc] w-14 flex-shrink-0">{t}</span>
@@ -66,7 +66,7 @@ export default function WelcomeTutorial({ session, onDone }) {
           </div>
           <div>
             <p className="text-sm font-black text-[#eef0f6]">נבחנים</p>
-            <p className="text-xs text-[#8a8aa0]">המבחנים הם שבודקים אתכם באמת — הציון נקבע לפי תשובה נכונה, לא לפי מה שתגידו על עצמכם</p>
+            <p className="text-xs text-[#8a8aa0]">הבחנים והמבחן הם שבודקים אתכם באמת — הציון נקבע לפי תשובה נכונה, לא לפי מה שתגידו על עצמכם</p>
           </div>
         </div>
       ),
@@ -81,7 +81,7 @@ export default function WelcomeTutorial({ session, onDone }) {
             באמת: מרכיבים, אלרגיות, ומה עונים לאורח ששואל.
           </p>
           <div className="bg-[#16181c] border border-[#22252b] rounded-xl p-3 space-y-1.5">
-            <p className="text-xs text-[#eef0f6] font-bold">🎓 כל קטגוריה מסתיימת במבחן עם שעון</p>
+            <p className="text-xs text-[#eef0f6] font-bold">🎓 כל קטגוריה מסתיימת בבוחן קצר עם שעון</p>
             <p className="text-xs text-[#eef0f6] font-bold">🏆 ובסוף — מבחן התפריט המלא, על הכול</p>
             <p className="text-[11px] text-[#8a8aa0]">המנהל/ת רואה את הציונים שלכם — זו התעודה שלכם במסעדה.</p>
           </div>

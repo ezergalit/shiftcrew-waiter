@@ -150,7 +150,7 @@ export default function MenuBrowser({ cards, onPractice }) {
 
               {onPractice && (
                 <Choice n="3" onClick={() => { const c = cat; setIdx(null); setCat(null); onPractice(c); }}>
-                  לתרגל {shortCat(cat)} בכרטיסיות
+                  לתרגול מנות {shortCat(cat)} לקראת הבוחן
                 </Choice>
               )}
 

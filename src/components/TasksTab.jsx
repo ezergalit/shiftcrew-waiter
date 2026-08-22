@@ -50,6 +50,22 @@ export default function TasksTab({ tasks, onDone, children }) {
     { key: "general", title: "משימות כלליות", hint: "למידת התפריט ותרגול" },
   ];
 
+  // Display order, flattened: daily first, then general — the same order the rows are
+  // rendered in, so "the next task" means the next one the waiter can see.
+  const openInOrder = ["daily", "general"].flatMap((g) =>
+    tasks.filter((t) => (t.group || "daily") === g && !t.done)
+  );
+
+  // Finishing a task opens the next one (user, 2026-08-20). A checklist that dumps you
+  // back to the list after every item makes you re-find your place; here the shift just
+  // keeps moving. A task with its own screen (the brief, the cards) opens that screen;
+  // a manager instruction opens its sheet.
+  const openTask = (t) => {
+    if (!t) { setSheet(null); return; }
+    if (t.body) setSheet(t);
+    else { setSheet(null); t.onOpen?.(); }
+  };
+
   const Row = (t, isNext) => (
     <button
       key={t.id}
@@ -110,43 +126,53 @@ export default function TasksTab({ tasks, onDone, children }) {
           </p>
         </div>
       ) : (
-        GROUPS.map((g, gi) => {
-          const mine = tasks.filter((t) => (t.group || "daily") === g.key);
-          if (!mine.length) return null;
-          const open = mine.filter((t) => !t.done);
-          const shut = mine.filter((t) => t.done);
-          // ⚠️ The number is the CURRENT place in the queue, not a fixed id (user,
-          // 2026-08-20): finish #3 and the old #4 becomes the new #3. It is recomputed
-          // from `open` on every render, so it can never drift from what is on screen.
-          const ranked = open.map((t, i) => ({ ...t, rank: i + 1 }));
-          // "הבא בתור" marks one task in the whole screen — the first open daily one,
-          // or the first general one on a day with no daily work left.
-          const firstOpenGroup = GROUPS.find((x) => tasks.some((t) => (t.group || "daily") === x.key && !t.done));
-          return (
-            <div key={g.key} className={`space-y-2 ${gi ? "pt-1" : ""}`}>
-              <div className="flex items-baseline justify-between px-1">
-                <p className="text-[15px] font-black text-[#eef0f6]">{g.title}</p>
-                <p className="text-xs font-black text-[#22c08c] tabular-nums">{shut.length}/{mine.length}</p>
-              </div>
-              <p className="text-[10.5px] text-[#5a5a6e] px-1 -mt-1">{g.hint}</p>
-              <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mx-1">
-                <div className="h-full bg-[#22c08c] transition-all" style={{ width: `${(shut.length / mine.length) * 100}%` }} />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                {ranked.map((t, i) => Row(t, i === 0 && firstOpenGroup?.key === g.key))}
-                {shut.length > 0 && (
-                  <div className="flex items-center gap-2 text-[10px] font-black text-[#5a5a6e] tracking-wide mt-1 mb-0.5">
-                    <span className="flex-1 h-px bg-[#22252b]" />
-                    בוצע · {shut.length}
-                    <span className="flex-1 h-px bg-[#22252b]" />
+        <>
+          {GROUPS.map((g, gi) => {
+            const mine = tasks.filter((t) => (t.group || "daily") === g.key);
+            if (!mine.length) return null;
+            const open = mine.filter((t) => !t.done);
+            const shut = mine.filter((t) => t.done);
+            // ⚠️ The number is the CURRENT place in the queue, not a fixed id (user,
+            // 2026-08-20): finish #3 and the old #4 becomes the new #3. Recomputed from
+            // `open` on every render, so it can never drift from what is on screen.
+            const ranked = open.map((t, i) => ({ ...t, rank: i + 1 }));
+            // "הבא בתור" marks one task in the whole screen — the first open daily one,
+            // or the first general one on a day with no daily work left.
+            const firstOpenGroup = GROUPS.find((x) => tasks.some((t) => (t.group || "daily") === x.key && !t.done));
+            return (
+              <div key={g.key} className={`space-y-2 ${gi ? "pt-1" : ""}`}>
+                <div className="flex items-baseline justify-between px-1">
+                  <p className="text-[15px] font-black text-[#eef0f6]">{g.title}</p>
+                  <p className="text-xs font-black text-[#22c08c] tabular-nums">{shut.length}/{mine.length}</p>
+                </div>
+                <p className="text-[10.5px] text-[#5a5a6e] px-1 -mt-1">{g.hint}</p>
+                <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mx-1">
+                  <div className="h-full bg-[#22c08c] transition-all" style={{ width: `${(shut.length / mine.length) * 100}%` }} />
+                </div>
+                {open.length === 0 ? (
+                  <p className="text-[11px] text-[#22c08c] font-bold px-1">הכל בוצע כאן ✓</p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {ranked.map((t, i) => Row(t, i === 0 && firstOpenGroup?.key === g.key))}
                   </div>
                 )}
-                {shut.map((t) => Row(t, false))}
               </div>
+            );
+          })}
+          {/* ONE done pile, at the very bottom of the whole screen (user, 2026-08-20) —
+              finished rows must not sit between the shift tasks and the learning tasks.
+              The list above is only what's left to do; this is the receipt. */}
+          {tasks.some((t) => t.done) && (
+            <div className="flex flex-col gap-2 pt-1">
+              <div className="flex items-center gap-2 text-[10px] font-black text-[#5a5a6e] tracking-wide">
+                <span className="flex-1 h-px bg-[#22252b]" />
+                בוצע היום · {tasks.filter((t) => t.done).length}
+                <span className="flex-1 h-px bg-[#22252b]" />
+              </div>
+              {tasks.filter((t) => t.done).map((t) => Row(t, false))}
             </div>
-          );
-        })
+          )}
+        </>
       )}
 
       {/* A manager instruction has no screen to jump to, so tapping it opens the
@@ -167,7 +193,13 @@ export default function TasksTab({ tasks, onDone, children }) {
             <p className="text-[10.5px] text-[#5a5a6e]">המשימה נשלחה על ידי ההנהלה</p>
             {!sheet.done ? (
               <button
-                onClick={() => { onDone(sheet.id, true); setSheet(null); setBump((n) => n + 1); }}
+                onClick={() => {
+                  onDone(sheet.id, true);
+                  setBump((n) => n + 1);
+                  // The just-finished task is still `open` in this render's props, so
+                  // skip it explicitly rather than trusting the list to have updated.
+                  openTask(openInOrder.find((t) => t.id !== sheet.id));
+                }}
                 className="w-full py-3 min-h-[44px] rounded-xl font-black text-sm bg-[#22c08c] text-[#06231a]"
               >
                 ביצעתי ✓
@@ -197,7 +229,7 @@ export function useShiftTasks(session) {
     (async () => {
       if (session?.offline || !session?.restaurantId) return;
       const [t, d] = await Promise.all([
-        db.from("shift_tasks").select("id, title, subtitle, position, kind")
+        db.from("shift_tasks").select("id, title, subtitle, position, kind, role")
           .eq("restaurant_id", session.restaurantId).eq("active", true)
           .order("position", { ascending: true }),
         // Read back to the widest period any task could use (the 1st of the month), then

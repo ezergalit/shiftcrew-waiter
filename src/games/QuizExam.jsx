@@ -90,7 +90,7 @@ export default function QuizExam({ items, facets, categoryLabel, deckSize = DEFA
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-2.5 flex items-center justify-between flex-shrink-0">
         <button onClick={onDone} className="text-xs text-[#8a8aa0]">← יציאה</button>
-        <p className="text-xs font-bold">מבחן {categoryLabel}</p>
+        <p className="text-xs font-bold">בוחן {categoryLabel}</p>
         <div className="flex items-center gap-2">
           {/* The clock is part of what makes this an exam — it was an 12px icon and a
               bare number, and waiters didn't notice they were being timed. */}

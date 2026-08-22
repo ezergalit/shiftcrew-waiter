@@ -108,7 +108,7 @@ export function pathState(pool, masteryById, passedCats, config = {}) {
   let nextStep = null;
   if (current) {
     nextStep = current.examUnlocked
-      ? { kind: "exam", category: current.key, label: `מבחן ${current.key}` }
+      ? { kind: "exam", category: current.key, label: `בוחן ${current.key}` }
       : { kind: "study", category: current.key, label: `למדו ${current.key}`, pct: current.pct, threshold };
   }
 

@@ -86,10 +86,10 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
         <GraduationCap size={38} className="text-[#22c08c]" />
       </div>
       <p className="text-xl font-black">סיימת ללמוד {label}! 🎉</p>
-      <p className="text-sm text-[#8a8aa0] leading-relaxed">הצלחתם להכיר את כל המנות — שני 5 ברצף על כל אחת. רוצים לגשת למבחן?</p>
+      <p className="text-sm text-[#8a8aa0] leading-relaxed">הצלחתם להכיר את כל המנות — שני 5 ברצף על כל אחת. רוצים לגשת לבוחן?</p>
       {onExam ? (
         <button onClick={onExam} className="w-full py-3.5 min-h-[48px] rounded-2xl bg-[#22c08c] text-white text-sm font-black active:scale-[0.99] transition-transform">
-          כן — למבחן {label}
+          כן — לבוחן {label}
         </button>
       ) : (
         <button onClick={onDone} className="w-full py-3.5 min-h-[48px] rounded-2xl bg-[#22c08c] text-white text-sm font-black">סיום</button>

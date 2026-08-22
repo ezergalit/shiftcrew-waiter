@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { GraduationCap } from "lucide-react";
 import { dishLabel } from "../lib/questionEngine";
+import { typedIngredientScore } from "../lib/typedGrading";
 import { shortCat, shuffle, ALLERGENS } from "./shared";
 
 
@@ -22,26 +23,15 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
     // 2026-08-20 (user request): exams are long now — up to 12 dishes instead of 4.
     return shuffle(pool)
       .slice(0, 12)
-      .map((it) => {
-        const real = it.ingredients || [];
-        const isReal = (x) => real.some((r) => r.trim() === x.trim());
-        const others = pool.filter((x) => x.id !== it.id);
-        // Same-category siblings make the hardest, fairest decoys: for the three Truffle
-        // Creams the decoys ARE the ingredients that tell them apart.
-        const near = [...new Set(others.flatMap((x) => x.ingredients || []))].filter((x) => !isReal(x));
-        const decoys = shuffle(near).slice(0, Math.min(5, Math.max(3, real.length)));
-        return {
-          it,
-          options: shuffle([
-            ...real.map((label) => ({ label, correct: true })),
-            ...decoys.map((label) => ({ label, correct: false })),
-          ]),
-        };
-      });
+      // Free recall (user, 2026-08-20): no chips, no decoys — the waiter WRITES the
+      // ingredients from memory, up to 7 fields. Graded fuzzily and leniently in
+      // lib/typedGrading.js: recall is harder than recognition, and spelling is not
+      // menu knowledge.
+      .map((it) => ({ it, fields: Math.min(7, Math.max(3, (it.ingredients || []).length)) }));
   }, [items]);
 
   const [i, setI] = useState(0);
-  const [picked, setPicked] = useState(new Set());
+  const [typed, setTyped] = useState([]);          // free-recall ingredient entries
   const [pickedAll, setPickedAll] = useState(new Set());
   const [result, setResult] = useState(null);
   const [scores, setScores] = useState([]);
@@ -94,10 +84,10 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
         </div>
         <div>
           <p className="text-4xl font-black">{avg}%</p>
-          <p className="text-sm font-bold text-[#8a8aa0] mt-1">מבחן {categoryLabel}</p>
+          <p className="text-sm font-bold text-[#8a8aa0] mt-1">בוחן {categoryLabel}</p>
         </div>
         <p className="text-sm text-[#c4c4d4] max-w-xs leading-relaxed">
-          {passed ? "עברת! אתה מכיר את הקטגוריה הזו טוב." : "עוד לא עברת — תרגלו את הקטגוריה ותנסו שוב."}
+          {passed ? "עברתם! אתם מכירים את הקטגוריה הזו היטב." : "עוד לא עברתם — תרגלו את הקטגוריה ונסו שוב."}
         </p>
         <button onClick={onDone} className="px-5 py-3 rounded-2xl bg-[#6d5efc] text-white font-black text-sm">סיום</button>
       </div>
@@ -128,22 +118,25 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
 
   const submit = () => {
     if (result) return;
-    const ingJ = jaccard(picked, realIng);
+    // Ingredients are free recall (lenient — see typedGrading.js); allergens stay a
+    // closed-list exact set, because safety data has no "close enough".
+    const ing = typedIngredientScore(typed, realIng);
     const allJ = jaccard(pickedAll, realAll);
-    const score = Math.round((ingJ * 0.6 + allJ * 0.4) * 100);
+    const score = Math.round((ing.score * 0.6 + allJ * 0.4) * 100);
     const rating = score >= 85 ? 5 : score >= 70 ? 4 : score >= 50 ? 3 : score >= 30 ? 2 : 1;
     onAnswer(q.it.id, rating);
     setScores((s) => [...s, score]);
     setResult({
       score,
-      wrongIng: [...picked].filter((x) => !realIng.some((r) => r.trim() === x.trim())),
-      missIng: realIng.filter((x) => !picked.has(x)),
+      matchedIng: ing.matched,
+      wrongIng: ing.wrong,
+      missIng: ing.missed,
       wrongAll: [...pickedAll].filter((x) => !realAll.some((r) => r.trim() === x.trim())),
       missAll: realAll.filter((x) => !pickedAll.has(x)),
     });
   };
 
-  const next = () => { setResult(null); setPicked(new Set()); setPickedAll(new Set()); setI((x) => x + 1); };
+  const next = () => { setResult(null); setTyped([]); setPickedAll(new Set()); setI((x) => x + 1); };
 
   // Post-submit colouring: green = you got it, red = you picked it and it's not in the dish,
   // amber outline = it was in the dish and you missed it.
@@ -159,7 +152,7 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-2.5 flex items-center justify-between flex-shrink-0">
         <button onClick={onDone} className="text-xs text-[#8a8aa0]">← יציאה</button>
-        <p className="text-xs font-bold truncate px-2">מבחן {shortCat(categoryLabel)}</p>
+        <p className="text-xs font-bold truncate px-2">בוחן {shortCat(categoryLabel)}</p>
         <div className="flex items-center gap-2 flex-shrink-0">
           {/* Red for the last 30s — enough warning to finish the dish in hand. */}
           <span className={`text-xs font-black ${secondsLeft <= 30 ? "text-[#e0315a]" : "text-[#f3c14b]"}`}>
@@ -177,18 +170,30 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
           )}
         </div>
 
-        <p className="text-[11px] font-bold text-[#8a8aa0] mb-2">מה נמצא במנה? (בחרו את כל הנכונים)</p>
-        <div className="flex flex-wrap gap-1.5 mb-4">
-          {q.options.map((opt) => (
-            <button
-              key={opt.label}
-              disabled={!!result}
-              onClick={() => toggle(setPicked)(opt.label)}
-              className={`text-[12px] font-bold px-3 py-2 rounded-lg border transition-colors ${chipClass(opt.label, picked.has(opt.label), opt.correct)}`}
-            >
-              {opt.label}
-            </button>
-          ))}
+        <p className="text-[11px] font-bold text-[#8a8aa0] mb-1">כתבו מה נמצא במנה — מהזיכרון</p>
+        <p className="text-[10.5px] text-[#5a5a6e] mb-2">לא חייבים את הכל, ואיות לא מדויק בסדר גמור. אל תמציאו — מרכיב שגוי מוריד.</p>
+        <div className="grid grid-cols-2 gap-1.5 mb-4">
+          {Array.from({ length: q.fields }).map((_, idx) => {
+            // Post-submit colouring per field: green = named a real ingredient,
+            // red = named nothing in the dish, dark = left empty.
+            const val = typed[idx] || "";
+            let cls = "bg-[#16181c] border-[#22252b] text-[#eef0f6]";
+            if (result && val.trim()) {
+              const good = result.matchedIng.some((m) => m.entry === val.trim());
+              cls = good ? "bg-[#15302b] border-[#22c08c] text-[#22c08c]" : "bg-[#3a1d22] border-[#e0315a] text-[#e0315a]";
+            }
+            return (
+              <input
+                key={idx}
+                dir="rtl"
+                value={val}
+                disabled={!!result}
+                onChange={(e) => setTyped((prev) => { const n = [...prev]; n[idx] = e.target.value; return n; })}
+                placeholder={`מרכיב ${idx + 1}`}
+                className={`w-full min-h-[44px] rounded-lg border px-3 text-[13px] font-bold placeholder-[#3a3d46] outline-none focus:border-[#6d5efc] ${cls}`}
+              />
+            );
+          })}
         </div>
 
         <p className="text-[11px] font-bold text-[#8a8aa0] mb-2">אילו אלרגיות יש במנה? (אם אין — אל תבחרו כלום)</p>
@@ -209,15 +214,15 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
           <>
             <button
               onClick={submit}
-              disabled={picked.size === 0}
+              disabled={!typed.some((t) => (t || "").trim())}
               className={`w-full py-3.5 rounded-2xl font-black text-sm ${
-                picked.size ? "bg-[#6d5efc] text-white" : "bg-[#22252b] text-[#b4b4c4]"
+                typed.some((t) => (t || "").trim()) ? "bg-[#6d5efc] text-white" : "bg-[#22252b] text-[#b4b4c4]"
               }`}
             >
               שליחה
             </button>
-            {picked.size === 0 && (
-              <p className="text-[11px] text-[#8a8aa0] text-center mt-2">בחרו לפחות מרכיב אחד</p>
+            {!typed.some((t) => (t || "").trim()) && (
+              <p className="text-[11px] text-[#8a8aa0] text-center mt-2">כתבו לפחות מרכיב אחד</p>
             )}
           </>
         )}
@@ -236,6 +241,9 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
             )}
             {result.wrongIng.length > 0 && (
               <p className="text-[11px] text-[#e0315a]">לא נמצא במנה: {result.wrongIng.join(", ")}</p>
+            )}
+            {result.matchedIng.length > 0 && (
+              <p className="text-[11px] text-[#22c08c]">זיהיתם נכון: {result.matchedIng.map((m) => m.ingredient).join(", ")}</p>
             )}
             {result.missIng.length > 0 && (
               <p className="text-[11px] text-[#f3a712]">פספסתם: {result.missIng.join(", ")}</p>
