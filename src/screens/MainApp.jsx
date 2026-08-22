@@ -720,6 +720,7 @@ export default function MainApp({ session, onSignOut }) {
       title: r.title, subtitle: r.subtitle,
       body: r.subtitle || r.title,
       periodLabel: PERIOD_LABEL[r.kind],
+      todayOnly: !!r.expires_on,
       done: taskDone.has(r.id), cta: "לפתיחה ←",
     });
   }

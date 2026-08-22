@@ -93,11 +93,14 @@ export default function TasksTab({ tasks, onDone, children }) {
       <span className="flex-1 min-w-0">
         {/* A weekly task shown as "done" alongside daily ones is confusing unless it says
             so — the tick means "done this week", not "done today". */}
-        {(isNext || t.periodLabel) && (
+        {(isNext || t.periodLabel || t.todayOnly) && (
           <span className="flex items-center gap-1.5 mb-0.5">
             {isNext && <span className="text-[9.5px] font-black text-[#22c08c] tracking-wide">הבא בתור</span>}
             {t.periodLabel && (
               <span className="text-[9.5px] font-black text-[#8a8aa0] bg-[#20232b] rounded px-1.5 py-0.5">{t.periodLabel}</span>
+            )}
+            {t.todayOnly && (
+              <span className="text-[9.5px] font-black text-[#f3a712] bg-[#33290f] rounded px-1.5 py-0.5">להיום בלבד</span>
             )}
           </span>
         )}
@@ -229,8 +232,11 @@ export function useShiftTasks(session) {
     (async () => {
       if (session?.offline || !session?.restaurantId) return;
       const [t, d] = await Promise.all([
-        db.from("shift_tasks").select("id, title, subtitle, position, kind, role")
+        // expires_on (owner side, 2026-08-20): a task the manager added "for today
+        // only". Expired rows stay in the table as history — filtered here, not deleted.
+        db.from("shift_tasks").select("id, title, subtitle, position, kind, role, expires_on")
           .eq("restaurant_id", session.restaurantId).eq("active", true)
+          .or(`expires_on.is.null,expires_on.gte.${todayStr()}`)
           .order("position", { ascending: true }),
         // Read back to the widest period any task could use (the 1st of the month), then
         // keep each completion only if it falls inside ITS OWN task's period.

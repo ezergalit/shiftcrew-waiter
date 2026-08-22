@@ -1056,3 +1056,12 @@ todayStr/loadDaily/saveDaily/loadNum/saveNum). **MainApp מייבא מהם** —
 "הנסיונות"⇒"הניסיונות", וכל 400+ המחרוזות נסרקו. **מינוח אחיד: בוחן = קטגוריה,
 מבחן = התפריט המלא** — הוחל בכל האפליקציה (כפתורים, כותרות, סיור, tutorial,
 מסך הסיום של MenuBrowser: "לתרגול מנות X לקראת הבוחן").
+
+### ⏳ משימות "להיום בלבד" — `shift_tasks.expires_on` (2026-08-22)
+
+עמודה חדשה מצד המנהל (commit `93e02f0` שם): `expires_on date` — המנהל מוסיף משימה
+ל**יום אחד**. null = קבועה. שורות שפגו **לא נמחקות** (היסטוריה + יעד FK של
+`shift_task_done`), ולכן הקריאה ב-`useShiftTasks` מסננת:
+`.or('expires_on.is.null,expires_on.gte.<today>')`. שורה עם `expires_on` מקבלת
+badge כתום "להיום בלבד" (`todayOnly` ב-dayTasks). נבדק חי: משימת היום מוצגת עם
+ה-badge, משימת אתמול לא מוצגת.
