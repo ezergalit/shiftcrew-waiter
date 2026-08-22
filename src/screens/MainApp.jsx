@@ -7,8 +7,11 @@ import BriefGate, { briefHasContent } from "../components/BriefGate";
 import AppTour from "../components/AppTour";
 import TasksTab, { useShiftTasks, PERIOD_LABEL } from "../components/TasksTab";
 import ManagerMessages from "../components/ManagerMessages";
-import { ShiftQuestion, ShiftChip, ShiftGate } from "../components/ShiftPicker";
-import { loadShift, saveShift, loadRole, saveRole, taskFitsShift, taskFitsRole } from "../lib/shiftChoice";
+import { ShiftQuestion, ShiftChip, ShiftGate, ProfileGate } from "../components/ShiftPicker";
+import {
+  loadShift, saveShift, loadRole, saveRole, loadGender, saveGender, loadDailyRole,
+  saveDailyRole, setCurrentGender, taskFitsShift, taskFitsRole,
+} from "../lib/shiftChoice";
 import MenuBrowser from "../components/MenuBrowser";
 import { isUnderstood } from "../lib/progressiveSession";
 import ProgressiveFlashcards from "../games/ProgressiveFlashcards";
@@ -121,11 +124,22 @@ export default function MainApp({ session, onSignOut }) {
   const [groupView, setGroupView] = useState(null); // menu (menu_group) key or null
   // Bumped to remount MenuBrowser at its top level (see the tour's onNavigate).
   const [browseKey, setBrowseKey] = useState(0);
-  // Today's shift (opening/closing/none) + stable role (waiter/bar). The shift is a
-  // daily answer — loadShift returns null on a new day, which reopens the question.
+  // One-time profile (user, 2026-08-22): gender + permanent role (waiter/bar/both) —
+  // asked once at first entry, never again. The shift stays a DAILY answer (loadShift
+  // returns null on a new day, which reopens the question), and only a "both" profile
+  // gets a daily role question — everyone else's role is resolved from the profile.
+  const [myGender, setMyGender] = useState(() => {
+    const g = loadGender(session?.teamMemberId);
+    setCurrentGender(g);   // prime the copy genderizer before first render
+    return g;
+  });
+  const [profileRole, setProfileRole] = useState(() => loadRole(session?.teamMemberId));
   const [myShift, setMyShift] = useState(() => loadShift(session?.teamMemberId));
-  const [myRole, setMyRole] = useState(() => loadRole(session?.teamMemberId));
+  const [dailyRole, setDailyRole] = useState(() => loadDailyRole(session?.teamMemberId));
   const [shiftEditing, setShiftEditing] = useState(false);
+  // The role every task filter actually uses: the profile's, unless the profile says
+  // "both" — then today's answer.
+  const myRole = profileRole === "both" ? dailyRole : profileRole;
   const [tourOpen, setTourOpen] = useState(() =>
     !!session?.teamMemberId && localStorage.getItem(`menu-app-apptour-done-${session.teamMemberId}`) !== "1");
   const { rows: shiftRows, doneIds: taskDone, toggle: toggleTask } = useShiftTasks(session);
@@ -513,13 +527,22 @@ export default function MainApp({ session, onSignOut }) {
   // The day starts with one question: are you on shift? (user, 2026-08-20). Asked before
   // the brief gate — someone who isn't working today gets no daily tasks and no brief,
   // just the learning path. Answered once per day; changeable any time from the chip.
+  if (!session?.offline && cards?.length > 0 && (!myGender || !profileRole))
+    return (
+      <ProfileGate
+        onDone={(g, role) => {
+          setMyGender(g); saveGender(session?.teamMemberId, g);
+          setProfileRole(role); saveRole(session?.teamMemberId, role);
+        }}
+      />
+    );
   if (!session?.offline && cards?.length > 0 && myShift === null)
     return (
       <ShiftGate
-        role={myRole}
+        profileRole={profileRole}
         onPick={(sh, role) => {
           setMyShift(sh); saveShift(session?.teamMemberId, sh);
-          if (role) { setMyRole(role); saveRole(session?.teamMemberId, role); }
+          if (role) { setDailyRole(role); saveDailyRole(session?.teamMemberId, role); }
         }}
       />
     );
@@ -659,7 +682,9 @@ export default function MainApp({ session, onSignOut }) {
   // so finishing one renumbers the rest — nothing here carries a fixed position.
   const dayTasks = [];
 
-  if (hasBrief && myShift !== "none") {
+  // Shown for EVERY shift answer, including "בלי משמרת" (user, 2026-08-22): no shift
+  // means no phase checklists, not no information — the daily update still reaches them.
+  if (hasBrief) {
     dayTasks.push({
       id: "brief", group: "daily",
       title: "לקרוא את העדכון היומי",
@@ -817,11 +842,16 @@ export default function MainApp({ session, onSignOut }) {
                 the manager actually uses shift tasks. */}
             {shiftRows.length > 0 && ((!myShift || shiftEditing) ? (
               <ShiftQuestion
-                role={myRole}
+                profileRole={profileRole}
                 onPick={(sh, role) => {
                   setMyShift(sh); saveShift(session?.teamMemberId, sh);
-                  setMyRole(role); saveRole(session?.teamMemberId, role);
+                  if (role) { setDailyRole(role); saveDailyRole(session?.teamMemberId, role); }
                   setShiftEditing(false);
+                }}
+                onResetProfile={() => {
+                  // Clears the one-time answers (promotion, typo, shared phone) — the
+                  // profile questions run again on the next render.
+                  setMyGender(null); setProfileRole(null); setShiftEditing(false);
                 }}
               />
             ) : (

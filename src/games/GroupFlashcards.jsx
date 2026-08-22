@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { Trophy } from "lucide-react";
 import { shortCat } from "./shared";
 import { categoryVisual } from "../lib/categoryVisual";
+import { gz } from "../lib/shiftChoice";
 
 // Group flashcards for thin categories (user request, 2026-08-20). A per-item card is
 // useless there — "קולה" on the front flips to "קולה" on the back. The unit of knowledge
@@ -75,7 +76,7 @@ export default function GroupFlashcards({ items, onRate, onDone }) {
               </span>
               <p className="text-2xl font-black text-[#eef0f6]">{g.title}</p>
               <p className="text-xs font-bold text-[#8a8aa0]">מה אנחנו מגישים כאן, ובאיזה מחיר?</p>
-              <span className="text-xs font-bold text-[#6d5efc] mt-1">הקש/י להפוך את הכרטיס</span>
+              <span className="text-xs font-bold text-[#6d5efc] mt-1">{gz("הקש/י להפוך את הכרטיס")}</span>
             </button>
 
             {/* back — the carry list with prices: this is the answer being memorised */}

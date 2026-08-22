@@ -3,6 +3,7 @@ import { GraduationCap } from "lucide-react";
 import { dishLabel } from "../lib/questionEngine";
 import { typedIngredientScore } from "../lib/typedGrading";
 import { shortCat, shuffle, ALLERGENS } from "./shared";
+import { gz } from "../lib/shiftChoice";
 
 
 // The graduation step for a category. Deliberately NOT free text: an earlier version asked
@@ -170,7 +171,7 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
           )}
         </div>
 
-        <p className="text-[11px] font-bold text-[#8a8aa0] mb-1">מה נמצא במנה? כתוב/כתבי מהזיכרון</p>
+        <p className="text-[11px] font-bold text-[#8a8aa0] mb-1">{gz("מה נמצא במנה? כתוב/כתבי מהזיכרון")}</p>
         <p className="text-[10.5px] text-[#5a5a6e] mb-2">לא חייבים את הכל, ואיות לא מדויק בסדר גמור. רק בלי להמציא — מרכיב שגוי מוריד.</p>
         <div className="grid grid-cols-2 gap-1.5 mb-4">
           {Array.from({ length: q.fields }).map((_, idx) => {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { BookOpen, ListChecks, GraduationCap, Wallet, Sparkles, Hand } from "lucide-react";
+import { gz } from "../lib/shiftChoice";
 
 // First-run guided tour — rebuilt 2026-08-20 to actually be guided.
 //
@@ -167,12 +168,12 @@ export default function AppTour({ onNavigate, onDone }) {
             <s.icon size={19} />
           </span>
           <div className="flex-1 min-w-0">
-            <p className="text-[15px] font-black text-[#eef0f6] leading-snug">{s.title}</p>
+            <p className="text-[15px] font-black text-[#eef0f6] leading-snug">{gz(s.title)}</p>
             <p className="text-[10px] font-bold text-[#5a5a6e] mt-0.5">שלב {i + 1} מתוך {STEPS.length}</p>
           </div>
         </div>
 
-        <p className="text-[13px] text-[#c4c4d4] leading-relaxed">{s.body}</p>
+        <p className="text-[13px] text-[#c4c4d4] leading-relaxed">{gz(s.body)}</p>
 
         {s.target ? (
           <>
@@ -180,7 +181,7 @@ export default function AppTour({ onNavigate, onDone }) {
                 thing. Reading about a screen and using it are not the same lesson. */}
             <div className="flex items-center gap-2 bg-[#15302b] border border-[#22c08c]/40 rounded-xl px-3 py-2.5">
               <Hand size={16} className="text-[#22c08c] flex-shrink-0" />
-              <p className="text-[12px] font-black text-[#22c08c]">{s.cue}</p>
+              <p className="text-[12px] font-black text-[#22c08c]">{gz(s.cue)}</p>
             </div>
             {!rect && (
               // The element isn't on screen (a restaurant with a single menu has no menu

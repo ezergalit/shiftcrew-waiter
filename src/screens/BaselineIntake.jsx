@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Timer, ClipboardCheck, ArrowLeft } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { buildWeightedDeck, availableFacets, withDisplayNames } from "../lib/questionEngine";
+import { gz } from "../lib/shiftChoice";
 
 const db = supabase.schema("menu_app");
 
@@ -185,7 +186,7 @@ export default function BaselineIntake({ session, onDone }) {
             style={{ background: "linear-gradient(135deg,#6d5efc,#9b7bff)" }}>
             <ClipboardCheck size={30} />
           </div>
-          <h1 className="text-xl font-black text-[#eef0f6]">בוא/י נראה איפה את/ה עומד/ת</h1>
+          <h1 className="text-xl font-black text-[#eef0f6]">{gz("בוא/י נראה איפה את/ה עומד/ת")}</h1>
           <p className="text-sm text-[#b4b4c4] leading-relaxed">
             {enough
               ? <>כמה שאלות קצרות עלייך, ואז מבחן היכרות של כ-{examMinutes} דקות על התפריט.
@@ -214,7 +215,7 @@ export default function BaselineIntake({ session, onDone }) {
         <div className="flex-1 overflow-y-auto space-y-5">
           {SELF_RATING_QUESTIONS.map((q) => (
             <div key={q.id}>
-              <p className="text-sm font-bold text-[#eef0f6] mb-2">{q.q}</p>
+              <p className="text-sm font-bold text-[#eef0f6] mb-2">{gz(q.q)}</p>
               <div className="flex flex-wrap gap-2">
                 {q.options.map((opt) => {
                   const on = ratings[q.id] === opt;

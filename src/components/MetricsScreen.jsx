@@ -3,6 +3,7 @@ import { ChevronRight, Flame, Clock, Trophy, Trash2, Loader2 } from "lucide-reac
 import { colorFor } from "../games/shared";
 import { supabase } from "../lib/supabase";
 import { setSessionToken } from "../lib/appSession";
+import { gz } from "../lib/shiftChoice";
 
 const db = supabase.schema("menu_app");
 
@@ -391,7 +392,7 @@ function DeleteProfile() {
       window.location.reload();
     } catch (e) {
       console.error("delete profile:", e);
-      setErr("המחיקה נכשלה. נסה/י שוב.");
+      setErr(gz("המחיקה נכשלה. נסה/י שוב."));
       setBusy(false);
     }
   };

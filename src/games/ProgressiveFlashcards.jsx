@@ -6,6 +6,7 @@ import { countLabel } from "./shared";
 import { categoryVisual } from "../lib/categoryVisual";
 import { pickNext, isUnderstood } from "../lib/progressiveSession";
 import { nextConsecutiveFives } from "../lib/studySession";
+import { gz } from "../lib/shiftChoice";
 
 // The continuous flashcard session behind the menu tab's drill-down (2026-08-19).
 // Visually it IS Flashcards — same card, same flip, same 1-5 rating — but rating a card
@@ -160,7 +161,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
                   ].filter(Boolean).join(" · ")}
                 </p>
               )}
-              <span className="text-xs font-bold text-[#6d5efc] mt-1">הקש/י להפוך את הכרטיס</span>
+              <span className="text-xs font-bold text-[#6d5efc] mt-1">{gz("הקש/י להפוך את הכרטיס")}</span>
             </button>
 
             {/* back */}

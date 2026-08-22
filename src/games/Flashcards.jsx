@@ -3,6 +3,7 @@ import { Trophy, Star } from "lucide-react";
 import { dishLabel } from "../lib/questionEngine";
 import { countLabel } from "./shared";
 import { categoryVisual } from "../lib/categoryVisual";
+import { gz } from "../lib/shiftChoice";
 
 // A real card that flips (2026-08-13). The reveal used to swap content in place, which
 // read as a page change, not a card. rotateX (vertical) rather than rotateY: a horizontal
@@ -87,7 +88,7 @@ export default function Flashcards({ items, session, quick, onRate, onDone }) {
                   ].filter(Boolean).join(" · ")}
                 </p>
               )}
-              <span className="text-xs font-bold text-[#6d5efc] mt-1">הקש/י להפוך את הכרטיס</span>
+              <span className="text-xs font-bold text-[#6d5efc] mt-1">{gz("הקש/י להפוך את הכרטיס")}</span>
             </button>
 
             {/* back */}
