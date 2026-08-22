@@ -124,9 +124,9 @@ export default function MenuBrowser({ cards, onPractice }) {
           <div className="flex-1 overflow-y-auto px-5 py-8 flex flex-col items-center justify-center text-center gap-5">
             <span className="w-20 h-20 rounded-full bg-[#15302b] border border-[#22c08c]/40 flex items-center justify-center text-4xl">✓</span>
             <div className="space-y-2">
-              <h2 className="text-[24px] font-black text-[#eef0f6] leading-tight">עברתם על כל {shortCat(cat)}</h2>
+              <h2 className="text-[24px] font-black text-[#eef0f6] leading-tight">עברת על כל {shortCat(cat)}</h2>
               <p className="text-[14px] text-[#8a8aa0] leading-relaxed">
-                {dishes.length} מנות. רוצים לחזור עליהן שוב מההתחלה, או להמשיך הלאה?
+                {dishes.length} מנות. לחזור עליהן שוב מההתחלה, או להמשיך הלאה?
               </p>
             </div>
 
@@ -144,7 +144,7 @@ export default function MenuBrowser({ cards, onPractice }) {
                 </Choice>
               ) : (
                 <Choice n="2" onClick={() => { setCat(null); setIdx(null); }}>
-                  {flat ? "לחזור לרשימת הקטגוריות" : `סיימתם את ${menu} — לקטגוריות`}
+                  {flat ? "לחזור לרשימת הקטגוריות" : `סיימת את ${menu} — לקטגוריות`}
                 </Choice>
               )}
 
@@ -252,7 +252,7 @@ export default function MenuBrowser({ cards, onPractice }) {
     return (
       <div className="space-y-3.5">
         <Crumb over={flat ? null : menu} title={`${categoryVisual(cat).emoji} ${shortCat(cat)}`} onBack={() => setCat(null)} />
-        <p className="text-[11.5px] text-[#5a5a6e] px-1">{dishes.length} מנות · הקישו על מנה לקריאה מלאה</p>
+        <p className="text-[11.5px] text-[#5a5a6e] px-1">{dishes.length} מנות · הקשה על מנה פותחת אותה במלואה</p>
         {dishes.map((d, i) => (
           <button
             key={d.id}

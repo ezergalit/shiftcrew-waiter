@@ -93,8 +93,8 @@ export default function MenuExam({ items, deckSize = 40, passMark = 70, category
         </div>
         <p className="text-sm text-[#c4c4d4] max-w-xs leading-relaxed">
           {passed
-            ? "עברתם! אתם יודעים להמליץ נכון גם כשלאורח יש הגבלה."
-            : `צריך ${passMark}% כדי לעבור. חזרו על התפריט ונסו שוב — אין הגבלה על מספר הניסיונות.`}
+            ? "עברת! אפשר לסמוך עליך בהמלצה — גם כשלאורח יש הגבלה."
+            : `צריך ${passMark}% כדי לעבור. עוד סבב על התפריט ואפשר לגשת שוב — אין הגבלה על מספר הניסיונות.`}
         </p>
         <button onClick={onDone} className="px-5 py-3 min-h-[44px] rounded-2xl bg-[#6d5efc] text-white font-black text-sm">סיום</button>
       </div>
@@ -189,7 +189,7 @@ export default function MenuExam({ items, deckSize = 40, passMark = 70, category
               שליחה
             </button>
             <p className="text-[11px] text-[#8a8aa0] text-center">
-              {q.exactSet ? `נבחרו ${picked.size} — בחרו את כל מה שנמצא במנה` : `נבחרו ${picked.size} מתוך ${need}`}
+              {q.exactSet ? `נבחרו ${picked.size} — לבחור את כל מה שנמצא במנה` : `נבחרו ${picked.size} מתוך ${need}`}
             </p>
           </>
         )}

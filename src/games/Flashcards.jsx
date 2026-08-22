@@ -17,12 +17,12 @@ export default function Flashcards({ items, session, quick, onRate, onDone }) {
   if (i >= items.length) return (
     <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-3 bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <Trophy size={40} className="text-[#f3c14b]" />
-      <p className="font-black text-lg">סיימתם את הסבב!</p>
+      <p className="font-black text-lg">סיימת את הסבב!</p>
       {/* The session is a slice, so say what is left — otherwise "done" reads as "done
           with the whole category", which it usually is not. */}
       {session?.retiredCount > 0 && (
         <p className="text-xs text-[#22c08c] font-bold">
-          {countLabel([...Array(session.retiredCount)], "מנה שאתם כבר שולטים בה", "מנות שאתם כבר שולטים בהן")} — דילגנו עליהן
+          {countLabel([...Array(session.retiredCount)], "מנה שכבר בשליטה מלאה", "מנות שכבר בשליטה מלאה")} — דילגנו עליהן
         </p>
       )}
       {session?.poolCount > items.length && (
@@ -87,7 +87,7 @@ export default function Flashcards({ items, session, quick, onRate, onDone }) {
                   ].filter(Boolean).join(" · ")}
                 </p>
               )}
-              <span className="text-xs font-bold text-[#6d5efc] mt-1">הקישו להפוך את הכרטיס</span>
+              <span className="text-xs font-bold text-[#6d5efc] mt-1">הקש/י להפוך את הכרטיס</span>
             </button>
 
             {/* back */}
@@ -98,7 +98,7 @@ export default function Flashcards({ items, session, quick, onRate, onDone }) {
               {it.allergens?.length > 0 && <div className="bg-[#3a1d22] p-2 rounded-lg"><p className="text-xs font-bold text-[#e0315a]">אלרגיות: {it.allergens.join(", ")}</p></div>}
               {it.pitfalls?.length > 0 && <div className="bg-[#3a2f1d] p-2 rounded-lg"><p className="text-xs font-bold text-[#f3c14b]">מוקשים: {it.pitfalls.join(", ")}</p></div>}
               <div className="pt-1">
-                <p className="text-xs font-bold text-[#8a8aa0] mb-1.5">כמה טוב ידעתם?</p>
+                <p className="text-xs font-bold text-[#8a8aa0] mb-1.5">כמה טוב ידעת?</p>
                 {/* Says plainly that this is practice, not scoring — otherwise a waiter
                     rates 5s expecting points and quietly gets none. */}
                 <p className="text-[11px] text-[#5a5a6e] mb-1.5">הדירוג העצמי קובע מה תחזרו עליו — נקודות נצברות במשחקים ובמבחנים</p>

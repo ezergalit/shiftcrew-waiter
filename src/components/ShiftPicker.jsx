@@ -27,13 +27,13 @@ export function ShiftQuestion({ role, onPick, workingOnly = false }) {
       {!workingOnly && (
         <div>
           <p className="text-[15px] font-black text-[#eef0f6]">איזו משמרת היום?</p>
-          <p className="text-[11px] text-[#8a8aa0] mt-0.5">התשובה קובעת אילו משימות תראו — ואפשר לשנות אותה בכל רגע.</p>
+          <p className="text-[11px] text-[#8a8aa0] mt-0.5">התשובה קובעת אילו משימות יוצגו — ואפשר לשנות אותה בכל רגע.</p>
         </div>
       )}
 
       {!pickedRole && (
         <div className="space-y-1.5">
-          <p className="text-[11px] font-black text-[#8a8aa0]">קודם — מה התפקיד שלכם?</p>
+          <p className="text-[11px] font-black text-[#8a8aa0]">קודם — מה התפקיד שלך?</p>
           <div className="grid grid-cols-2 gap-2">
             {ROLES.map((r) => {
               const Icon = ROLE_ICONS[r.id];
@@ -106,7 +106,7 @@ export function ShiftGate({ role, onPick }) {
 
       {working === null ? (
         <>
-          <p className="text-xl font-black mb-1.5">אתם במשמרת היום?</p>
+          <p className="text-xl font-black mb-1.5">במשמרת היום?</p>
           <p className="text-sm text-[#8a8aa0] mb-5 leading-relaxed">
             אם כן — נציג את משימות המשמרת והעדכון היומי. אם לא — ניגש ישר ללימוד התפריט.
           </p>
@@ -128,7 +128,7 @@ export function ShiftGate({ role, onPick }) {
       ) : (
         <>
           <p className="text-xl font-black mb-1.5">איזו משמרת?</p>
-          <p className="text-sm text-[#8a8aa0] mb-5">התשובה קובעת אילו משימות תראו — ואפשר לשנות אותה בכל רגע מהמסך הראשי.</p>
+          <p className="text-sm text-[#8a8aa0] mb-5">התשובה קובעת אילו משימות יוצגו — ואפשר לשנות אותה בכל רגע מהמסך הראשי.</p>
           <ShiftQuestion role={role} onPick={onPick} workingOnly />
         </>
       )}

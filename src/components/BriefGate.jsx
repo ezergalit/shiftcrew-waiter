@@ -113,7 +113,7 @@ export default function BriefGate({ brief, cards, session, practice = false, onP
       date: today,
       read_at: now,
       question: questions.length ? `עדכון יומי של המסעדה — ${questions.length} שאלות (גרסה ${variant.name})` : null,
-      answer: questions.length ? "ענו נכון על כל השאלות" : null,
+      answer: questions.length ? "יש לענות נכון על כל השאלות" : null,
       correct: questions.length ? true : null,
       answered_at: now,
     };

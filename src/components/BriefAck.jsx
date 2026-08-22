@@ -111,7 +111,7 @@ export default function BriefAck({ brief, cards, session, ack, onAcked }) {
     <div className="bg-[#191b1f] border border-[#22252b] rounded-lg p-3">
       <p className="text-[11px] font-black text-[#eef0f6] mb-0.5">{q.question}</p>
       <p className="text-[10px] text-[#8a8aa0] font-bold mb-2.5">
-        ענו כדי לאשר שקראתם — התשובה נשלחת למנהל
+        התשובה מאשרת שקראת — והיא נשלחת למנהל/ת
       </p>
       <div className="flex flex-col gap-1.5">
         {q.options.map((opt) => {

@@ -106,7 +106,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
       <div className="w-20 h-20 rounded-3xl bg-[#1e1b33] flex items-center justify-center">
         <Coffee size={34} className="text-[#a79bff]" />
       </div>
-      <p className="text-xl font-black">עברתם {CHECKPOINT_EVERY} כרטיסיות 💪</p>
+      <p className="text-xl font-black">עברת {CHECKPOINT_EVERY} כרטיסיות 💪</p>
       <p className="text-sm text-[#8a8aa0]">הצלחתם להכיר {understoodCount} מתוך {items.length} מנות ב{label}. ממשיכים?</p>
       <button onClick={() => setCheckpoint(null)} className="w-full py-3.5 min-h-[48px] rounded-2xl bg-[#6d5efc] text-white text-sm font-black active:scale-[0.99] transition-transform">
         עוד סיבוב
@@ -160,7 +160,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
                   ].filter(Boolean).join(" · ")}
                 </p>
               )}
-              <span className="text-xs font-bold text-[#6d5efc] mt-1">הקישו להפוך את הכרטיס</span>
+              <span className="text-xs font-bold text-[#6d5efc] mt-1">הקש/י להפוך את הכרטיס</span>
             </button>
 
             {/* back */}
@@ -171,7 +171,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
               {it.allergens?.length > 0 && <div className="bg-[#3a1d22] p-2 rounded-lg"><p className="text-xs font-bold text-[#e0315a]">אלרגיות: {it.allergens.join(", ")}</p></div>}
               {it.pitfalls?.length > 0 && <div className="bg-[#3a2f1d] p-2 rounded-lg"><p className="text-xs font-bold text-[#f3c14b]">מוקשים: {it.pitfalls.join(", ")}</p></div>}
               <div className="pt-1">
-                <p className="text-xs font-bold text-[#8a8aa0] mb-1.5">כמה טוב ידעתם?</p>
+                <p className="text-xs font-bold text-[#8a8aa0] mb-1.5">כמה טוב ידעת?</p>
                 <p className="text-[11px] text-[#5a5a6e] mb-1.5">הדירוג העצמי קובע מה תחזרו עליו — נקודות נצברות במשחקים ובמבחנים</p>
                 <div className="grid grid-cols-5 gap-1.5">
                   {[1, 2, 3, 4, 5].map(v => (

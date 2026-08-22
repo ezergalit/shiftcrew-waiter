@@ -43,7 +43,7 @@ export default function GroupFlashcards({ items, onRate, onDone }) {
   if (i >= groups.length) return (
     <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <Trophy size={40} className="text-[#f3c14b]" />
-      <p className="font-black text-lg">עברתם על כל {shortCat(catName)}!</p>
+      <p className="font-black text-lg">עברת על כל {shortCat(catName)}!</p>
       <button onClick={onDone} className="px-4 py-3 min-h-[44px] rounded-lg bg-[#6d5efc] text-white font-bold text-sm">חזור</button>
     </div>
   );
@@ -75,7 +75,7 @@ export default function GroupFlashcards({ items, onRate, onDone }) {
               </span>
               <p className="text-2xl font-black text-[#eef0f6]">{g.title}</p>
               <p className="text-xs font-bold text-[#8a8aa0]">מה אנחנו מגישים כאן, ובאיזה מחיר?</p>
-              <span className="text-xs font-bold text-[#6d5efc] mt-1">הקישו להפוך את הכרטיס</span>
+              <span className="text-xs font-bold text-[#6d5efc] mt-1">הקש/י להפוך את הכרטיס</span>
             </button>
 
             {/* back — the carry list with prices: this is the answer being memorised */}
@@ -90,7 +90,7 @@ export default function GroupFlashcards({ items, onRate, onDone }) {
                 ))}
               </div>
               <div className="pt-1">
-                <p className="text-xs font-bold text-[#8a8aa0] mb-1.5">כמה טוב הכרתם את הרשימה?</p>
+                <p className="text-xs font-bold text-[#8a8aa0] mb-1.5">כמה טוב הכרת את הרשימה?</p>
                 <div className="grid grid-cols-5 gap-1.5">
                   {[1, 2, 3, 4, 5].map((v) => (
                     <button key={v} onClick={() => rate(v)} className={`py-3 min-h-[44px] rounded-lg font-black text-base ${RATING_STYLE[v]}`}>{v}</button>

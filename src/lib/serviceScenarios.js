@@ -134,7 +134,7 @@ export function qWithIngredient(cards, rnd = Math.random) {
         subjectId: withIt[0].id,
         multi: true,
         prompt: `אורח מבקש שתמליצו לו על ${MULTI_TARGET} מנות מ${cat} עם ${ing}. אילו מנות תציעו?`,
-        hint: `בחרו בדיוק ${MULTI_TARGET}.`,
+        hint: `לבחור בדיוק ${MULTI_TARGET}.`,
         options: options.map((d) => ({
           id: d.id, label: label(d), correct: withIt.some((w) => w.id === d.id),
           why: hasIngredient(d, ing) ? `מכילה ${ing}` : `אין בה ${ing}`,
@@ -189,7 +189,7 @@ export function qCompose(cards, rnd = Math.random) {
     multi: true,
     exactSet: true,
     prompt: `אורח שואל מה יש ב${label(it)}. מה תגידו לו?`,
-    hint: "בחרו את כל המרכיבים שבמנה — ורק אותם.",
+    hint: "לבחור את כל המרכיבים שבמנה — ורק אותם.",
     options: shuffleWith([
       ...real.map((x) => ({ id: `r:${x}`, label: x, correct: true })),
       ...shuffleWith(near, rnd).slice(0, Math.min(5, Math.max(3, real.length))).map((x) => ({ id: `d:${x}`, label: x, correct: false })),
@@ -285,7 +285,7 @@ export function qAllergenSet(cards, rnd = Math.random) {
     multi: true,
     exactSet: true,
     prompt: `אורח שואל אילו אלרגנים יש ב${label(it)}. מה תגידו לו?`,
-    hint: "בחרו את כל האלרגנים שבמנה — ורק אותם.",
+    hint: "לבחור את כל האלרגנים שבמנה — ורק אותם.",
     options: shuffleWith([
       ...real.map((a) => ({ id: `a:${a}`, label: a, correct: true })),
       ...shuffleWith(others, rnd).slice(0, 3).map((a) => ({ id: `a:${a}`, label: a, correct: false })),

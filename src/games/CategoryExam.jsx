@@ -87,7 +87,7 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
           <p className="text-sm font-bold text-[#8a8aa0] mt-1">בוחן {categoryLabel}</p>
         </div>
         <p className="text-sm text-[#c4c4d4] max-w-xs leading-relaxed">
-          {passed ? "עברתם! אתם מכירים את הקטגוריה הזו היטב." : "עוד לא עברתם — תרגלו את הקטגוריה ונסו שוב."}
+          {passed ? "עברת! הקטגוריה הזו כבר מוכרת לך היטב." : "עוד לא עברת — עוד קצת תרגול ואפשר לגשת שוב."}
         </p>
         <button onClick={onDone} className="px-5 py-3 rounded-2xl bg-[#6d5efc] text-white font-black text-sm">סיום</button>
       </div>
@@ -170,8 +170,8 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
           )}
         </div>
 
-        <p className="text-[11px] font-bold text-[#8a8aa0] mb-1">כתבו מה נמצא במנה — מהזיכרון</p>
-        <p className="text-[10.5px] text-[#5a5a6e] mb-2">לא חייבים את הכל, ואיות לא מדויק בסדר גמור. אל תמציאו — מרכיב שגוי מוריד.</p>
+        <p className="text-[11px] font-bold text-[#8a8aa0] mb-1">מה נמצא במנה? כתוב/כתבי מהזיכרון</p>
+        <p className="text-[10.5px] text-[#5a5a6e] mb-2">לא חייבים את הכל, ואיות לא מדויק בסדר גמור. רק בלי להמציא — מרכיב שגוי מוריד.</p>
         <div className="grid grid-cols-2 gap-1.5 mb-4">
           {Array.from({ length: q.fields }).map((_, idx) => {
             // Post-submit colouring per field: green = named a real ingredient,
@@ -196,7 +196,7 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
           })}
         </div>
 
-        <p className="text-[11px] font-bold text-[#8a8aa0] mb-2">אילו אלרגיות יש במנה? (אם אין — אל תבחרו כלום)</p>
+        <p className="text-[11px] font-bold text-[#8a8aa0] mb-2">אילו אלרגיות יש במנה? (אם אין — לא לבחור כלום)</p>
         <div className="flex flex-wrap gap-1.5 mb-4">
           {ALLERGENS.map((a) => (
             <button
@@ -222,7 +222,7 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
               שליחה
             </button>
             {!typed.some((t) => (t || "").trim()) && (
-              <p className="text-[11px] text-[#8a8aa0] text-center mt-2">כתבו לפחות מרכיב אחד</p>
+              <p className="text-[11px] text-[#8a8aa0] text-center mt-2">צריך לפחות מרכיב אחד</p>
             )}
           </>
         )}
@@ -231,22 +231,22 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
           <div className="space-y-3">
             {result.missAll.length > 0 && (
               <div className="bg-[#3a1d22] border border-[#e0315a]/40 rounded-xl p-3">
-                <p className="text-[11px] font-black text-[#e0315a] mb-1">⚠️ פספסתם אלרגיות</p>
+                <p className="text-[11px] font-black text-[#e0315a] mb-1">⚠️ פספסת אלרגיות</p>
                 <p className="text-sm text-[#eef0f6]">{result.missAll.join(", ")}</p>
                 <p className="text-[11px] text-[#c4c4d4] mt-1.5">זה הדבר הכי חשוב לדעת — לקוח עלול להיפגע.</p>
               </div>
             )}
             {result.wrongAll.length > 0 && (
-              <p className="text-[11px] text-[#e0315a]">סימנתם אלרגיות שאינן במנה: {result.wrongAll.join(", ")}</p>
+              <p className="text-[11px] text-[#e0315a]">סימנת אלרגיות שאינן במנה: {result.wrongAll.join(", ")}</p>
             )}
             {result.wrongIng.length > 0 && (
               <p className="text-[11px] text-[#e0315a]">לא נמצא במנה: {result.wrongIng.join(", ")}</p>
             )}
             {result.matchedIng.length > 0 && (
-              <p className="text-[11px] text-[#22c08c]">זיהיתם נכון: {result.matchedIng.map((m) => m.ingredient).join(", ")}</p>
+              <p className="text-[11px] text-[#22c08c]">זיהית נכון: {result.matchedIng.map((m) => m.ingredient).join(", ")}</p>
             )}
             {result.missIng.length > 0 && (
-              <p className="text-[11px] text-[#f3a712]">פספסתם: {result.missIng.join(", ")}</p>
+              <p className="text-[11px] text-[#f3a712]">פספסת: {result.missIng.join(", ")}</p>
             )}
             {q.it.desc && (
               <div className="bg-[#16181c] rounded-xl p-3">

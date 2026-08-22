@@ -70,7 +70,7 @@ export default function QuizExam({ items, facets, categoryLabel, deckSize = DEFA
         <GraduationCap size={38} className={passed ? "text-[#22c08c]" : "text-[#e0315a]"} />
       </div>
       <p className="text-4xl font-black" style={{ color: passed ? "#22c08c" : "#e0315a" }}>{score}%</p>
-      <p className="text-sm font-bold">{passed ? "עברת! אתה מכיר את הקטגוריה הזו טוב." : "עוד לא עברת — תרגלו את הקטגוריה ותנסו שוב."}</p>
+      <p className="text-sm font-bold">{passed ? "עברת! הקטגוריה הזו כבר מוכרת לך היטב." : "עוד לא עברת — עוד קצת תרגול ואפשר לגשת שוב."}</p>
       <p className="text-xs text-[#8a8aa0]">{correctCount}/{deck.length} תשובות נכונות</p>
       <button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white text-xs font-bold mt-2">חזרה</button>
     </div>

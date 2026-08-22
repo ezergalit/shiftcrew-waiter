@@ -190,11 +190,11 @@ export default function MetricsScreen({ session, cards, masteryById, weekly = []
             <Card title={`ההכנסות שלי — ${monthName}`} accent="#f3c14b">
               {earnings.length === 0 ? (
                 <p className="text-[11px] text-[#8a8aa0]">
-                  עוד לא נרשמו משמרות החודש — בערב של יום לימוד תקבלו הצעה להזין כמה הרווחתם.
+                  עוד לא נרשמו משמרות החודש — בערב של יום לימוד תופיע הצעה להזין כמה הרווחת.
                 </p>
               ) : (
                 <div className="flex">
-                  <Stat label="הרווחתם החודש" value={`₪${total.toLocaleString()}`} color="#f3c14b" />
+                  <Stat label="הרווחת החודש" value={`₪${total.toLocaleString()}`} color="#f3c14b" />
                   <Stat label="משמרות שנרשמו" value={earnings.length} color="#eef0f6" />
                   <Stat label="ממוצע למשמרת" value={`₪${Math.round(total / earnings.length).toLocaleString()}`} color="#22c08c" />
                 </div>
@@ -207,7 +207,7 @@ export default function MetricsScreen({ session, cards, masteryById, weekly = []
                   <input
                     type="number" inputMode="numeric" autoFocus
                     value={earnAmount} onChange={(e) => setEarnAmount(e.target.value)}
-                    placeholder="כמה הרווחתם היום?"
+                    placeholder="כמה הרווחת היום?"
                     className="flex-1 min-w-0 bg-[#0c0d10] border border-[#22252b] rounded-lg px-2.5 py-2 text-[#eef0f6] text-xs focus:outline-none focus:border-[#f3c14b]"
                   />
                   <button onClick={saveEarning} disabled={!Number(earnAmount)}
@@ -265,7 +265,7 @@ export default function MetricsScreen({ session, cards, masteryById, weekly = []
 
         <Card title="מאז ההצטרפות" accent="#22c08c">
           <div className="flex">
-            <Stat label="מנות שלמדתם" value={stats.touched} color="#4aa8ff" />
+            <Stat label="מנות שלמדת" value={stats.touched} color="#4aa8ff" />
             <Stat label="מנות שנשלטו" value={stats.mastered} color="#22c08c" />
           </div>
         </Card>
@@ -322,7 +322,7 @@ function Board({ session, weekly, leaderboard }) {
     <div className="space-y-2">
       {myRank > 0 && (
         <div className="bg-[#16181c] border border-[#f3c14b]/40 rounded-xl p-3 text-center">
-          <p className="text-base font-black text-[#f3c14b]">אתם במקום {myRank}!</p>
+          <p className="text-base font-black text-[#f3c14b]">המקום שלך: {myRank} 🏆</p>
           <p className="text-[11px] text-[#8a8aa0] font-bold mt-0.5">
             {scope === "week" ? "בדירוג של השבוע" : "בדירוג כל הזמנים"}
           </p>
@@ -351,7 +351,7 @@ function Board({ session, weekly, leaderboard }) {
       <div className="bg-[#16181c] rounded-2xl overflow-hidden">
         {rows.length === 0 && (
           <p className="text-xs text-[#8a8aa0] p-4 text-center">
-            {scope === "week" ? "עוד לא נצברו נקודות השבוע — אתם יכולים להיות ראשונים" : "עדיין אין נתונים — התחילו ללמוד!"}
+            {scope === "week" ? "עוד לא נצברו נקודות השבוע — המקום הראשון עוד פנוי" : "עדיין אין נתונים — זמן להתחיל ללמוד!"}
           </p>
         )}
         {rows.slice(0, 10).map((r, i) => (
@@ -391,7 +391,7 @@ function DeleteProfile() {
       window.location.reload();
     } catch (e) {
       console.error("delete profile:", e);
-      setErr("המחיקה נכשלה. נסו שוב.");
+      setErr("המחיקה נכשלה. נסה/י שוב.");
       setBusy(false);
     }
   };
@@ -409,7 +409,7 @@ function DeleteProfile() {
             <Trash2 size={13} /> מחיקת הפרופיל
           </p>
           <p className="text-[11px] text-[#8a8aa0] leading-relaxed">
-            כל ההתקדמות, הנקודות והמבחנים שלכם יימחקו לצמיתות. אין שחזור.
+            כל ההתקדמות, הנקודות והמבחנים שלך יימחקו לצמיתות. אין שחזור.
           </p>
           {err && <p className="text-[11px] font-bold text-[#e0315a]">{err}</p>}
           <div className="flex gap-2">

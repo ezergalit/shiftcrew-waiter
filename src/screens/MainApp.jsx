@@ -911,7 +911,7 @@ export default function MainApp({ session, onSignOut }) {
                 </button>
                 <div className="min-w-0">
                   <p className="text-sm font-black text-[#eef0f6]">לתרגול {shortCat(catView)}:</p>
-                  <p className="text-[11px] text-[#8a8aa0]">הקישו על מנה ללימוד ממוקד, או התחילו תרגול מלא</p>
+                  <p className="text-[11px] text-[#8a8aa0]">הקשה על מנה = לימוד ממוקד, או להתחיל תרגול מלא</p>
                 </div>
               </div>
               {/* Thin categories study as group cards, not per-item flashcards —
@@ -936,7 +936,7 @@ export default function MainApp({ session, onSignOut }) {
                     className="w-full py-3 min-h-[48px] rounded-xl font-black text-sm flex items-center justify-center gap-1.5 active:scale-[0.99] transition-transform bg-[#22c08c] text-white"
                   >
                     <GraduationCap size={15} />
-                    {cat.passed ? "עברתם את הבוחן! אפשר לגשת שוב" : `מבחן ${shortCat(catView)}`}
+                    {cat.passed ? "עברת את הבוחן! אפשר לגשת שוב" : `מבחן ${shortCat(catView)}`}
                   </button>
                 );
               })()}
@@ -1047,7 +1047,7 @@ export default function MainApp({ session, onSignOut }) {
                       {/* shortCat, not the full label: imported categories carry their
                           whole explanation ("מאקי — 6 יחידות, אצה בחוץ ואורז בפנים") and
                           inlining that makes the sentence unreadable. */}
-                      {cat.items.length} מנות · לחצו לתרגול
+                      {cat.items.length} מנות · הקשה = תרגול
                       {cat.passed
                         ? " · נכלל בתרגול"
                         : path.recommended?.key === cat.key ? " · מומלץ להתחיל כאן" : ""}
@@ -1065,12 +1065,12 @@ export default function MainApp({ session, onSignOut }) {
                         className="w-full mt-2 py-2 min-h-[36px] rounded-lg font-bold text-[11px] flex items-center justify-center gap-1.5 bg-[#15302b] text-[#22c08c]"
                       >
                         <GraduationCap size={13} />
-                        עברתם את הבוחן! אפשר לגשת שוב
+                        עברת את הבוחן! אפשר לגשת שוב
                       </button>
                     ) : (
                       <div className="mt-2 rounded-xl bg-[#15302b]/60 border border-[#22c08c]/40 p-2.5 space-y-2">
                         <p className="text-[11px] font-black text-[#22c08c] leading-snug">
-                          אתם מכירים מספיק מ{shortCat(cat.key)} — מוכנים לבוחן?
+                          יש לך מספיק ידע ב{shortCat(cat.key)} — לגשת לבוחן?
                         </p>
                         <div className="flex gap-2">
                           <button
@@ -1225,7 +1225,7 @@ function SignOutButton({ onSignOut }) {
           <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-5 w-full max-w-xs text-center space-y-3">
             <p className="text-sm font-black text-[#eef0f6]">להתנתק מהחשבון?</p>
             <p className="text-[11px] text-[#8a8aa0] leading-relaxed">
-              ההתקדמות שלכם שמורה — בכניסה הבאה פשוט מזינים שוב את הקוד והשם.
+              ההתקדמות שלך שמורה — בכניסה הבאה פשוט מזינים שוב את הקוד והשם.
             </p>
             <div className="flex gap-2 pt-1">
               <button
