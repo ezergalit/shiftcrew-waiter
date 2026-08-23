@@ -223,7 +223,7 @@ export default function BaselineIntake({ session, onDone }) {
                     <button key={opt} onClick={() => setRatings((r) => ({ ...r, [q.id]: opt }))}
                       className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors ${
                         on ? "bg-[#6d5efc] text-white" : "bg-[#16181c] text-[#c4c4d4] border border-[#22252b]"}`}>
-                      {opt}
+                      {gz(opt)}
                     </button>
                   );
                 })}

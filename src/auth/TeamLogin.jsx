@@ -94,7 +94,7 @@ export default function TeamLogin({ onGranted }) {
       finishLogin(data);
     } catch (e2) {
       console.error(e2);
-      setErr("משהו השתבש. נסה/י שוב.");
+      setErr("משהו השתבש. אפשר לנסות שוב.");
     } finally {
       setBusy(false);
     }
@@ -112,7 +112,7 @@ export default function TeamLogin({ onGranted }) {
       finishLogin(data);
     } catch (e2) {
       console.error(e2);
-      setErr("משהו השתבש. נסה/י שוב.");
+      setErr("משהו השתבש. אפשר לנסות שוב.");
       setBusy(false);
     }
   };
@@ -163,7 +163,7 @@ export default function TeamLogin({ onGranted }) {
           <div>
             <p className="text-[12px] font-bold text-[#8a8aa0] mb-1.5 px-1">קוד הצוות (מהמנהל/ת שלך)</p>
             <input value={teamCode} onChange={(e) => setTeamCode(e.target.value)}
-              placeholder="הקוד שקיבלתם מהמנהל/ת" dir="ltr" autoComplete="off"
+              placeholder="הקוד שקיבלת מהמנהל/ת" dir="ltr" autoComplete="off"
               className="w-full bg-[#0c0d10] border border-[#22252b] rounded-2xl px-3.5 py-3 text-sm font-bold text-[#eef0f6] text-center placeholder:text-[#b4b4c4] focus:outline-none focus:border-[#6d5efc]" />
           </div>
 
