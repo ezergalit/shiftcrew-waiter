@@ -18,7 +18,7 @@ import { gz } from "../lib/shiftChoice";
 // exam?" instead. Declining the exam buys ten more refresh cards, then it asks again.
 const CHECKPOINT_EVERY = 10;
 
-export default function ProgressiveFlashcards({ items, label, firstId, initialProgress, onRate, onDone, onExam }) {
+export default function ProgressiveFlashcards({ items, label, firstId, initialProgress, onRate, onDone, onExam, examReady }) {
   // Live local copy of the progress map: the parent's state update is async, and the very
   // next pick must already see the rating that was just given.
   const progRef = useRef({ ...(initialProgress || {}) });
@@ -109,7 +109,15 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
       </div>
       <p className="text-xl font-black">עברת {CHECKPOINT_EVERY} כרטיסיות 💪</p>
       <p className="text-sm text-[#8a8aa0]">הכרת {understoodCount} מתוך {items.length} מנות ב{label}. ממשיכים?</p>
-      <button onClick={() => setCheckpoint(null)} className="w-full py-3.5 min-h-[48px] rounded-2xl bg-[#6d5efc] text-white text-sm font-black active:scale-[0.99] transition-transform">
+      {/* Enough of the category is known to sit the quiz — offer it here rather than
+          making the waiter leave, find the category row and press it there (user,
+          2026-08-23). Still only an offer: practising more is a fine answer. */}
+      {examReady && onExam && (
+        <button onClick={onExam} className="w-full py-3.5 min-h-[48px] rounded-2xl bg-[#22c08c] text-[#06231a] text-sm font-black active:scale-[0.99] transition-transform">
+          יש לך מספיק ידע — לבוחן {label}
+        </button>
+      )}
+      <button onClick={() => setCheckpoint(null)} className={`w-full py-3.5 min-h-[48px] rounded-2xl text-sm font-black active:scale-[0.99] transition-transform ${examReady && onExam ? "bg-[#22252b] text-[#eef0f6]" : "bg-[#6d5efc] text-white"}`}>
         עוד סיבוב
       </button>
       <button onClick={onDone} className="w-full py-3 min-h-[44px] rounded-2xl bg-[#22252b] text-[#eef0f6] text-xs font-black">

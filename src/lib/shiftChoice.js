@@ -68,21 +68,6 @@ export const PROFILE_ROLES = [
   { id: "both", label: "גם וגם", hint: "נשאל בכל יום" },
 ];
 
-export const GENDERS = [
-  { id: "m", label: "זכר" },
-  { id: "f", label: "נקבה" },
-];
-
-export function loadGender(memberId) {
-  if (!memberId) return null;
-  try { return localStorage.getItem(`${GENDER_KEY}-${memberId}`) || null; } catch { return null; }
-}
-export function saveGender(memberId, g) {
-  if (!memberId) return;
-  try { localStorage.setItem(`${GENDER_KEY}-${memberId}`, g); } catch { /* full or blocked */ }
-  setCurrentGender(g);
-}
-
 // Today's resolved role for a "both" profile — date-stamped like the shift, so the
 // question comes back tomorrow instead of silently carrying yesterday's answer.
 export function loadDailyRole(memberId) {
@@ -118,19 +103,27 @@ export function taskFitsRole(taskRole, myRole) {
   return taskRole === myRole;
 }
 
-// ── Gendered copy ────────────────────────────────────────────────────────────────────
-// The profile knows the waiter's gender, so the slash forms ("הקש/י") can render as the
-// real word. Token map only — a generic ".../י" regex would also mangle "המנהל/ת",
-// which is the MANAGER's gender, not the waiter's, and must stay as written.
-let currentGender = null;
-export const setCurrentGender = (g) => { currentGender = g === "m" || g === "f" ? g : null; };
+// ── Copy without slashes ─────────────────────────────────────────────────────────────
+// The app no longer asks whether the waiter is male or female (user, 2026-08-23): it is
+// one more question in the door, and most sentences can simply be written so it doesn't
+// come up ("עברת", "יש לך מספיק ידע"). Where an imperative genuinely needs a form, this
+// resolves the slash to the masculine — a plain sentence beats "הקש/י" on the screen.
+// Token map only: a generic ".../י" regex would also mangle "המנהל/ת", which is the
+// MANAGER's gender, not the waiter's, and must stay as written.
+let currentGender = "m";
+export const setCurrentGender = (g) => { currentGender = g === "f" ? "f" : "m"; };
 
 const GENDER_TOKENS = {
   "הקש/י": ["הקש", "הקשי"],
+  "לחץ/י": ["לחץ", "לחצי"],
   "בחר/י": ["בחר", "בחרי"],
   "נסה/י": ["נסה", "נסי"],
   "כתוב/כתבי": ["כתוב", "כתבי"],
   "כשתכיר/י": ["כשתכיר", "כשתכירי"],
+  "שתכיר/י": ["שתכיר", "שתכירי"],
+  "תגיד/י": ["תגיד", "תגידי"],
+  "תציע/י": ["תציע", "תציעי"],
+  "אתה/את": ["אתה", "את"],
   "מוכנ/ה": ["מוכן", "מוכנה"],
   "מכיר/ה": ["מכיר", "מכירה"],
   "בוא/י": ["בוא", "בואי"],
@@ -144,7 +137,7 @@ const GENDER_TOKENS = {
 };
 
 export function gz(text) {
-  if (!currentGender || !text || typeof text !== "string") return text;
+  if (!text || typeof text !== "string") return text;
   const idx = currentGender === "m" ? 0 : 1;
   let out = text;
   for (const [token, forms] of Object.entries(GENDER_TOKENS)) out = out.split(token).join(forms[idx]);

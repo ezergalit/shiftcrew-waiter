@@ -1,18 +1,18 @@
 import { useState } from "react";
 import { CalendarCheck, UserRound, Sunrise, Moon, Coffee, UtensilsCrossed, Martini, Pencil, Layers } from "lucide-react";
-import { SHIFTS, ROLES, PROFILE_ROLES, GENDERS, shiftLabel, roleLabel, gz } from "../lib/shiftChoice";
+import { SHIFTS, ROLES, PROFILE_ROLES, shiftLabel, roleLabel, gz } from "../lib/shiftChoice";
 
 const SHIFT_ICONS = { opening: Sunrise, closing: Moon, none: Coffee };
 const ROLE_ICONS = { waiter: UtensilsCrossed, bar: Martini, both: Layers };
 
-// ── One-time profile (user, 2026-08-22) ────────────────────────────────────────────────
-// Asked once, right after the first login: gender (so the app can speak properly instead
-// of stacking slashes) and role — waiter, bartender, or both. Neither changes day to day,
-// so neither is asked again; "both" is the one answer that pushes a daily question,
-// because that person genuinely wears a different hat on different days.
+// ── One-time profile ──────────────────────────────────────────────────────────────────
+// Asked once, right after the first login: waiter, bartender, or both — the answer
+// decides which of the manager's checklists show up. It does not change day to day, so
+// it is not asked again; "both" is the one answer that pushes a daily question, because
+// that person genuinely wears a different hat on different days.
+// ⚠️ There is no gender question (user, 2026-08-23). It was one more screen in the door
+// for something the copy can avoid saying in the first place.
 export function ProfileGate({ onDone }) {
-  const [gender, setGender] = useState(null);
-
   return (
     <div className="h-full max-w-md mx-auto flex flex-col justify-center px-6 bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <div className="w-14 h-14 rounded-2xl text-white flex items-center justify-center mb-5"
@@ -20,54 +20,28 @@ export function ProfileGate({ onDone }) {
         <UserRound size={26} />
       </div>
 
-      {!gender ? (
-        <>
-          <p className="text-xl font-black mb-1.5">רגע לפני שמתחילים</p>
-          <p className="text-sm text-[#8a8aa0] mb-5 leading-relaxed">
-            שתי שאלות קצרות — פעם אחת בלבד, כדי שהאפליקציה תדבר נכון ותציג את המשימות הנכונות.
-          </p>
-          <p className="text-[12px] font-black text-[#8a8aa0] mb-2">איך לפנות אליך?</p>
-          <div className="grid grid-cols-2 gap-2">
-            {GENDERS.map((g) => (
-              <button
-                key={g.id}
-                onClick={() => setGender(g.id)}
-                className="py-4 min-h-[56px] rounded-2xl bg-[#16181c] border border-[#22252b] text-sm font-black text-[#eef0f6] active:scale-[0.98] transition-transform"
-              >
-                {g.label}
-              </button>
-            ))}
-          </div>
-        </>
-      ) : (
-        <>
-          <p className="text-xl font-black mb-1.5">מה התפקיד שלך?</p>
-          <p className="text-sm text-[#8a8aa0] mb-5 leading-relaxed">
-            התשובה קובעת אילו משימות משמרת יוצגו. מי שעושה גם וגם — נשאל בכל יום מחדש.
-          </p>
-          <div className="space-y-2">
-            {PROFILE_ROLES.map((r) => {
-              const Icon = ROLE_ICONS[r.id];
-              const label = gender === "f"
-                ? { waiter: "מלצרית", bar: "ברמנית", both: "גם וגם" }[r.id]
-                : { waiter: "מלצר", bar: "ברמן", both: "גם וגם" }[r.id];
-              return (
-                <button
-                  key={r.id}
-                  onClick={() => onDone(gender, r.id)}
-                  className="w-full py-3.5 min-h-[56px] rounded-2xl bg-[#16181c] border border-[#22252b] flex items-center gap-3 px-4 active:scale-[0.98] transition-transform"
-                >
-                  <Icon size={18} className="text-[#a79bff] flex-shrink-0" />
-                  <span className="flex-1 text-right">
-                    <span className="block text-sm font-black text-[#eef0f6]">{label}</span>
-                    <span className="block text-[11px] text-[#5a5a6e]">{r.hint}</span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
+      <p className="text-xl font-black mb-1.5">מה התפקיד שלך?</p>
+      <p className="text-sm text-[#8a8aa0] mb-5 leading-relaxed">
+        שאלה אחת, פעם אחת — התשובה קובעת אילו משימות משמרת יוצגו. מי שעושה גם וגם נשאל בכל יום מחדש.
+      </p>
+      <div className="space-y-2">
+        {PROFILE_ROLES.map((r) => {
+          const Icon = ROLE_ICONS[r.id];
+          return (
+            <button
+              key={r.id}
+              onClick={() => onDone(r.id)}
+              className="w-full py-3.5 min-h-[56px] rounded-2xl bg-[#16181c] border border-[#22252b] flex items-center gap-3 px-4 active:scale-[0.98] transition-transform"
+            >
+              <Icon size={18} className="text-[#a79bff] flex-shrink-0" />
+              <span className="flex-1 text-right">
+                <span className="block text-sm font-black text-[#eef0f6]">{gz(r.label)}</span>
+                <span className="block text-[11px] text-[#5a5a6e]">{r.hint}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -191,7 +165,7 @@ export function ShiftQuestion({ profileRole, onPick, onResetProfile }) {
 
       {onResetProfile && (
         <button onClick={onResetProfile} className="text-[10.5px] font-bold text-[#5a5a6e] min-h-[36px]">
-          שינוי תפקיד קבוע או פנייה (פרופיל) ←
+          שינוי התפקיד הקבוע ←
         </button>
       )}
     </div>

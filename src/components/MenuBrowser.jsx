@@ -16,6 +16,17 @@ import { shortCat } from "../games/shared";
 //
 // Read-only by design: nothing here scores the waiter, so looking something up during
 // service never affects their progress.
+// The three warning groups, each with a sentence saying what it actually means. The
+// colours match the chips everywhere else in the app (see ColorKey.jsx).
+const FLAG_GROUPS = [
+  { key: "allergens", title: "אלרגיות", cls: "bg-[#3a1d22] text-[#ff8098]",
+    note: "מרכיב שעלול לסכן אורח עם אלרגיה — תמיד לוודא במטבח לפני שמאשרים." },
+  { key: "pregnancy", title: "רגישות בהריון", cls: "bg-[#2a2140] text-[#c4b5fd]",
+    note: "לא אלרגיה, אבל לא מתאים לאורחת בהריון — כדאי להזכיר." },
+  { key: "pitfalls", title: "מוקשים", cls: "bg-[#33290f] text-[#f3c14b]",
+    note: "לא מסוכן — פשוט טעם שאורחים רבים מבקשים בלעדיו (כוסברה, חריף, שום)." },
+];
+
 export default function MenuBrowser({ cards, onPractice }) {
   const [menu, setMenu] = useState(null);
   const [cat, setCat] = useState(null);
@@ -215,11 +226,23 @@ export default function MenuBrowser({ cards, onPractice }) {
               </div>
             )}
 
-            {(d.allergens?.length || d.pregnancy?.length || d.pitfalls?.length) > 0 && (
-              <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
-                <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide mb-2.5">מה חשוב לדעת</p>
-                <Tags d={d} size="lg" />
-              </div>
+            {/* Split by group, each under its own heading (user, 2026-08-23). One block
+                called "מה חשוב לדעת" put an allergy and a "contains coriander" side by
+                side in identical chips — three warnings of equal weight, which they are
+                not. "מוקש" also needs saying out loud: it is not a danger, it is the
+                thing guests ask to leave out. */}
+            {FLAG_GROUPS.map(({ key, title, note, cls }) =>
+              d[key]?.length ? (
+                <div key={key} className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
+                  <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide">{title}</p>
+                  <p className="text-[10.5px] text-[#5a5a6e] mt-0.5 mb-2.5 leading-snug">{note}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {d[key].map((t) => (
+                      <span key={t} className={`text-[13px] px-3 py-1.5 font-black rounded-md ${cls}`}>{t}</span>
+                    ))}
+                  </div>
+                </div>
+              ) : null
             )}
           </div>
         </div>

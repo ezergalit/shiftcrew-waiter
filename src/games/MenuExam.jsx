@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { GraduationCap } from "lucide-react";
 import { buildMenuExamDeck } from "../lib/serviceScenarios";
+import { gz } from "../lib/shiftChoice";
 
 // מבחן התפריט המלא — the certificate exam, rebuilt as service scenarios (user request,
 // 2026-08-20). It used to be multiple-choice recall like the practice games. But the exam
@@ -160,8 +161,8 @@ export default function MenuExam({ items, deckSize = 40, passMark = 70, category
           </span>
           {/* The question is the headline — it used to be grey 11px under a big dish name,
               and waiters answered the name instead of the question. */}
-          <p className="text-[15px] font-black leading-snug">{q.prompt}</p>
-          {q.hint && <p className="text-[11px] text-[#8a8aa0] leading-snug">{q.hint}</p>}
+          <p className="text-[15px] font-black leading-snug">{gz(q.prompt)}</p>
+          {q.hint && <p className="text-[11px] text-[#8a8aa0] leading-snug">{gz(q.hint)}</p>}
         </div>
 
         {/* Ingredient and allergen lists wrap as chips like the category exam does: a

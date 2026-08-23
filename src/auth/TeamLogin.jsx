@@ -126,7 +126,7 @@ export default function TeamLogin({ onGranted }) {
           </div>
           <div>
             <p className="text-sm font-bold text-[#8a8aa0] mb-1">מצאנו שם דומה בצוות</p>
-            <p className="text-lg font-black">האם אתה/את {pendingMatch.match.name}?</p>
+            <p className="text-lg font-black">האם אתה {pendingMatch.match.name}?</p>
           </div>
           <p className="text-[11px] text-[#8a8aa0]">אם כן, נמשיך עם ההתקדמות הקיימת שלך. אם זה מישהו אחר, ניצור פרופיל חדש.</p>
           <div className="flex flex-col gap-2 pt-1">

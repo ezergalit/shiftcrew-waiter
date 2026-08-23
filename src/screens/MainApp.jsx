@@ -10,8 +10,8 @@ import TasksTab, { useShiftTasks, PERIOD_LABEL } from "../components/TasksTab";
 import ManagerMessages from "../components/ManagerMessages";
 import { ShiftQuestion, ShiftChip, ShiftGate, ProfileGate } from "../components/ShiftPicker";
 import {
-  loadShift, saveShift, loadRole, saveRole, loadGender, saveGender, loadDailyRole,
-  saveDailyRole, setCurrentGender, taskFitsShift, taskFitsRole,
+  loadShift, saveShift, loadRole, saveRole, loadDailyRole,
+  saveDailyRole, gz, taskFitsShift, taskFitsRole,
 } from "../lib/shiftChoice";
 import MenuBrowser from "../components/MenuBrowser";
 import { isUnderstood } from "../lib/progressiveSession";
@@ -113,6 +113,15 @@ export default function MainApp({ session, onSignOut }) {
   const [briefAck, setBriefAck] = useState(null);
   const [mode, setMode] = useState(null);
   const [colorKeySeen, setColorKeySeen] = useState(false);
+  // Success percentage = how much of the *available* score you've actually earned, not how
+  // many dishes crossed the pass mark. 4/5 on every dish reads as 80%, which is what the
+  // score actually means — a threshold count would round that up to a misleading 100%.
+  const scorePct = (list) => {
+    if (!list?.length) return 0;
+    const earned = list.reduce((sum, x) => sum + (masteryById[x.id] || 0), 0);
+    return Math.round((earned / (list.length * 5)) * 100);
+  };
+
   // Manager's read-only waiter view (?preview=<team code>). Real menu, no member, no
   // writes — see App.jsx. Kept as one flag so a new write path can't silently forget it.
   const preview = !!session?.preview;
@@ -134,11 +143,6 @@ export default function MainApp({ session, onSignOut }) {
   // asked once at first entry, never again. The shift stays a DAILY answer (loadShift
   // returns null on a new day, which reopens the question), and only a "both" profile
   // gets a daily role question — everyone else's role is resolved from the profile.
-  const [myGender, setMyGender] = useState(() => {
-    const g = loadGender(session?.teamMemberId);
-    setCurrentGender(g);   // prime the copy genderizer before first render
-    return g;
-  });
   const [profileRole, setProfileRole] = useState(() => loadRole(session?.teamMemberId));
   const [myShift, setMyShift] = useState(() => (session?.preview ? "opening" : null) ?? loadShift(session?.teamMemberId));
   const [dailyRole, setDailyRole] = useState(() => loadDailyRole(session?.teamMemberId));
@@ -537,13 +541,10 @@ export default function MainApp({ session, onSignOut }) {
   // The day starts with one question: are you on shift? (user, 2026-08-20). Asked before
   // the brief gate — someone who isn't working today gets no daily tasks and no brief,
   // just the learning path. Answered once per day; changeable any time from the chip.
-  if (!session?.offline && !preview && cards?.length > 0 && (!myGender || !profileRole))
+  if (!session?.offline && !preview && cards?.length > 0 && !profileRole)
     return (
       <ProfileGate
-        onDone={(g, role) => {
-          setMyGender(g); saveGender(session?.teamMemberId, g);
-          setProfileRole(role); saveRole(session?.teamMemberId, role);
-        }}
+        onDone={(role) => { setProfileRole(role); saveRole(session?.teamMemberId, role); }}
       />
     );
   if (!session?.offline && !preview && cards?.length > 0 && myShift === null)
@@ -610,7 +611,11 @@ export default function MainApp({ session, onSignOut }) {
     return <ColorKey onDone={() => { markColorKeySeen(session?.teamMemberId); setColorKeySeen(true); }} />;
 
   if (mode === "progressive" && prog)
+    // ⚠️ Recomputed here, not captured when the session started: the waiter is rating
+    // dishes right now, so the category can cross the exam threshold mid-session — and
+    // that is exactly the moment worth offering the exam (user, 2026-08-23).
     return <ProgressiveFlashcards items={prog.items} label={prog.label} firstId={prog.firstId} initialProgress={prog.progress}
+      examReady={!!prog.catKey && scorePct(prog.items) >= (examConfig?.pass_threshold ?? 50)}
       onExam={prog.catKey ? () => {
         setExamCategory({ key: prog.catKey, label: catLabel(prog.catKey) });
         setModeItems(prog.items);
@@ -658,15 +663,6 @@ export default function MainApp({ session, onSignOut }) {
       ? <CategoryExam items={examItems} categoryLabel={label} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />
       : <QuizExam items={examItems} facets={gameFacets} categoryLabel={label} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />;
   }
-
-  // Success percentage = how much of the *available* score you've actually earned, not how
-  // many dishes crossed the pass mark. 4/5 on every dish reads as 80%, which is what the
-  // score actually means — a threshold count would round that up to a misleading 100%.
-  const scorePct = (list) => {
-    if (!list?.length) return 0;
-    const earned = list.reduce((sum, x) => sum + (masteryById[x.id] || 0), 0);
-    return Math.round((earned / (list.length * 5)) * 100);
-  };
 
   const pct = scorePct(cards);
   // Rank follows the weekly board, since that is the competition on screen. Falls back to
@@ -892,7 +888,7 @@ export default function MainApp({ session, onSignOut }) {
                 onResetProfile={() => {
                   // Clears the one-time answers (promotion, typo, shared phone) — the
                   // profile questions run again on the next render.
-                  setMyGender(null); setProfileRole(null); setShiftEditing(false);
+                  setProfileRole(null); setShiftEditing(false);
                 }}
               />
             ) : (
@@ -1127,7 +1123,7 @@ export default function MainApp({ session, onSignOut }) {
                       {/* shortCat, not the full label: imported categories carry their
                           whole explanation ("מאקי — 6 יחידות, אצה בחוץ ואורז בפנים") and
                           inlining that makes the sentence unreadable. */}
-                      {cat.items.length} מנות · הקשה = תרגול
+                      {cat.items.length} מנות · {gz("לחץ/י כדי לתרגל")}
                       {cat.passed
                         ? " · נכלל בתרגול"
                         : path.recommended?.key === cat.key ? " · מומלץ להתחיל כאן" : ""}
