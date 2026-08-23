@@ -601,7 +601,9 @@ export default function MainApp({ session, onSignOut }) {
   // The colour legend, once a day, in front of the first practice of the day: red is an
   // allergy, purple is pregnancy, yellow is a preference. A waiter who reads the chips
   // without the code reads three warnings of equal weight — and they are not equal.
-  if (mode && !colorKeySeen && needsColorKey(session?.teamMemberId))
+  // In preview it shows on every load rather than once a day (manager's call, 2026-08-23):
+  // there is no member to stamp, and "what the waiter sees" is the whole point of the view.
+  if (mode && !colorKeySeen && (preview || needsColorKey(session?.teamMemberId)))
     return <ColorKey onDone={() => { markColorKeySeen(session?.teamMemberId); setColorKeySeen(true); }} />;
 
   if (mode === "progressive" && prog)
