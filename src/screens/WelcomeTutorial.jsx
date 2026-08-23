@@ -39,8 +39,8 @@ export default function WelcomeTutorial({ session, onDone }) {
       body: (
         <div className="space-y-2.5">
           {[
-            ["משימות", "מה עליכם היום — ממוספר, וכל משימה פותחת את מה שצריך לעשות"],
-            ["תפריט", "התפריט עצמו: מנות, תיאורים, מרכיבים ואלרגנים — להצצה מהירה בשירות"],
+            ["משימות", "מה צריך לעשות היום — ממוספר, וכל משימה פותחת את מה שצריך לעשות"],
+            ["תפריט", "התפריט עצמו: מנות, תיאורים, מרכיבים ואלרגיות — להצצה מהירה בשירות"],
             ["תרגול ובחינה", "כאן לומדים ונבחנים — כרטיסיות לפי קטגוריה, בוחן לכל קטגוריה ומבחן התפריט"],
           ].map(([t, d]) => (
             <div key={t} className="flex items-start gap-2">
@@ -66,7 +66,7 @@ export default function WelcomeTutorial({ session, onDone }) {
           </div>
           <div>
             <p className="text-sm font-black text-[#eef0f6]">נבחנים</p>
-            <p className="text-xs text-[#8a8aa0]">הבחנים והמבחן הם שבודקים אתכם באמת — הציון נקבע לפי תשובה נכונה, לא לפי מה שתגידו על עצמכם</p>
+            <p className="text-xs text-[#8a8aa0]">הבחנים והמבחן הם שבודקים באמת — הציון נקבע לפי תשובה נכונה ולא לפי דירוג עצמי</p>
           </div>
         </div>
       ),
@@ -77,15 +77,15 @@ export default function WelcomeTutorial({ session, onDone }) {
       body: (
         <div className="space-y-3">
           <p className="text-sm text-[#c4c4d4] leading-relaxed">
-            התרגול כאן הוא לא המטרה — הוא האימון. המטרה היא שתדעו את התפריט
+            התרגול כאן הוא לא המטרה — הוא האימון. המטרה היא לדעת את התפריט
             באמת: מרכיבים, אלרגיות, ומה עונים לאורח ששואל.
           </p>
           <div className="bg-[#16181c] border border-[#22252b] rounded-xl p-3 space-y-1.5">
             <p className="text-xs text-[#eef0f6] font-bold">🎓 כל קטגוריה מסתיימת בבוחן קצר עם שעון</p>
             <p className="text-xs text-[#eef0f6] font-bold">🏆 ובסוף — מבחן התפריט המלא, על הכול</p>
-            <p className="text-[11px] text-[#8a8aa0]">המנהל/ת רואה את הציונים שלכם — זו התעודה שלכם במסעדה.</p>
+            <p className="text-[11px] text-[#8a8aa0]">המנהל/ת רואה את הציונים. את המבחן עצמו עושים במסעדה.</p>
           </div>
-          <p className="text-sm text-[#c4c4d4] text-center pt-1">תתחילו מהמשימות של היום — בהצלחה!</p>
+          <p className="text-sm text-[#c4c4d4] text-center pt-1">מתחילים מהמשימות של היום — בהצלחה!</p>
         </div>
       ),
     },
@@ -121,11 +121,11 @@ export default function WelcomeTutorial({ session, onDone }) {
             onClick={() => (last ? onDone() : setStep((v) => v + 1))}
             className="flex-1 py-3.5 rounded-2xl font-black text-sm bg-[#6d5efc] text-white active:bg-[#5b4ef0]"
           >
-            {last ? "בואו נתחיל" : "הבא"}
+            {last ? "יאללה, מתחילים" : "הבא"}
           </button>
         </div>
         {!last && (
-          <button onClick={onDone} className="w-full text-center text-xs text-[#8a8aa0] font-bold pt-3">דלגו</button>
+          <button onClick={onDone} className="w-full text-center text-xs text-[#8a8aa0] font-bold pt-3">דילוג</button>
         )}
       </div>
     </div>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Timer, ClipboardCheck, ArrowLeft } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { buildWeightedDeck, availableFacets, withDisplayNames } from "../lib/questionEngine";
-import { gz } from "../lib/shiftChoice";
+import { gz, loadGender, setCurrentGender } from "../lib/shiftChoice";
 
 const db = supabase.schema("menu_app");
 
@@ -45,6 +45,10 @@ function pubToCard(p) {
 }
 
 export default function BaselineIntake({ session, onDone }) {
+  // The genderiser is primed in MainApp, which hasn't mounted yet on this path — without
+  // this a returning waiter reads "בוא/י נראה איפה את/ה עומד/ת" even though the app knows
+  // their answer. A brand-new member has no profile yet, so slashes remain the honest form.
+  setCurrentGender(loadGender(session?.teamMemberId));
   const [phase, setPhase] = useState("loading"); // loading | intro | self | exam | saving | done
   const [pool, setPool] = useState([]);
   const [config, setConfig] = useState(null);

@@ -1,38 +1,56 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { GraduationCap } from "lucide-react";
 import { dishLabel } from "../lib/questionEngine";
-import { typedIngredientScore } from "../lib/typedGrading";
 import { shortCat, shuffle, ALLERGENS } from "./shared";
-import { gz } from "../lib/shiftChoice";
 
 
-// The graduation step for a category. Deliberately NOT free text: an earlier version asked
-// the trainee to describe the dish and scored how many real ingredients they happened to
-// mention. That only measured recall, never precision — so listing every ingredient on the
-// menu scored 100% on every dish, and it couldn't tell Greek Truffle Cream 38 from 44 from
-// 48, which is precisely the distinction that matters in service.
+// The graduation step for a category.
 //
-// Instead: the real ingredients are mixed with near-miss decoys taken from the OTHER dishes
-// in the same category, and the trainee has to pick the exact set. Scored by Jaccard
-// (correct / correct+missed+wrong), so both missing an ingredient and inventing one cost
-// you, and "select everything" collapses to a low score. Fully deterministic — no AI, no
-// language matching, nothing to tune — which also makes the number honest enough for the
-// owner to act on.
+// Two formats were tried before this one and both failed in opposite directions:
+//   • free text scored by how many real ingredients you happened to mention — measured
+//     recall with no precision, so listing every ingredient on the menu scored 100%;
+//   • typing the ingredients from memory (2026-08-20) — the reverse failure. "סוכריות קרם
+//     ברולה" holds קרם וניל / קרמל / קולי פטל: a waiter who writes "קרם ברולה, סוכר" knows
+//     the dish and scores 13%. Menu knowledge is not the ability to recite supplier names.
+//
+// What it does now (user, 2026-08-23): pick the dish's ingredients out of ONE pool that is
+// the same for every question in the exam, built from the whole category. That is hard to
+// cheat by elimination — the pool never narrows, and every decoy is a real ingredient of a
+// neighbouring dish, so "it sounds like food" tells you nothing. And Jaccard scoring
+// (correct / correct+missed+wrong) means selecting everything collapses to near zero.
+// Recognition, but the discriminating kind: which four of these eighteen are in THIS dish.
 export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, onFinish }) {
   const deck = useMemo(() => {
     const pool = (items || []).filter((it) => it.ingredients?.length > 0);
     // 2026-08-20 (user request): exams are long now — up to 12 dishes instead of 4.
-    return shuffle(pool)
-      .slice(0, 12)
-      // Free recall (user, 2026-08-20): no chips, no decoys — the waiter WRITES the
-      // ingredients from memory, up to 7 fields. Graded fuzzily and leniently in
-      // lib/typedGrading.js: recall is harder than recognition, and spelling is not
-      // menu knowledge.
-      .map((it) => ({ it, fields: Math.min(7, Math.max(3, (it.ingredients || []).length)) }));
+    return shuffle(pool).slice(0, 12).map((it) => ({ it }));
   }, [items]);
 
+  // ⚠️ The options are the dish's real ingredients plus DECOYS taken from the other dishes
+  // in the same category — never generic food words. That is what makes it hard to cheat:
+  // every option is something this kitchen actually serves, so "which of these sounds like
+  // food" tells you nothing, and the only way through is knowing this dish apart from its
+  // neighbours. Fixed size, so the number of chips never hints at how many are correct.
+  //
+  // A shared pool for the whole exam was tried first and is worse in practice: a category
+  // of eleven dishes produces fifty-odd chips, and hunting through a wall of text measures
+  // patience, not menu knowledge.
+  const POOL_SIZE = 14;
+  const pools = useMemo(() => {
+    const all = new Set();
+    for (const it of items || []) for (const g of it.ingredients || []) {
+      const k = String(g).trim(); if (k) all.add(k);
+    }
+    return deck.map(({ it }) => {
+      const mine = (it.ingredients || []).map((g) => String(g).trim()).filter(Boolean);
+      const mineSet = new Set(mine);
+      const decoys = shuffle([...all].filter((x) => !mineSet.has(x)));
+      return shuffle([...mineSet, ...decoys.slice(0, Math.max(4, POOL_SIZE - mineSet.size))]);
+    });
+  }, [items, deck]);
+
   const [i, setI] = useState(0);
-  const [typed, setTyped] = useState([]);          // free-recall ingredient entries
+  const [pickedIng, setPickedIng] = useState(new Set());
   const [pickedAll, setPickedAll] = useState(new Set());
   const [result, setResult] = useState(null);
   const [scores, setScores] = useState([]);
@@ -101,13 +119,19 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
 
   // Correct / (correct + missed + wrong). Both empty is a perfect answer — knowing a dish
   // has no allergens is real knowledge, and selecting one anyway is penalised.
+  // ⚠️ A wrong pick costs MORE than a miss (FP_COST). Plain Jaccard still paid 50% for
+  // selecting every chip on the screen, and a format where brute force earns half marks is
+  // not an exam. It is also the truthful weighting in service: forgetting an ingredient
+  // makes you hesitate, naming one that isn't there makes you tell the guest something
+  // false. Measured after the change: select-all lands in the twenties.
+  const FP_COST = 1.5;
   const jaccard = (selected, correct) => {
     const s = new Set([...selected].map((x) => x.trim()));
     const c = new Set(correct.map((x) => x.trim()));
     const tp = [...c].filter((x) => s.has(x)).length;
     const fp = [...s].filter((x) => !c.has(x)).length;
     const fn = [...c].filter((x) => !s.has(x)).length;
-    return tp + fp + fn === 0 ? 1 : tp / (tp + fp + fn);
+    return tp + fp + fn === 0 ? 1 : tp / (tp + FP_COST * fp + fn);
   };
 
   const toggle = (setter) => (label) =>
@@ -119,25 +143,25 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
 
   const submit = () => {
     if (result) return;
-    // Ingredients are free recall (lenient — see typedGrading.js); allergens stay a
-    // closed-list exact set, because safety data has no "close enough".
-    const ing = typedIngredientScore(typed, realIng);
+    // Both halves are exact sets scored the same way: picking a neighbour's ingredient
+    // costs exactly what missing a real one costs, so guessing wide is never a strategy.
+    const ingJ = jaccard(pickedIng, realIng);
     const allJ = jaccard(pickedAll, realAll);
-    const score = Math.round((ing.score * 0.6 + allJ * 0.4) * 100);
+    const score = Math.round((ingJ * 0.6 + allJ * 0.4) * 100);
     const rating = score >= 85 ? 5 : score >= 70 ? 4 : score >= 50 ? 3 : score >= 30 ? 2 : 1;
     onAnswer(q.it.id, rating);
     setScores((s) => [...s, score]);
+    const inDish = (x) => realIng.some((r) => String(r).trim() === x.trim());
     setResult({
       score,
-      matchedIng: ing.matched,
-      wrongIng: ing.wrong,
-      missIng: ing.missed,
+      wrongIng: [...pickedIng].filter((x) => !inDish(x)),
+      missIng: realIng.filter((x) => !pickedIng.has(String(x).trim())),
       wrongAll: [...pickedAll].filter((x) => !realAll.some((r) => r.trim() === x.trim())),
       missAll: realAll.filter((x) => !pickedAll.has(x)),
     });
   };
 
-  const next = () => { setResult(null); setTyped([]); setPickedAll(new Set()); setI((x) => x + 1); };
+  const next = () => { setResult(null); setPickedIng(new Set()); setPickedAll(new Set()); setI((x) => x + 1); };
 
   // Post-submit colouring: green = you got it, red = you picked it and it's not in the dish,
   // amber outline = it was in the dish and you missed it.
@@ -171,30 +195,19 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
           )}
         </div>
 
-        <p className="text-[11px] font-bold text-[#8a8aa0] mb-1">{gz("מה נמצא במנה? כתוב/כתבי מהזיכרון")}</p>
-        <p className="text-[10.5px] text-[#5a5a6e] mb-2">לא חייבים את הכל, ואיות לא מדויק בסדר גמור. רק בלי להמציא — מרכיב שגוי מוריד.</p>
-        <div className="grid grid-cols-2 gap-1.5 mb-4">
-          {Array.from({ length: q.fields }).map((_, idx) => {
-            // Post-submit colouring per field: green = named a real ingredient,
-            // red = named nothing in the dish, dark = left empty.
-            const val = typed[idx] || "";
-            let cls = "bg-[#16181c] border-[#22252b] text-[#eef0f6]";
-            if (result && val.trim()) {
-              const good = result.matchedIng.some((m) => m.entry === val.trim());
-              cls = good ? "bg-[#15302b] border-[#22c08c] text-[#22c08c]" : "bg-[#3a1d22] border-[#e0315a] text-[#e0315a]";
-            }
-            return (
-              <input
-                key={idx}
-                dir="rtl"
-                value={val}
-                disabled={!!result}
-                onChange={(e) => setTyped((prev) => { const n = [...prev]; n[idx] = e.target.value; return n; })}
-                placeholder={`מרכיב ${idx + 1}`}
-                className={`w-full min-h-[44px] rounded-lg border px-3 text-[13px] font-bold placeholder-[#3a3d46] outline-none focus:border-[#6d5efc] ${cls}`}
-              />
-            );
-          })}
+        <p className="text-[11px] font-bold text-[#8a8aa0] mb-1">מה נמצא במנה?</p>
+        <p className="text-[10.5px] text-[#5a5a6e] mb-2">בין האפשרויות יש מרכיבים של מנות אחרות בקטגוריה. לבחור בדיוק את מה שיש במנה הזו — מרכיב מיותר מוריד בדיוק כמו מרכיב חסר.</p>
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {(pools[i] || []).map((g) => (
+            <button
+              key={g}
+              disabled={!!result}
+              onClick={() => toggle(setPickedIng)(g)}
+              className={`text-[12px] font-bold px-3 py-2 min-h-[40px] rounded-lg border transition-colors ${chipClass(g, pickedIng.has(g), realIng.some((r) => String(r).trim() === g))}`}
+            >
+              {g}
+            </button>
+          ))}
         </div>
 
         <p className="text-[11px] font-bold text-[#8a8aa0] mb-2">אילו אלרגיות יש במנה? (אם אין — לא לבחור כלום)</p>
@@ -215,15 +228,15 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
           <>
             <button
               onClick={submit}
-              disabled={!typed.some((t) => (t || "").trim())}
+              disabled={pickedIng.size === 0}
               className={`w-full py-3.5 rounded-2xl font-black text-sm ${
-                typed.some((t) => (t || "").trim()) ? "bg-[#6d5efc] text-white" : "bg-[#22252b] text-[#b4b4c4]"
+                pickedIng.size > 0 ? "bg-[#6d5efc] text-white" : "bg-[#22252b] text-[#b4b4c4]"
               }`}
             >
               שליחה
             </button>
-            {!typed.some((t) => (t || "").trim()) && (
-              <p className="text-[11px] text-[#8a8aa0] text-center mt-2">צריך לפחות מרכיב אחד</p>
+            {pickedIng.size === 0 && (
+              <p className="text-[11px] text-[#8a8aa0] text-center mt-2">צריך לבחור לפחות מרכיב אחד</p>
             )}
           </>
         )}
@@ -242,9 +255,6 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
             )}
             {result.wrongIng.length > 0 && (
               <p className="text-[11px] text-[#e0315a]">לא נמצא במנה: {result.wrongIng.join(", ")}</p>
-            )}
-            {result.matchedIng.length > 0 && (
-              <p className="text-[11px] text-[#22c08c]">זיהית נכון: {result.matchedIng.map((m) => m.ingredient).join(", ")}</p>
             )}
             {result.missIng.length > 0 && (
               <p className="text-[11px] text-[#f3a712]">פספסת: {result.missIng.join(", ")}</p>
