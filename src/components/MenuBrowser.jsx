@@ -232,14 +232,14 @@ export default function MenuBrowser({ cards, onPractice }) {
             disabled={idx === 0}
             className="flex-1 py-3 min-h-[48px] rounded-xl font-black text-sm bg-[#20232b] text-[#eef0f6] disabled:opacity-30 flex items-center justify-center gap-1.5"
           >
-            <ChevronRight size={17} /> הקודמת
+            <ChevronRight size={17} /> הקודם
           </button>
           <button
             onClick={() => setIdx(idx + 1)}
             className="flex-1 py-3 min-h-[48px] rounded-xl font-black text-sm text-white flex items-center justify-center gap-1.5"
             style={{ background: "linear-gradient(135deg,#22c08c,#17805d)" }}
           >
-            {idx === dishes.length - 1 ? "סיימתי את הקטגוריה" : <>הבאה <ChevronLeft size={17} /></>}
+            {idx === dishes.length - 1 ? "סיימתי את הקטגוריה" : <>הבא <ChevronLeft size={17} /></>}
           </button>
         </div>
         </div>
