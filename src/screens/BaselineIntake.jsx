@@ -280,6 +280,13 @@ export default function BaselineIntake({ session, onDone }) {
         </div>
         {/* No green/red here on purpose: this is a measurement, and showing the answer
             would teach mid-measurement and skew the rest of the exam. */}
+        {/* ⚠️ A way out, mid-exam. The intro screen offers "later", but once the 21
+            questions started there was no exit at all — a waiter who opened this during
+            a shift had to force-quit the app. Skipping counts as skipped, exactly like
+            the intro: no baseline recorded, offered again on a new device. */}
+        <button onClick={() => onDone(null)} className="w-full text-center text-[11px] text-[#5a5a6e] font-bold mt-4 min-h-[44px]">
+          אעשה את זה אחר כך
+        </button>
       </Shell>
     );
   }

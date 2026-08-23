@@ -534,6 +534,14 @@ export default function MainApp({ session, onSignOut }) {
     );
   }, [cards, masteryById]);
 
+  // ⚠️ "New dishes" only means something against a menu you already know. A waiter who
+  // joined today has touched nothing, so the whole import is inside the 21-day window and
+  // the greeting announced "יש 166 מנות חדשות" — the discouraging count again, wearing a
+  // different hat (user, 2026-08-23). Above a fifth of the menu it isn't news, it's the
+  // menu, and the learning path is what covers that.
+  const newDishesWorthSaying = newDishes.length > 0
+    && newDishes.length <= Math.max(5, Math.round((cards?.length || 0) * 0.2));
+
   // עדכון יומי של המסעדה — the daily-brief gate. First entry of the day (per waiter, per
   // the daily_brief_reads row) blocks everything until the brief's questions are answered.
   // Requires the menu to be loaded (distractors come from it); never shown offline, and
@@ -759,7 +767,7 @@ export default function MainApp({ session, onSignOut }) {
     });
   }
 
-  if (newDishes.length > 0) {
+  if (newDishesWorthSaying) {
     dayTasks.push({
       id: "newdishes", group: "general",
       title: `ללמוד ${newDishes.length === 1 ? "מנה חדשה בתפריט" : `${newDishes.length} מנות חדשות בתפריט`}`,
@@ -940,12 +948,12 @@ export default function MainApp({ session, onSignOut }) {
               <p className="text-xs font-bold text-[#EEF0F6]/80 mt-1">
                 {pct === 0
                   ? "מתחילים מהתפריט — נעים להכיר 🍽️"
-                  : newDishes.length > 0
+                  : newDishesWorthSaying
                     ? `כבר ${pct}% מהתפריט אצלך 💪 ${newDishes.length === 1 ? "ויש מנה חדשה" : `ויש ${newDishes.length} מנות חדשות`}`
                     : `כבר ${pct}% מהתפריט אצלך 💪`}
                 {myRank > 0 && <span className="text-[#f3c14b] font-black"> · מקום #{myRank}</span>}
               </p>
-              {(pct === 0 || newDishes.length > 0) && (
+              {(pct === 0 || newDishesWorthSaying) && (
                 <button
                   onClick={() => {
                     if (pct === 0) { setTab("categories"); return; }
