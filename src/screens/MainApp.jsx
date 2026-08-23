@@ -603,7 +603,10 @@ export default function MainApp({ session, onSignOut }) {
   // without the code reads three warnings of equal weight — and they are not equal.
   // In preview it shows on every load rather than once a day (manager's call, 2026-08-23):
   // there is no member to stamp, and "what the waiter sees" is the whole point of the view.
-  if (mode && !colorKeySeen && (preview || needsColorKey(session?.teamMemberId)))
+  // ⚠️ Practice only. It is a study aid, and an exam is not the moment to hand one over —
+  // it also delayed the timed exam behind a screen the waiter has already read today.
+  if (mode && mode !== "exam" && mode !== "general_exam" && !colorKeySeen
+      && (preview || needsColorKey(session?.teamMemberId)))
     return <ColorKey onDone={() => { markColorKeySeen(session?.teamMemberId); setColorKeySeen(true); }} />;
 
   if (mode === "progressive" && prog)

@@ -205,3 +205,32 @@ const seq = (nums) => { let i = 0; return () => nums[i++ % nums.length]; };
 }
 
 console.log("scenarios.test.mjs OK");
+
+const seeded = (seed) => () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+
+// ── order: drinks are not a course ─────────────────────────────────────────────────────
+// Live on Studio 2026 the order question once asked which of a cocktail, a Campari and an
+// iced tea "comes out first" — unanswerable, because drinks reach the table when poured.
+{
+  const drinks = [
+    { id: "d1", name: "קמפרי", category: "אלכוהול", ingredients: [], desc: "" },
+    { id: "d2", name: "תה קר", category: "שתייה קלה", ingredients: [], desc: "" },
+    { id: "d3", name: "שביל האבנים", category: "קוקטיילים", ingredients: [], desc: "" },
+  ];
+  const order = ["אלכוהול", "שתייה קלה", "קוקטיילים"];
+  let q = null;
+  for (let i = 0; i < 50; i++) q = q || qServingOrder(drinks, seeded(i), order);
+  assert.equal(q, null, "all-drinks order question must not be built");
+
+  const withFood = [...drinks,
+    { id: "f1", name: "סלט", category: "סלטים", ingredients: ["חסה"], desc: "סלט ירוק" },
+    { id: "f2", name: "סטייק", category: "עיקריות", ingredients: ["בקר"], desc: "אנטריקוט" },
+    { id: "f3", name: "עוגה", category: "קינוחים", ingredients: ["שוקולד"], desc: "עוגת שוקולד" },
+  ];
+  const foodOrder = ["סלטים", "עיקריות", "קינוחים", "אלכוהול", "שתייה קלה", "קוקטיילים"];
+  const fq = qServingOrder(withFood, seeded(1), foodOrder);
+  assert.ok(fq, "food order question should still build");
+  assert.ok(fq.options.every((o) => ["סלט", "סטייק", "עוגה"].includes(o.label)),
+    "order options must be food, got " + fq.options.map((o) => o.label).join(", "));
+  console.log("✓ order: drinks excluded, food still works");
+}

@@ -133,7 +133,7 @@ export function qWithIngredient(cards, rnd = Math.random) {
         kind: "multi",
         subjectId: withIt[0].id,
         multi: true,
-        prompt: `אורח מבקש שתמליצו לו על ${MULTI_TARGET} מנות מ${cat} עם ${ing}. אילו מנות תציעו?`,
+        prompt: `אורח מבקש המלצה על ${MULTI_TARGET} מנות מ${cat} עם ${ing}. אילו מנות תציע/י?`,
         hint: `לבחור בדיוק ${MULTI_TARGET}.`,
         options: options.map((d) => ({
           id: d.id, label: label(d), correct: withIt.some((w) => w.id === d.id),
@@ -188,7 +188,7 @@ export function qCompose(cards, rnd = Math.random) {
     subjectId: it.id,
     multi: true,
     exactSet: true,
-    prompt: `אורח שואל מה יש ב${label(it)}. מה תגידו לו?`,
+    prompt: `אורח שואל מה יש ב${label(it)}. מה תגיד/י לו?`,
     hint: "לבחור את כל המרכיבים שבמנה — ורק אותם.",
     options: shuffleWith([
       ...real.map((x) => ({ id: `r:${x}`, label: x, correct: true })),
@@ -236,7 +236,7 @@ export function qPrice(cards, rnd = Math.random) {
   return {
     kind: "price",
     subjectId: it.id,
-    prompt: `אורח שואל כמה עולה ${label(it)}. מה תגידו לו?`,
+    prompt: `אורח שואל כמה עולה ${label(it)}. מה תגיד/י לו?`,
     options: shuffleWith([real, ...decoys], rnd).map((p) => ({
       id: `p:${p}`, label: `${p} ₪`, correct: p === real,
     })),
@@ -284,7 +284,7 @@ export function qAllergenSet(cards, rnd = Math.random) {
     subjectId: it.id,
     multi: true,
     exactSet: true,
-    prompt: `אורח שואל אילו אלרגיות יש ב${label(it)}. מה תגידו לו?`,
+    prompt: `אורח שואל אילו אלרגיות יש ב${label(it)}. מה תגיד/י לו?`,
     hint: "לבחור את כל האלרגיות שבמנה — ורק אותן.",
     options: shuffleWith([
       ...real.map((a) => ({ id: `a:${a}`, label: a, correct: true })),
@@ -300,7 +300,14 @@ export function qAllergenSet(cards, rnd = Math.random) {
 // a wrong answer here teaches the waiter something false about their own service.
 export function qServingOrder(cards, rnd = Math.random, categoryOrder = []) {
   const rank = new Map(categoryOrder.map((c, i) => [c, i]));
-  const usable = cards.filter((c) => rank.has(c.category));
+  // ⚠️ Food only. Caught live on Studio 2026: "שביל האבנים הצהובות · קמפרי · תה קר
+  // היביסקוס ליים — מה יוצא ראשון?" is three drinks, and no category order makes that a
+  // real answer; drinks reach the table when they are poured. A course order is a question
+  // about food, so a dish qualifies only if the kitchen described it — bar and soft-drink
+  // rows carry neither ingredients nor a description, which is the same signal
+  // MenuCheckQuiz uses to spot a "thin" category.
+  const isFood = (c) => (c.ingredients?.length > 0) || (c.desc || "").trim().length > 0;
+  const usable = cards.filter((c) => rank.has(c.category) && isFood(c));
   const cats = [...new Set(usable.map((c) => c.category))];
   if (cats.length < 3) return null;
   const chosen = shuffleWith(cats, rnd).slice(0, 3).sort((a, b) => rank.get(a) - rank.get(b));

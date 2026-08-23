@@ -189,7 +189,10 @@ export default function MenuExam({ items, deckSize = 40, passMark = 70, category
               שליחה
             </button>
             <p className="text-[11px] text-[#8a8aa0] text-center">
-              {q.exactSet ? `נבחרו ${picked.size} — לבחור את כל מה שנמצא במנה` : `נבחרו ${picked.size} מתוך ${need}`}
+              {/* "נבחרו 1" is wrong in Hebrew and the counter sits under every question. */}
+              {q.exactSet
+                ? `${picked.size === 1 ? "נבחר 1" : `נבחרו ${picked.size}`} — לבחור את כל מה שנמצא במנה`
+                : `${picked.size === 1 ? "נבחר 1" : `נבחרו ${picked.size}`} מתוך ${need}`}
             </p>
           </>
         )}
