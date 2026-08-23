@@ -137,6 +137,9 @@ export default function MenuExam({ items, deckSize = 40, passMark = 70, category
     return "bg-[#16181c] text-[#4a4a5a] border-[#22252b]";
   };
 
+  // Chips only when every label is short and none of them carries an explanation to show.
+  const compactOptions = q.options.every((o) => (o.label || "").length <= 20 && !o.why);
+
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-2.5 flex items-center justify-between flex-shrink-0">
@@ -161,20 +164,28 @@ export default function MenuExam({ items, deckSize = 40, passMark = 70, category
           {q.hint && <p className="text-[11px] text-[#8a8aa0] leading-snug">{q.hint}</p>}
         </div>
 
-        <div className="flex flex-col gap-2">
+        {/* Ingredient and allergen lists wrap as chips like the category exam does: a
+            fourteen-option list in full-width rows is most of a phone screen, and this
+            exam is forty questions long. Dish-name options stay as rows — they are long,
+            and they carry the per-option "why" after the answer. */}
+        <div className={compactOptions ? "flex flex-wrap gap-1.5" : "flex flex-col gap-2"}>
           {q.options.map((o) => (
             <button
               key={o.id}
               onClick={() => (q.multi ? toggle(o.id) : (setPicked(new Set([o.id])), grade(new Set([o.id]))))}
               disabled={!!result}
-              className={`w-full text-right rounded-xl border px-3.5 py-3 min-h-[44px] font-bold text-[13px] leading-snug transition-colors ${optClass(o)}`}
+              className={compactOptions
+                ? `rounded-lg border px-3 py-2 min-h-[40px] font-bold text-[12px] leading-snug transition-colors ${optClass(o)}`
+                : `w-full text-right rounded-xl border px-3.5 py-3 min-h-[44px] font-bold text-[13px] leading-snug transition-colors ${optClass(o)}`}
             >
-              <span className="flex items-center justify-between gap-2">
-                <span className="flex-1">{o.label}</span>
-                {result && o.why && (
-                  <span className={`text-[10.5px] font-black flex-shrink-0 ${o.correct ? "text-[#22c08c]" : "text-[#8a8aa0]"}`}>{o.why}</span>
-                )}
-              </span>
+              {compactOptions ? o.label : (
+                <span className="flex items-center justify-between gap-2">
+                  <span className="flex-1">{o.label}</span>
+                  {result && o.why && (
+                    <span className={`text-[10.5px] font-black flex-shrink-0 ${o.correct ? "text-[#22c08c]" : "text-[#8a8aa0]"}`}>{o.why}</span>
+                  )}
+                </span>
+              )}
             </button>
           ))}
         </div>
