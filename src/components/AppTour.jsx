@@ -15,38 +15,55 @@ import { gz } from "../lib/shiftChoice";
 const STEPS = [
   {
     icon: GraduationCap, title: "ככה לומדים כאן",
-    body: "שלושה שלבים, בסדר הזה: קודם עוברים על התפריט וקוראים את המנות — מרכיבים, אלרגנים ומה חשוב לומר לאורח. אחר כך מתרגלים בכרטיסיות עד שמכירים. ובסוף נבחנים: בוחן קצר על כל קטגוריה, ורק אחרי שעוברים את כולם — מבחן התפריט המלא.",
+    body: "שלושה שלבים, בסדר הזה: קודם עוברים על התפריט וקוראים את המנות — מרכיבים, אלרגיות ומה חשוב לומר לאורח. אחר כך מתרגלים בכרטיסיות עד שמכירים. ובסוף נבחנים: בוחן קצר על כל קטגוריה, ורק אחרי שעוברים את כולם — מבחן התפריט המלא.",
   },
   {
-    tab: "categories", icon: BookOpen, title: "שלב 1 — התפריט עצמו",
-    body: "כאן חיים כל התפריטים של המסעדה. נתחיל מלפתוח אחד.",
+    // No `tab` here on purpose: the point of the step is that the waiter finds the tab
+    // in the bottom bar and taps it — the tap itself does the navigation.
+    icon: BookOpen, title: "שלב 1 — התפריט עצמו",
+    body: "הכל מתחיל בטאב \u05f4תפריט\u05f4 בסרגל למטה — שם חיים כל תפריטי המסעדה.",
+    target: '[data-tour="nav-categories"]', cue: "הקש/י על טאב התפריט למטה",
+  },
+  {
+    tab: "categories", reset: true, icon: BookOpen, title: "בחר/י תפריט",
+    body: "אלה התפריטים של המסעדה. נתחיל מלפתוח אחד.",
     target: '[data-tour="browse-menu"]', cue: "הקש/י על תפריט כדי לפתוח אותו",
   },
   {
-    tab: "categories", icon: BookOpen, title: "בחר/י קטגוריה",
+    tab: "categories", deep: true, icon: BookOpen, title: "בחר/י קטגוריה",
     body: "בתוך כל תפריט יש קטגוריות. הקש/י על אחת כדי לראות את המנות שבה.",
     target: '[data-tour="browse-category"]', cue: "הקש/י על קטגוריה",
   },
   {
-    tab: "categories", icon: Sparkles, title: "כל מנה נפתחת בגדול",
-    body: "הקשה על מנה פותחת אותה על כל המסך: התיאור המלא, המרכיבים, ומה שאסור לפספס — אלרגנים באדום, רגישות בהריון בסגול ומוקשים בצהוב. החצים למטה מעבירים למנה הבאה, אז אפשר לעבור על קטגוריה שלמה ברצף. ככה עוברים על התפריט לפני שמתחילים לתרגל.",
+    tab: "categories", deep: true, icon: Sparkles, title: "עכשיו נפתח מנה",
+    body: "אלה המנות של הקטגוריה. הקשה על אחת פותחת אותה על כל המסך — התיאור המלא, המרכיבים, ומה שאסור לפספס: אלרגיות באדום, רגישות בהריון בסגול ומוקשים בצהוב.",
+    target: '[data-tour="browse-dish"]', cue: "הקש/י על המנה הראשונה",
   },
   {
-    tab: "learn", icon: GraduationCap, title: "שלב 2 — לתרגל",
-    body: "כאן מתאמנים על מה שקראת. נפתח קטגוריה ונראה איך זה עובד.",
+    tab: "categories", deep: true, icon: Sparkles, title: "ככה נראית מנה",
+    body: "לדוגמה: מנה עם תגית אדומה \u05f4שומשום\u05f4 היא מנה שאסור להגיש לאורח עם אלרגיה לשומשום, ותגית צהובה \u05f4חריף\u05f4 היא רק עניין של טעם. החצים למטה מעבירים למנה הבאה, אז אפשר לעבור על קטגוריה שלמה ברצף — וזה בדיוק מה שעושים לפני שמתחילים לתרגל.",
+  },
+  {
+    icon: GraduationCap, title: "שלב 2 — לתרגל",
+    body: "את התרגול מוצאים בטאב \u05f4תרגול ובחינה\u05f4 בסרגל למטה.",
+    target: '[data-tour="nav-learn"]', cue: "הקש/י על טאב התרגול למטה",
+  },
+  {
+    tab: "learn", reset: true, icon: GraduationCap, title: "לתרגל את מה שקראת",
+    body: "נפתח קטגוריה ונראה איך זה עובד.",
     target: '[data-tour="learn-menu"], [data-tour="learn-category"]', cue: "הקש/י כדי להיכנס",
   },
   {
-    tab: "learn", icon: Sparkles, title: "כרטיסיות — עד שמכירים",
-    body: "בתרגול מוצג שם המנה, נזכרים מה יש בה ומדרגים 1-5 כמה ידעת. מנה שמקבלת 5 פעמיים ברצף מסומנת ✓ ויוצאת מהסבב, והבאה נכנסת במקומה — כך מתקדמים בלי לחזור על מה שכבר ידוע.",
+    tab: "learn", icon: Sparkles, title: "כרטיסיות",
+    body: "בחזית הכרטיס מופיע שם המנה בלבד. נזכרים מה יש בה — ורק כשיודעים, הופכים: בגב מחכים התיאור המלא, המרכיבים, האלרגיות והרגישויות. אחרי ההיפוך מדרגים 1-5 כמה ידעת. מנה שמקבלת 5 פעמיים ברצף מסומנת ✓ ויוצאת מהסבב, והבאה נכנסת במקומה.",
   },
   {
     tab: "learn", icon: GraduationCap, title: "שלב 3 — הבחנים והמבחן",
-    body: "כשתכיר/י מספיק מנות בקטגוריה, יופיע בה כפתור בוחן — עם שעון. עוברים בוחן בכל קטגוריה, ורק אחרי שעוברים את כולם נפתח מבחן התפריט המלא. הציונים הם התעודה שלך במסעדה, והמנהל/ת רואה אותם.",
+    body: "כשתכיר/י מספיק מנות בקטגוריה, יופיע בה כפתור בוחן — עם שעון. עוברים בוחן בכל קטגוריה, ורק אחרי שעוברים את כולם נפתח מבחן התפריט המלא — המבחן שלך על התפריט. את המבחן עצמו צריך לעשות במסעדה.",
   },
   {
     tab: "home", icon: ListChecks, title: "ומה עושים כל יום?",
-    body: "מסך המשימות הוא מה שפותחים בתחילת משמרת: 'משימות היום' — העדכון היומי ומה שהמנהל/ת שלחו; 'משימות כלליות' — הלימוד. כל משימה פותחת את מה שצריך לעשות, והמספר הוא המקום בתור.",
+    body: "מסך המשימות הוא מה שפותחים בתחילת משמרת: 'משימה יומית' — העדכון היומי ומה שהמנהל/ת שלחו; 'משימות כלליות' — הלימוד. כל משימה פותחת את מה שצריך לעשות, והמספר הוא המקום בתור.",
   },
   {
     tab: "home", icon: Wallet, title: "המדדים שלך — 📊 למעלה",
@@ -86,11 +103,32 @@ export default function AppTour({ onNavigate, onDone }) {
   const last = i === STEPS.length - 1;
   const rect = useTargetRect(s.target, i);
 
+  const firedRef = useRef(-1);
   const go = useCallback((n) => {
+    const back = n < i;
+    // ⚠️ Going back has to land on a screen the app can actually be put back into.
+    // Steps marked `deep` live inside a drill-down (a category, an open dish) that only
+    // the waiter's own taps can reach, so stepping back past one rewinds to the last
+    // reachable step instead of leaving a spotlight hunting for an element that is no
+    // longer on screen — which is exactly what "stuck" looked like.
+    if (back) while (n > 0 && STEPS[n].deep) n--;
     const next = STEPS[n];
-    if (next && next.tab) onNavigate?.(next.tab);
+    if (next?.tab) onNavigate?.(next.tab, back || !!next.reset);
+    else if (back) {
+      // "Back" moves the screen back too (user, 2026-08-23): a step that points at the
+      // bottom nav has no tab of its own, so its backdrop is wherever the step before it
+      // stood — walk backwards to the nearest step that names a tab, home if there is none.
+      // Going forward we deliberately do NOT navigate for those steps: the tap the waiter
+      // is about to make is what moves the app.
+      let t = "home";
+      for (let k = n; k >= 0; k--) { if (STEPS[k]?.tab) { t = STEPS[k].tab; break; } }
+      onNavigate?.(t, true);
+    }
+    // Re-arm the tap detector for the steps we just left — without this, firedRef (the
+    // double-tap guard) would swallow the tap on a revisited step.
+    if (back) firedRef.current = n - 1;
     setI(n);
-  }, [onNavigate]);
+  }, [onNavigate, i]);
 
   // Advance when the waiter taps the real element. Capture phase so we see the tap even
   // though the element's own handler (open the menu, switch tab) also runs — both should
@@ -99,7 +137,6 @@ export default function AppTour({ onNavigate, onDone }) {
   // change first, and a second tap in that window (or a tap on a target that is still on
   // screen in the NEXT step) would otherwise queue a second timeout carrying a stale `i`
   // and shove the tour backwards.
-  const firedRef = useRef(-1);
   useEffect(() => {
     if (!s.target) return;
     const onClick = (e) => {
@@ -135,7 +172,7 @@ export default function AppTour({ onNavigate, onDone }) {
   const Dim = ({ style }) => <div className="absolute bg-black/70 pointer-events-auto" style={style} />;
 
   return (
-    <div className="fixed inset-0 z-50 pointer-events-none" dir="rtl">
+    <div className="fixed inset-0 z-[60] pointer-events-none" dir="rtl">
       {/* Four rectangles around the target instead of one full-screen overlay: the hole in
           the middle is a real hole, so the tap lands on the app, not on the dimmer. */}
       {hole ? (

@@ -20,7 +20,7 @@ const SECONDS = {
   pregnancy: 20, allergy: 20, pitfall: 20, order: 20, describe: 20, menugroup: 15, price: 15,
 };
 const KIND_TAG = {
-  compose: "הרכבת מנה", multi: "המלצה לאורח", allergenset: "אלרגנים במנה",
+  compose: "הרכבת מנה", multi: "המלצה לאורח", allergenset: "אלרגיות במנה",
   pregnancy: "אורחת בהריון", allergy: "אלרגיה", pitfall: "העדפת אורח",
   order: "סדר הגשה", describe: "אורח מתאר מנה", menugroup: "איפה בתפריט", price: "מחיר",
 };
@@ -71,7 +71,7 @@ export default function MenuExam({ items, deckSize = 40, passMark = 70, category
         <div className="space-y-3">
           <p className="text-sm font-black">אין עדיין מספיק מידע בתפריט למבחן מלא</p>
           <p className="text-[12px] text-[#8a8aa0] leading-relaxed">
-            השאלות נבנות מהמרכיבים, האלרגנים והדגלים של המנות. ככל שהתפריט מפורט יותר —
+            השאלות נבנות מהמרכיבים, האלרגיות והדגלים של המנות. ככל שהתפריט מפורט יותר —
             המבחן שלם יותר.
           </p>
           <button onClick={onDone} className="px-5 py-3 min-h-[44px] rounded-2xl bg-[#6d5efc] text-white font-black text-sm">חזרה</button>

@@ -284,8 +284,8 @@ export function qAllergenSet(cards, rnd = Math.random) {
     subjectId: it.id,
     multi: true,
     exactSet: true,
-    prompt: `אורח שואל אילו אלרגנים יש ב${label(it)}. מה תגידו לו?`,
-    hint: "לבחור את כל האלרגנים שבמנה — ורק אותם.",
+    prompt: `אורח שואל אילו אלרגיות יש ב${label(it)}. מה תגידו לו?`,
+    hint: "לבחור את כל האלרגיות שבמנה — ורק אותן.",
     options: shuffleWith([
       ...real.map((a) => ({ id: `a:${a}`, label: a, correct: true })),
       ...shuffleWith(others, rnd).slice(0, 3).map((a) => ({ id: `a:${a}`, label: a, correct: false })),

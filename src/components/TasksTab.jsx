@@ -46,7 +46,7 @@ export default function TasksTab({ tasks, onDone, children }) {
   // things this shift needs; "ללמוד ראשונות" is not tied to a day at all. Mixing them
   // made one numbered list whose numbers meant nothing.
   const GROUPS = [
-    { key: "daily", title: "משימות היום", hint: "בריף, פתיחה, סגירה ומשימות המשמרת" },
+    { key: "daily", title: "משימה יומית", hint: "בריף, פתיחה, סגירה ומשימות המשמרת" },
     { key: "general", title: "משימות כלליות", hint: "למידת התפריט ותרגול" },
   ];
 

@@ -390,7 +390,7 @@ export function qPitfallDish(pool, it) {
 
 export const FACETS = {
   allergens: {
-    label: "אלרגנים",
+    label: "אלרגיות",
     hint: "מי לא יכול לאכול מה — השאלה שאורח שואל בפועל",
     builders: [qAllergenDish],
     requires: (pool) => pool.filter((it) => (it.allergens || []).length).length >= 2,

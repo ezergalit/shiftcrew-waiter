@@ -256,6 +256,7 @@ export default function MenuBrowser({ cards, onPractice }) {
         {dishes.map((d, i) => (
           <button
             key={d.id}
+            data-tour={i === 0 ? "browse-dish" : undefined}
             onClick={() => setIdx(i)}
             className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-5 space-y-2.5 active:scale-[0.99] transition-transform"
           >

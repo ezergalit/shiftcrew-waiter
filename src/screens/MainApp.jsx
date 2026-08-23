@@ -5,6 +5,7 @@ import MetricsScreen from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
 import BriefGate, { briefHasContent } from "../components/BriefGate";
 import AppTour from "../components/AppTour";
+import ColorKey, { needsColorKey, markColorKeySeen } from "../components/ColorKey";
 import TasksTab, { useShiftTasks, PERIOD_LABEL } from "../components/TasksTab";
 import ManagerMessages from "../components/ManagerMessages";
 import { ShiftQuestion, ShiftChip, ShiftGate, ProfileGate } from "../components/ShiftPicker";
@@ -111,6 +112,7 @@ export default function MainApp({ session, onSignOut }) {
   const [brief, setBrief] = useState(null);
   const [briefAck, setBriefAck] = useState(null);
   const [mode, setMode] = useState(null);
+  const [colorKeySeen, setColorKeySeen] = useState(false);
   const [showMetrics, setShowMetrics] = useState(false); // flashcards | quiz | match | speed | exam | …
   const [modeItems, setModeItems] = useState(null); // scoped items for a challenge round; null = full menu
   // Offered once per app open, never nagged: dismissing it clears the record.
@@ -555,6 +557,12 @@ export default function MainApp({ session, onSignOut }) {
   if (showMetrics)
     return <MetricsScreen session={session} cards={cards} masteryById={masteryById} weekly={weekly} leaderboard={leaderboard} onDone={() => setShowMetrics(false)} />;
 
+  // The colour legend, once a day, in front of the first practice of the day: red is an
+  // allergy, purple is pregnancy, yellow is a preference. A waiter who reads the chips
+  // without the code reads three warnings of equal weight — and they are not equal.
+  if (mode && !colorKeySeen && needsColorKey(session?.teamMemberId))
+    return <ColorKey onDone={() => { markColorKeySeen(session?.teamMemberId); setColorKeySeen(true); }} />;
+
   if (mode === "progressive" && prog)
     return <ProgressiveFlashcards items={prog.items} label={prog.label} firstId={prog.firstId} initialProgress={prog.progress}
       onExam={prog.catKey ? () => {
@@ -703,7 +711,7 @@ export default function MainApp({ session, onSignOut }) {
     dayTasks.push({
       id: "readmenu", group: "general",
       title: "לעבור על התפריט ולהכיר את המנות",
-      subtitle: "קוראים מנה-מנה — מרכיבים, אלרגנים ומה אומרים לאורח",
+      subtitle: "קוראים מנה-מנה — מרכיבים, אלרגיות ומה אומרים לאורח",
       done: false, cta: "לתפריט ←",
       onOpen: () => setTab("categories"),
     });
@@ -783,7 +791,7 @@ export default function MainApp({ session, onSignOut }) {
           per member — the flag is device-scoped, same as the welcome slides. */}
       {tourOpen && (
         <AppTour
-          onNavigate={(t) => {
+          onNavigate={(t, reset) => {
             setTab(t);
             // ⚠️ The tour points at the TOP level of each tab ("tap a menu", "tap a
             // category"), but both tabs keep their own drill-down state. Landing on a
@@ -793,7 +801,14 @@ export default function MainApp({ session, onSignOut }) {
             // ("tap a menu" then "tap a category"), and resetting on every step remounted
             // the browser right after the waiter's tap — undoing the tap they were just
             // told to make.
-            if (t !== tab) {
+            // ⚠️ Only when the step ASKS for it (`reset`), or the tab actually changes.
+            // Consecutive steps share a tab ("tap a menu" then "tap a category"), and
+            // resetting on every step remounted the browser right after the waiter's tap,
+            // undoing the tap they were just told to make. But a step that points at the
+            // menu list ("tap a menu") is unreachable if the browser is still drilled into
+            // a dish list from a previous run — that's the tour getting stuck with a
+            // spotlight on nothing. Those steps declare `reset` and get a clean top level.
+            if (reset || t !== tab) {
               if (t === "categories") setBrowseKey((k) => k + 1);
               if (t === "learn") { setCatView(null); setGroupView(null); }
             }
