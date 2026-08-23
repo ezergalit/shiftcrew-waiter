@@ -24,7 +24,7 @@ export default function WelcomeTutorial({ session, onDone }) {
           {session.restaurantServiceNotes && (
             <div className="bg-[#16181c] border border-[#22252b] rounded-xl p-3">
               <p className="text-[11px] font-bold text-[#8a8aa0] mb-1">איך אנחנו מארחים כאן</p>
-              <p className="text-sm text-[#eef0f6] leading-relaxed">{session.restaurantServiceNotes}</p>
+              <p className="text-sm text-[#eef0f6] leading-relaxed whitespace-pre-line text-right">{session.restaurantServiceNotes}</p>
             </div>
           )}
           {!session.restaurantDescription && !session.restaurantServiceNotes && (
