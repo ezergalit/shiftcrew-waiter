@@ -44,13 +44,19 @@ const STEPS = [
     body: "לדוגמה: מנה עם תגית אדומה \u05f4שומשום\u05f4 היא מנה שאסור להגיש לאורח עם אלרגיה לשומשום, ותגית צהובה \u05f4חריף\u05f4 היא רק עניין של טעם. החצים למטה מעבירים למנה הבאה, אז אפשר לעבור על קטגוריה שלמה ברצף — וזה בדיוק מה שעושים לפני שמתחילים לתרגל.",
   },
   {
+    // ⚠️ Needs `tab`+`reset` even though it points at the bottom nav: the previous step
+    // leaves the waiter inside the full-screen dish view, which covers the nav bar. The
+    // spotlight was measured on the hidden nav and the tap landed on the dish's own
+    // "next dish" button instead. Resetting the browser closes the dish and puts the nav
+    // back on screen, which is where this step is pointing.
+    tab: "categories", reset: true,
     icon: GraduationCap, title: "שלב 2 — לתרגל",
     body: "את התרגול מוצאים בטאב \u05f4תרגול ובחינה\u05f4 בסרגל למטה.",
     target: '[data-tour="nav-learn"]', cue: "הקש/י על טאב התרגול למטה",
   },
   {
     tab: "learn", reset: true, icon: GraduationCap, title: "לתרגל את מה שקראת",
-    body: "נפתח קטגוריה ונראה איך זה עובד.",
+    body: "כאן בוחרים מה לתרגל. נתחיל מאחד ונראה איך זה עובד.",
     target: '[data-tour="learn-menu"], [data-tour="learn-category"]', cue: "הקש/י כדי להיכנס",
   },
   {
@@ -63,11 +69,18 @@ const STEPS = [
   },
   {
     tab: "home", icon: ListChecks, title: "ומה עושים כל יום?",
-    body: "מסך המשימות הוא מה שפותחים בתחילת משמרת: 'משימה יומית' — העדכון היומי ומה שהמנהל/ת שלחו; 'משימות כלליות' — הלימוד. כל משימה פותחת את מה שצריך לעשות, והמספר הוא המקום בתור.",
+    body: "מסך המשימות הוא מה שפותחים בתחילת משמרת: 'משימה יומית' — העדכון היומי והמשימות מהמנהל/ת; 'משימות כלליות' — הלימוד. כל משימה פותחת את מה שצריך לעשות, והמספר הוא המקום בתור.",
   },
   {
-    tab: "home", icon: Wallet, title: "המדדים שלך — 📊 למעלה",
-    body: "כפתור הגרף בפינה פותח את המדדים: כמה מהתפריט כבר בכיס, המקום שלך בצוות, וגם ההכנסות שלך אם בא לך לרשום כמה הרווחת בסוף משמרת — רק לך יש גישה לזה.",
+    tab: "home", icon: Wallet, title: "המדדים שלך",
+    body: "כפתור הגרף בפינה השמאלית העליונה פותח את המדדים שלך. נפתח אותו עכשיו.",
+    target: '[data-tour="metrics"]', cue: "הקש/י על כפתור הגרף למעלה",
+  },
+  {
+    // Deliberately no `tab`: navigating would close the metrics screen this step is
+    // standing on. `deep` so stepping back rewinds to the button that opens it.
+    deep: true, icon: Wallet, title: "אלה הנתונים שלך",
+    body: "כמה מהתפריט כבר בכיס ובאיזו רמת שליטה, המקום שלך בצוות, וגם ההכנסות שלך אם בא לך לרשום כמה הרווחת בסוף משמרת — רק לך יש גישה לזה. מכאן אפשר גם להריץ את הסיור הזה שוב, מתי שרוצים.",
   },
 ];
 
@@ -97,8 +110,13 @@ function useTargetRect(selector, step) {
   return rect;
 }
 
-export default function AppTour({ onNavigate, onDone }) {
-  const [i, setI] = useState(0);
+// ⚠️ The step index lives in MainApp, not here. A step can point INTO a full-screen view
+// (the metrics screen), and MainApp returns that view from a different branch of its tree —
+// React sees a different parent, unmounts the tour and mounts a fresh one, which with local
+// state meant landing on the metrics screen and being thrown back to step 1.
+export default function AppTour({ onNavigate, onDone, step = 0, onStep }) {
+  const i = step;
+  const setI = onStep;
   const s = STEPS[i];
   const last = i === STEPS.length - 1;
   const rect = useTargetRect(s.target, i);

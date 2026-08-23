@@ -82,7 +82,7 @@ function Ring({ pct, counts, total }) {
   );
 }
 
-export default function MetricsScreen({ session, cards, masteryById, weekly = [], leaderboard = [], onDone }) {
+export default function MetricsScreen({ session, cards, masteryById, weekly = [], leaderboard = [], onDone, onReplayTour }) {
   const [snaps, setSnaps] = useState(null);
   const [member, setMember] = useState(null);
   const [streak, setStreak] = useState(0);
@@ -298,6 +298,17 @@ export default function MetricsScreen({ session, cards, masteryById, weekly = []
             <Clock size={11} className="text-[#f3c14b]" />
             <p className="text-[10px] text-[#f3c14b] font-bold">מצב לוקאלי — אין נתונים היסטוריים</p>
           </div>
+        )}
+
+        {/* The tour is a one-time thing that lands on day one, when everything is new. This
+            is where someone comes looking for it a week later. */}
+        {onReplayTour && (
+          <button
+            onClick={onReplayTour}
+            className="w-full min-h-[44px] rounded-xl bg-[#16181c] border border-[#22252b] text-[11.5px] font-bold text-[#8a8aa0]"
+          >
+            לצפות בסיור ההדרכה שוב
+          </button>
         )}
 
         {!session?.offline && <DeleteProfile />}

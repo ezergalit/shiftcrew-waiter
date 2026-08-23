@@ -313,7 +313,7 @@ export default function MenuBrowser({ cards, onPractice }) {
   // ---- level 1: the restaurant's menus ----
   return (
     <div className="space-y-2.5">
-      <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">התפריט של המסעדה — בחרו תפריט כדי לעיין בו.</p>
+      <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">התפריט של המסעדה — אפשר לפתוח כל תפריט ולעיין בו.</p>
       {menus.map((m) => {
         const inG = (cards || []).filter((c) => c.menuGroup === m);
         const catCount = new Set(inG.map((c) => c.category)).size;

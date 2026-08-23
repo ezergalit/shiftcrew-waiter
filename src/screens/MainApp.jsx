@@ -113,6 +113,7 @@ export default function MainApp({ session, onSignOut }) {
   const [briefAck, setBriefAck] = useState(null);
   const [mode, setMode] = useState(null);
   const [colorKeySeen, setColorKeySeen] = useState(false);
+  const [tourStep, setTourStep] = useState(0);
   const [showMetrics, setShowMetrics] = useState(false); // flashcards | quiz | match | speed | exam | …
   const [modeItems, setModeItems] = useState(null); // scoped items for a challenge round; null = full menu
   // Offered once per app open, never nagged: dismissing it clears the record.
@@ -553,9 +554,42 @@ export default function MainApp({ session, onSignOut }) {
   if (gatePractice)
     return <BriefGate brief={brief} cards={cards} session={session} practice onClose={() => setGatePractice(false)} />;
 
+  // Built here, above the early returns, so a step can point INTO a full-screen view
+  // (the metrics screen) without the tour unmounting the moment it opens.
+  const tourNode = tourOpen ? (
+      <AppTour
+        step={tourStep}
+        onStep={setTourStep}
+        onNavigate={(t, reset) => {
+          setTab(t);
+          setShowMetrics(false);   // a tab step is meaningless behind the metrics screen
+          // The tour points at the TOP level of each tab ("tap a menu", "tap a category"),
+          // but both tabs keep their own drill-down state — landing on a dish list with
+          // the spotlight hunting for a menu card is a dimmed screen with nothing to tap.
+          // ⚠️ Reset only when the step ASKS for it (`reset`), or the tab actually changes.
+          // Consecutive steps share a tab ("tap a menu" then "tap a category"), and
+          // resetting on every step remounted the browser right after the waiter's tap,
+          // undoing the tap they were just told to make. But a step that points at the
+          // menu list ("tap a menu") is unreachable if the browser is still drilled into
+          // a dish list from a previous run — that's the tour getting stuck with a
+          // spotlight on nothing. Those steps declare `reset` and get a clean top level.
+          if (reset || t !== tab) {
+            if (t === "categories") setBrowseKey((k) => k + 1);
+            if (t === "learn") { setCatView(null); setGroupView(null); }
+          }
+        }}
+        onDone={() => {
+          setTourOpen(false);
+          if (session?.teamMemberId) localStorage.setItem(`${TOUR_DONE_KEY}-${session.teamMemberId}`, "1");
+        }}
+      />
+  ) : null;
+
   // Full-screen, above the tabs: it is a place you go to, not a tab you live in.
   if (showMetrics)
-    return <MetricsScreen session={session} cards={cards} masteryById={masteryById} weekly={weekly} leaderboard={leaderboard} onDone={() => setShowMetrics(false)} />;
+    return <>{tourNode}<MetricsScreen session={session} cards={cards} masteryById={masteryById} weekly={weekly} leaderboard={leaderboard}
+      onDone={() => setShowMetrics(false)}
+      onReplayTour={() => { setShowMetrics(false); setTourStep(0); setTourOpen(true); }} /></>;
 
   // The colour legend, once a day, in front of the first practice of the day: red is an
   // allergy, purple is pregnancy, yellow is a preference. A waiter who reads the chips
@@ -710,7 +744,7 @@ export default function MainApp({ session, onSignOut }) {
   if (touchedCount < 10) {
     dayTasks.push({
       id: "readmenu", group: "general",
-      title: "לעבור על התפריט ולהכיר את המנות",
+      title: "לעבור על התפריט",
       subtitle: "קוראים מנה-מנה — מרכיבים, אלרגיות ומה אומרים לאורח",
       done: false, cta: "לתפריט ←",
       onOpen: () => setTab("categories"),
@@ -789,36 +823,7 @@ export default function MainApp({ session, onSignOut }) {
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       {/* First-run interactive tour: walks the real screens, one step per tab. Shown once
           per member — the flag is device-scoped, same as the welcome slides. */}
-      {tourOpen && (
-        <AppTour
-          onNavigate={(t, reset) => {
-            setTab(t);
-            // ⚠️ The tour points at the TOP level of each tab ("tap a menu", "tap a
-            // category"), but both tabs keep their own drill-down state. Landing on a
-            // dish list with the spotlight looking for a menu card leaves the waiter
-            // staring at a dimmed screen, so send each tab back to its first level.
-            // ⚠️ Only when the tab actually CHANGES. Consecutive steps share a tab
-            // ("tap a menu" then "tap a category"), and resetting on every step remounted
-            // the browser right after the waiter's tap — undoing the tap they were just
-            // told to make.
-            // ⚠️ Only when the step ASKS for it (`reset`), or the tab actually changes.
-            // Consecutive steps share a tab ("tap a menu" then "tap a category"), and
-            // resetting on every step remounted the browser right after the waiter's tap,
-            // undoing the tap they were just told to make. But a step that points at the
-            // menu list ("tap a menu") is unreachable if the browser is still drilled into
-            // a dish list from a previous run — that's the tour getting stuck with a
-            // spotlight on nothing. Those steps declare `reset` and get a clean top level.
-            if (reset || t !== tab) {
-              if (t === "categories") setBrowseKey((k) => k + 1);
-              if (t === "learn") { setCatView(null); setGroupView(null); }
-            }
-          }}
-          onDone={() => {
-            setTourOpen(false);
-            if (session?.teamMemberId) localStorage.setItem(`${TOUR_DONE_KEY}-${session.teamMemberId}`, "1");
-          }}
-        />
-      )}
+      {tourNode}
       {/* Header */}
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 flex items-center justify-between flex-shrink-0">
         <SignOutButton onSignOut={onSignOut} />
@@ -830,6 +835,7 @@ export default function MainApp({ session, onSignOut }) {
           {myRank > 0 && <span className="text-[11px] font-bold text-[#f3c14b] bg-[#33290f] px-2 py-1 rounded-md">מקום {myRank}</span>}
           <button
             onClick={() => setShowMetrics(true)}
+            data-tour="metrics"
             title="המדדים שלי"
             className="w-8 h-8 rounded-lg bg-[#191b1f] flex items-center justify-center text-[#8a8aa0]"
           >
@@ -911,18 +917,27 @@ export default function MainApp({ session, onSignOut }) {
             <div className="rounded-2xl p-4 relative overflow-hidden text-[#EEF0F6]"
                  style={{ background: "linear-gradient(135deg,#0F5C46,#0a3d2f)" }}>
               <p className="text-base font-black">שלום {session?.name || firstName || "לך"} 👋</p>
+              {/* ⚠️ Counting what is still MISSING ("נשאר לך ללמוד 187 מנות") reads as a debt
+                  on day one, which is exactly the day the waiter is deciding whether this
+                  app is worth opening (user, 2026-08-23). Say what they already have, and
+                  on day one point at the MENU — you read a menu before you drill it. */}
               <p className="text-xs font-bold text-[#EEF0F6]/80 mt-1">
-                {newDishes.length > 0
-                  ? `נשאר לך ללמוד ${newDishes.length === 1 ? "מנה חדשה אחת" : `${newDishes.length} מנות חדשות`} בתפריט 🍽️`
-                  : weekMinutes === 1 ? "השבוע למדת דקה אחת 💪" : weekMinutes > 0 ? `השבוע למדת ${weekMinutes} דקות 💪` : "שבוע חדש — זמן טוב להתחיל ללמוד 💪"}
+                {pct === 0
+                  ? "מתחילים מהתפריט — נעים להכיר 🍽️"
+                  : newDishes.length > 0
+                    ? `כבר ${pct}% מהתפריט אצלך 💪 ${newDishes.length === 1 ? "ויש מנה חדשה" : `ויש ${newDishes.length} מנות חדשות`}`
+                    : `כבר ${pct}% מהתפריט אצלך 💪`}
                 {myRank > 0 && <span className="text-[#f3c14b] font-black"> · מקום #{myRank}</span>}
               </p>
-              {newDishes.length > 0 && (
+              {(pct === 0 || newDishes.length > 0) && (
                 <button
-                  onClick={() => { setModeItems(newDishes); setMode("flashcards"); }}
+                  onClick={() => {
+                    if (pct === 0) { setTab("categories"); return; }
+                    setModeItems(newDishes); setMode("flashcards");
+                  }}
                   className="mt-2 text-[11px] font-black text-[#0F5C46] bg-[#EEF0F6] rounded-lg px-3 py-1.5 min-h-[36px] active:scale-[0.98] transition-transform"
                 >
-                  ללמידת המנות החדשות ←
+                  {pct === 0 ? "לפתוח את התפריט ←" : "ללמידת המנות החדשות ←"}
                 </button>
               )}
             </div>
