@@ -62,7 +62,7 @@ export default function WelcomeTutorial({ session, onDone }) {
           </div>
           <div>
             <p className="text-sm font-black text-[#eef0f6]">מתרגלים בכרטיסיות</p>
-            <p className="text-xs text-[#8a8aa0]">מדרגים 1-5 כמה ידעתם; מנה שתכירו פעמיים ברצף מסומנת ✓ ויוצאת מהסבב, והבאה נכנסת במקומה</p>
+            <p className="text-xs text-[#8a8aa0]">מדרגים 1-5 כמה ידעת; מנה שתכיר/י פעמיים ברצף מסומנת ✓ ויוצאת מהסבב, והבאה נכנסת במקומה</p>
           </div>
           <div>
             <p className="text-sm font-black text-[#eef0f6]">נבחנים</p>

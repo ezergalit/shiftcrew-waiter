@@ -178,7 +178,7 @@ export default function BriefGate({ brief, cards, session, practice = false, onP
           </div>
           {cooldown > 0 && (
             <p className="text-center text-xs font-black text-[#f3a712] mb-2">
-              טעיתם — קראו שוב את העדכון · אפשר לנסות בעוד {cooldown} שניות
+              טעית — כדאי לקרוא שוב את העדכון · אפשר לנסות בעוד {cooldown} שניות
             </p>
           )}
           {questions.length ? (

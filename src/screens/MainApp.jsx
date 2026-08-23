@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { BookOpen, BarChart3, Home, LogOut, WifiOff, Check, ChevronRight, ListChecks, GraduationCap, Repeat, Layers, HelpCircle, Puzzle, Zap, ShieldAlert, FileText, Lock } from "lucide-react";
+import { BookOpen, BarChart3, Home, LogOut, WifiOff, Check, ChevronRight, ListChecks, GraduationCap, Repeat, Layers, HelpCircle, Puzzle, Zap, ShieldAlert, FileText, Lock, Eye } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import MetricsScreen from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
@@ -113,6 +113,9 @@ export default function MainApp({ session, onSignOut }) {
   const [briefAck, setBriefAck] = useState(null);
   const [mode, setMode] = useState(null);
   const [colorKeySeen, setColorKeySeen] = useState(false);
+  // Manager's read-only waiter view (?preview=<team code>). Real menu, no member, no
+  // writes — see App.jsx. Kept as one flag so a new write path can't silently forget it.
+  const preview = !!session?.preview;
   const [tourStep, setTourStep] = useState(0);
   const [showMetrics, setShowMetrics] = useState(false); // flashcards | quiz | match | speed | exam | …
   const [modeItems, setModeItems] = useState(null); // scoped items for a challenge round; null = full menu
@@ -137,7 +140,7 @@ export default function MainApp({ session, onSignOut }) {
     return g;
   });
   const [profileRole, setProfileRole] = useState(() => loadRole(session?.teamMemberId));
-  const [myShift, setMyShift] = useState(() => loadShift(session?.teamMemberId));
+  const [myShift, setMyShift] = useState(() => (session?.preview ? "opening" : null) ?? loadShift(session?.teamMemberId));
   const [dailyRole, setDailyRole] = useState(() => loadDailyRole(session?.teamMemberId));
   const [shiftEditing, setShiftEditing] = useState(false);
   // The role every task filter actually uses: the profile's, unless the profile says
@@ -255,9 +258,11 @@ export default function MainApp({ session, onSignOut }) {
       // Presence, recorded separately from progress: the owner's status board needs to
       // distinguish "opened the app and did nothing" from "never showed up". Fire-and-
       // forget — a failure here must not affect the session.
-      db.from("team_members").update({ last_seen_at: new Date().toISOString() })
-        .eq("id", session?.teamMemberId).then(() => {}, () => {});
-      const { data: m } = await db.from("menu_progress").select("source_item_id, mastery, consecutive_fives, verified").eq("team_member_id", session?.teamMemberId);
+      if (session?.teamMemberId) {
+        db.from("team_members").update({ last_seen_at: new Date().toISOString() })
+          .eq("id", session.teamMemberId).then(() => {}, () => {});
+      }
+      const { data: m } = session?.teamMemberId ? await db.from("menu_progress").select("source_item_id, mastery, consecutive_fives, verified").eq("team_member_id", session.teamMemberId) : { data: [] };
       if (alive) {
         // Points follow VERIFIED mastery only — a self-reported 5 doesn't count here.
         setMastered(new Set((m || []).filter(r => (r.mastery ?? 0) >= 4 && r.verified).map(r => r.source_item_id)));
@@ -277,16 +282,16 @@ export default function MainApp({ session, onSignOut }) {
       // Sunday serves both sums: the whole range is the week, today's rows are the day.
       const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
       const wkStart = new Date(dayStart); wkStart.setDate(wkStart.getDate() - wkStart.getDay());
-      const { data: weekSnaps } = await db.from("progress_snapshots")
-        .select("seconds_delta, taken_at").eq("team_member_id", session?.teamMemberId)
-        .gte("taken_at", wkStart.toISOString());
+      const { data: weekSnaps } = session?.teamMemberId ? await db.from("progress_snapshots")
+        .select("seconds_delta, taken_at").eq("team_member_id", session.teamMemberId)
+        .gte("taken_at", wkStart.toISOString()) : { data: [] };
       if (alive) {
         setWeekSeconds((weekSnaps || []).reduce((n, r) => n + (r.seconds_delta || 0), 0));
         setTodaySeconds((weekSnaps || []).filter((r) => new Date(r.taken_at) >= dayStart)
           .reduce((n, r) => n + (r.seconds_delta || 0), 0));
       }
-      const { data: exams } = await db.from("exam_results")
-        .select("category").eq("team_member_id", session?.teamMemberId).eq("passed", true);
+      const { data: exams } = session?.teamMemberId ? await db.from("exam_results")
+        .select("category").eq("team_member_id", session.teamMemberId).eq("passed", true) : { data: [] };
       if (alive) setPassedCats([...new Set((exams || []).map(r => r.category))]);
       const today = new Date().toISOString().slice(0, 10);
       const { data: b, error: bErr } = await db.from("daily_brief").select("*").eq("restaurant_id", session?.restaurantId).eq("date", today).maybeSingle();
@@ -395,7 +400,9 @@ export default function MainApp({ session, onSignOut }) {
       });
     }
 
-    if (session.offline) return; // TEMP DEV FALLBACK — local-only, nothing to persist.
+    // Nothing to persist without a member: the offline fallback and the manager's
+    // read-only preview both rate locally and stop here.
+    if (session.offline || !session.teamMemberId) return;
     await db.from("menu_progress").upsert({ team_member_id: session.teamMemberId, source_item_id: id, mastery: rating, consecutive_fives: nextFives, verified: nowVerified, last_reviewed: new Date().toISOString() }, { onConflict: "team_member_id,source_item_id" });
     // Server-side visibility for the owner's team-activity dashboard (today_count/last_study_date
     // on leaderboard) — separate from the localStorage-based daily-bonus tracking above.
@@ -530,7 +537,7 @@ export default function MainApp({ session, onSignOut }) {
   // The day starts with one question: are you on shift? (user, 2026-08-20). Asked before
   // the brief gate — someone who isn't working today gets no daily tasks and no brief,
   // just the learning path. Answered once per day; changeable any time from the chip.
-  if (!session?.offline && cards?.length > 0 && (!myGender || !profileRole))
+  if (!session?.offline && !preview && cards?.length > 0 && (!myGender || !profileRole))
     return (
       <ProfileGate
         onDone={(g, role) => {
@@ -539,7 +546,7 @@ export default function MainApp({ session, onSignOut }) {
         }}
       />
     );
-  if (!session?.offline && cards?.length > 0 && myShift === null)
+  if (!session?.offline && !preview && cards?.length > 0 && myShift === null)
     return (
       <ShiftGate
         profileRole={profileRole}
@@ -549,7 +556,7 @@ export default function MainApp({ session, onSignOut }) {
         }}
       />
     );
-  if (!session?.offline && cards?.length > 0 && brief !== null && briefHasContent(brief) && !briefAck?.read_at && myShift !== "none")
+  if (!session?.offline && !preview && cards?.length > 0 && brief !== null && briefHasContent(brief) && !briefAck?.read_at && myShift !== "none")
     return <BriefGate brief={brief} cards={cards} session={session} onPassed={setBriefAck} />;
   if (gatePractice)
     return <BriefGate brief={brief} cards={cards} session={session} practice onClose={() => setGatePractice(false)} />;
@@ -843,6 +850,12 @@ export default function MainApp({ session, onSignOut }) {
           </button>
         </div>
       </div>
+      {preview && (
+        <div className="bg-[#15302b] border-b border-[#22c08c]/40 px-4 py-1.5 flex items-center gap-1.5 flex-shrink-0">
+          <Eye size={12} className="text-[#22c08c]" />
+          <p className="text-[10px] font-bold text-[#22c08c]">מצב צפייה — כך המלצרים רואים את האפליקציה. שום דבר לא נשמר.</p>
+        </div>
+      )}
       {session?.offline && (
         <div className="bg-[#33290f] border-b border-[#664400] px-4 py-1.5 flex items-center gap-1.5 flex-shrink-0">
           <WifiOff size={12} className="text-[#f3c14b]" />
@@ -861,7 +874,9 @@ export default function MainApp({ session, onSignOut }) {
                 filtered, so the question sits first; afterwards it collapses to a chip
                 that reopens it — the answer is changeable at any moment. Only shown when
                 the manager actually uses shift tasks. */}
-            {shiftRows.length > 0 && ((!myShift || shiftEditing) ? (
+            {/* In preview the manager is looking, not working — no shift question, and
+                the opening checklist stands in as the example. */}
+            {shiftRows.length > 0 && !preview && ((!myShift || shiftEditing) ? (
               <ShiftQuestion
                 profileRole={profileRole}
                 onPick={(sh, role) => {

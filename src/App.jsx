@@ -35,6 +35,38 @@ export default function App() {
   useEffect(() => {
     let alive = true;
     (async () => {
+      // Manager's "waiter view" (?preview=<team code>, opened in an iframe from the owner
+      // app). It opens a READ-ONLY session for that restaurant: the real menu, no login,
+      // and no team_member — a fake member would show up in the manager's own roster and
+      // statistics. ⚠️ Checked BEFORE the cached session on purpose: a manager who once
+      // logged in as a waiter on this browser must not be shown that restaurant instead
+      // of their own. Never persisted either, so it cannot outlive the iframe.
+      const code = new URLSearchParams(window.location.search).get("preview");
+      if (code) {
+        try {
+          const { data, error } = await db.rpc("team_preview", { p_team_code: code });
+          if (!error && data?.status === "ok") {
+            setSessionToken(data.token);
+            if (alive) {
+              setSession({
+                preview: true,
+                teamMemberId: null,
+                restaurantId: data.restaurant.id,
+                name: "תצוגת מלצר",
+                restaurantName: data.restaurant.name,
+                restaurantDescription: data.restaurant.description,
+                restaurantCuisineTypes: data.restaurant.cuisine_types,
+                serviceStyle: data.restaurant.service_style,
+                serviceNotes: data.restaurant.service_notes,
+              });
+              setPhase("app");
+            }
+            return;
+          }
+        } catch { /* fall through to the normal login */ }
+        // A bad code is not a dead end — show the normal login.
+      }
+
       const cached = localStorage.getItem(SESSION_KEY);
       if (!cached) { if (alive) setPhase("login"); return; }
       let sess;

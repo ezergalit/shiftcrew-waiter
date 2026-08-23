@@ -52,7 +52,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
     const justUnderstood = isUnderstood(nextFives) && !isUnderstood(prev.consecutiveFives);
     const nx = pickNext(items, progRef.current, it.id);
     setToast(
-      justUnderstood ? { cls: "bg-[#15302b] text-[#22c08c]", txt: `✓ הצלחתם להכיר את ${dishLabel(it)}! מנה חדשה נכנסת לסבב` }
+      justUnderstood ? { cls: "bg-[#15302b] text-[#22c08c]", txt: `✓ הכרת את ${dishLabel(it)}! מנה חדשה נכנסת לסבב` }
         : v <= 2 ? { cls: "bg-[#33290f] text-[#f3a712]", txt: "נחזור על המנה הזו שוב בקרוב" }
         : null
     );
@@ -87,7 +87,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
         <GraduationCap size={38} className="text-[#22c08c]" />
       </div>
       <p className="text-xl font-black">סיימת ללמוד {label}! 🎉</p>
-      <p className="text-sm text-[#8a8aa0] leading-relaxed">הצלחתם להכיר את כל המנות — שני 5 ברצף על כל אחת. רוצים לגשת לבוחן?</p>
+      <p className="text-sm text-[#8a8aa0] leading-relaxed">הכרת את כל המנות — שני 5 ברצף על כל אחת. רוצה לגשת לבוחן?</p>
       {onExam ? (
         <button onClick={onExam} className="w-full py-3.5 min-h-[48px] rounded-2xl bg-[#22c08c] text-white text-sm font-black active:scale-[0.99] transition-transform">
           כן — לבוחן {label}
@@ -108,7 +108,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
         <Coffee size={34} className="text-[#a79bff]" />
       </div>
       <p className="text-xl font-black">עברת {CHECKPOINT_EVERY} כרטיסיות 💪</p>
-      <p className="text-sm text-[#8a8aa0]">הצלחתם להכיר {understoodCount} מתוך {items.length} מנות ב{label}. ממשיכים?</p>
+      <p className="text-sm text-[#8a8aa0]">הכרת {understoodCount} מתוך {items.length} מנות ב{label}. ממשיכים?</p>
       <button onClick={() => setCheckpoint(null)} className="w-full py-3.5 min-h-[48px] rounded-2xl bg-[#6d5efc] text-white text-sm font-black active:scale-[0.99] transition-transform">
         עוד סיבוב
       </button>
@@ -192,7 +192,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
         <p className="flex items-center gap-1.5 text-[10.5px] text-[#8a8aa0]">
           <span className={`w-2 h-2 rounded-full inline-block ${fives >= 1 ? "bg-[#22c08c]" : "bg-[#22252b]"}`} />
           <span className={`w-2 h-2 rounded-full inline-block ${fives >= 2 ? "bg-[#22c08c]" : "bg-[#22252b]"}`} />
-          שני 5 ברצף = הצלחתם להכיר את המנה והיא פורשת מהסבב
+          שני 5 ברצף = המנה מוכרת לך והיא פורשת מהסבב
         </p>
       </div>
     </div>
