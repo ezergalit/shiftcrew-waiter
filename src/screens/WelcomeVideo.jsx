@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Play, SkipForward } from "lucide-react";
+import { Play, SkipForward, Volume2, VolumeX } from "lucide-react";
 
 // The restaurant's own tour video, shown once to a new waiter in place of the slide
 // tutorial (user, 2026-08-24). Which restaurants get one is data, not code:
@@ -13,6 +13,9 @@ export default function WelcomeVideo({ session, onDone }) {
   const ref = useRef(null);
   const [ended, setEnded] = useState(false);
   const [needsTap, setNeedsTap] = useState(false);
+  // ⚠️ Starts muted because that is the only way a browser will autoplay at all — but the
+  // render carries a soundtrack now, so there has to be a way to turn it on. One tap.
+  const [muted, setMuted] = useState(true);
 
   return (
     <div className="h-full max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
@@ -20,7 +23,7 @@ export default function WelcomeVideo({ session, onDone }) {
         <p className="text-[15px] font-black">
           ברוך הבא{session?.restaurantName ? ` ל${session.restaurantName}` : ""} 👋
         </p>
-        <p className="text-[11.5px] text-[#8a8aa0] mt-0.5">סרטון קצר שמראה איך עובדים עם האפליקציה</p>
+        <p className="text-[11.5px] text-[#8a8aa0] mt-0.5">סרטון קצר שמראה איך עובדים עם האפליקציה · אפשר להפעיל קול 🔊</p>
       </div>
 
       <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
@@ -29,7 +32,7 @@ export default function WelcomeVideo({ session, onDone }) {
           src={session?.welcomeVideoUrl}
           className="w-full h-full object-contain"
           autoPlay
-          muted
+          muted={muted}
           playsInline
           controls
           onEnded={() => setEnded(true)}
@@ -37,6 +40,13 @@ export default function WelcomeVideo({ session, onDone }) {
           onPlay={() => setNeedsTap(false)}
           onLoadedData={(e) => { e.currentTarget.play().catch(() => setNeedsTap(true)); }}
         />
+        <button
+          onClick={() => { const v = ref.current; if (!v) return; v.muted = !v.muted; setMuted(v.muted); }}
+          className="absolute top-3 left-3 w-11 h-11 rounded-full bg-black/60 text-[#eef0f6] flex items-center justify-center"
+          aria-label={muted ? "הפעלת קול" : "השתקה"}
+        >
+          {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+        </button>
         {needsTap && (
           <button
             onClick={() => ref.current?.play().catch(() => setEnded(true))}
