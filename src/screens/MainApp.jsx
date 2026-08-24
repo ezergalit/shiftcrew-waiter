@@ -596,6 +596,12 @@ export default function MainApp({ session, onSignOut }) {
         }}
         onDone={() => {
           setTourOpen(false);
+          // Land on the main screen, not wherever the tour ended (user, 2026-08-23) — the
+          // last step stands on the metrics screen, and closing there left the waiter on a
+          // stats page instead of the tasks they open the app for. Also covers "skip",
+          // which can be pressed from any step.
+          setShowMetrics(false);
+          setTab("home");
           if (session?.teamMemberId) localStorage.setItem(`${TOUR_DONE_KEY}-${session.teamMemberId}`, "1");
         }}
       />

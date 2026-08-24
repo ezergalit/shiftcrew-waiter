@@ -97,7 +97,9 @@ function useTargetRect(selector, step) {
       setRect(el ? el.getBoundingClientRect() : null);
     };
     measure();
-    const t = setInterval(measure, 300);
+    // 120ms, not 300: this is how long the spotlight takes to catch up with a screen
+    // that just changed, and at 300 every step opened with a visible beat of nothing.
+    const t = setInterval(measure, 120);
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
     return () => {
@@ -162,7 +164,7 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep }) {
       const el = document.querySelector(s.target);
       if (el && (el === e.target || el.contains(e.target))) {
         firedRef.current = i;
-        setTimeout(() => go(i + 1), 260);   // let the screen change first
+        setTimeout(() => go(i + 1), 120);   // let the screen change first, but barely
       }
     };
     document.addEventListener("click", onClick, true);
@@ -208,8 +210,11 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep }) {
         <Dim style={{ inset: 0 }} />
       )}
 
+      {/* ⚠️ The dimming is viewport-wide on purpose, but the CARD is part of the app and
+          must sit in the same phone-width column it does. Without this it stretched the
+          full browser width on a desktop screen while the app stayed at max-w-md. */}
       <div
-        className={`absolute inset-x-0 pointer-events-auto bg-[#16181c] border-[#22252b] p-5 space-y-3 ${
+        className={`absolute inset-x-0 mx-auto w-full max-w-md pointer-events-auto bg-[#16181c] border-[#22252b] p-5 space-y-3 ${
           cardAtTop
             ? "top-0 border-b rounded-b-3xl pt-[max(1.25rem,env(safe-area-inset-top))]"
             : "bottom-0 border-t rounded-t-3xl pb-[max(1.25rem,env(safe-area-inset-bottom))]"
