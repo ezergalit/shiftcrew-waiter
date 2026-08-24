@@ -5,6 +5,7 @@ import { supabase } from "./lib/supabase";
 import TeamLogin from "./auth/TeamLogin";
 import MainApp from "./screens/MainApp";
 import WelcomeTutorial from "./screens/WelcomeTutorial";
+import WelcomeVideo from "./screens/WelcomeVideo";
 import BaselineIntake from "./screens/BaselineIntake";
 import { setSessionToken } from "./lib/appSession";
 import { ensureDailyReminder, cancelDailyReminder } from "./lib/notifications";
@@ -114,7 +115,11 @@ export default function App() {
       localStorage.setItem(SESSION_KEY, JSON.stringify(next));
       setSession(next);
     };
-    return <WelcomeTutorial session={session} onDone={dismissTutorial} />;
+    // A restaurant that has its own tour video shows that instead of the slides — same
+    // slot, same one-time flag, so the rest of the entry flow is untouched.
+    return session.welcomeVideoUrl
+      ? <WelcomeVideo session={session} onDone={dismissTutorial} />
+      : <WelcomeTutorial session={session} onDone={dismissTutorial} />;
   }
 
   // After the tutorial, before the app: locate the waiter so improvement has a baseline
