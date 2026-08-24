@@ -1,8 +1,8 @@
 import { AlertTriangle, Baby, Flame } from "lucide-react";
 import { gz } from "../lib/shiftChoice";
 
-// What the colours on a dish mean — shown once a day, before the first practice
-// (user, 2026-08-23).
+// What the colours on a dish mean — shown once a day, on the way into the MENU
+// (user, 2026-08-24; it used to sit in front of practice).
 //
 // The tags are colour-coded everywhere in the app, and a waiter who doesn't know the
 // code reads a red chip and a yellow chip as "two warnings". They are not remotely the
@@ -46,9 +46,9 @@ export const COLOR_ROWS = [
 export default function ColorKey({ onDone }) {
   return (
     <div className="h-full max-w-md mx-auto flex flex-col px-5 py-6 bg-[#0c0d10] text-[#eef0f6] overflow-y-auto" dir="rtl">
-      <p className="text-xl font-black mb-1.5">רגע לפני התרגול — הצבעים</p>
+      <p className="text-xl font-black mb-1.5">רגע לפני התפריט — הצבעים</p>
       <p className="text-sm text-[#8a8aa0] mb-5 leading-relaxed">
-        לכל מנה יש תגיות צבעוניות. הצבע הוא המשמעות:
+        בתפריט כל מנה נושאת תגיות צבעוניות. הצבע הוא המשמעות:
       </p>
 
       <div className="space-y-3 flex-1">
@@ -68,7 +68,7 @@ export default function ColorKey({ onDone }) {
         onClick={onDone}
         className="w-full mt-5 py-3.5 min-h-[52px] rounded-2xl font-black text-sm bg-[#22c08c] text-[#06231a]"
       >
-        {gz("הבנתי — אפשר להתחיל")}
+        {gz("הבנתי — לתפריט")}
       </button>
     </div>
   );

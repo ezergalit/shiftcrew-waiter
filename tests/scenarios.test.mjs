@@ -234,3 +234,24 @@ const seeded = (seed) => () => { seed = (seed * 1103515245 + 12345) % 2147483648
     "order options must be food, got " + fq.options.map((o) => o.label).join(", "));
   console.log("✓ order: drinks excluded, food still works");
 }
+
+// ── rice and nori are never an option ──────────────────────────────────────────────────
+// They are in every roll: as a required chip they punish a waiter who knows the dish, and
+// as a decoy they are not a decoy (user, 2026-08-24).
+{
+  const rolls = Array.from({ length: 6 }, (_, i) => ({
+    id: `r${i}`, name: `רול ${i}`, category: "מאקי", menu_group: "סושי", price: 40 + i,
+    desc: `רול מספר ${i}`,
+    ingredients: ["אורז סושי", "אצה", i % 2 ? "סלמון" : "טונה", `רכיב${i}`, "אבוקדו"],
+    allergens: [], pregnancy: [], pitfalls: [],
+  }));
+  const seen = new Set();
+  for (let i = 0; i < 60; i++) {
+    const q = qCompose(rolls, seeded(i));
+    if (q) q.options.forEach((o) => seen.add(o.label));
+  }
+  assert.ok(seen.size, "compose should build for this menu");
+  for (const bad of ["אורז סושי", "אורז", "אצה", "נורי"])
+    assert.ok(!seen.has(bad), `"${bad}" must never be offered as an option`);
+  console.log("✓ compose: rice/nori never offered");
+}

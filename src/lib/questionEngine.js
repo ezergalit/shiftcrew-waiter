@@ -72,6 +72,18 @@ export function maskNameLeak(text, name) {
 // that makes "בס" into "סשימי בס". Falls back for offline mock cards.
 export const dishLabel = (it) => (it?.displayName || it?.name || "");
 
+// ── Ingredients nobody gets asked about (user, 2026-08-24) ───────────────────────────
+// Rice and nori are in every roll on the menu. As a question they teach nothing — the
+// answer is "all of them" — and as a required chip they punish a waiter who knows the
+// dish for skipping the obvious. Filtered out of every OPTION list; the dish data keeps
+// them, so the flashcard back and the menu still show the full recipe.
+const TRIVIAL_INGREDIENTS = ["אורז", "אורז סושי", "אצה", "נורי", "אצות"];
+const TRIVIAL_KEYS = new Set(TRIVIAL_INGREDIENTS.map((x) => hebKey(x)));
+export const isTrivialIngredient = (x) => TRIVIAL_KEYS.has(hebKey(String(x || "").trim()));
+export const askableIngredients = (it) =>
+  (it?.ingredients || []).filter((x) => String(x || "").trim() && !isTrivialIngredient(x));
+
+
 /**
  * Qualify ONLY the dish names that are ambiguous on their own.
  *
@@ -255,7 +267,7 @@ export function qChanges(pool, it) {
 // Real ingredients that appear in the dish NAME are avoided as options (they'd be
 // eliminated for free); they only pad the list when nothing else is available.
 export function qNotIngredient(pool, it) {
-  const real = [...new Set((it.ingredients || []).map((x) => x.trim()).filter(Boolean))];
+  const real = [...new Set(askableIngredients(it).map((x) => x.trim()))];
   if (real.length < 3) return null;
   const realSet = new Set(real);
   // Exact-string absence is not the same as "not in the dish". A roll listing "טמפורה"
@@ -271,7 +283,7 @@ export function qNotIngredient(pool, it) {
   const foreign = [
     ...new Set(
       pickDistractors(pool, it, 6)
-        .flatMap((s) => s.ingredients || [])
+        .flatMap((s) => askableIngredients(s))
         .map((x) => x.trim())
         .filter((x) => x && !realSet.has(x) && !overlapsReal(x))
     ),

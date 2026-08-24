@@ -12,7 +12,7 @@
 // line 16 — a question with a second correct answer teaches the waiter that the app is
 // wrong, and on a pregnancy or allergy question it teaches something worse.
 
-import { maskNameLeak } from "./questionEngine.js";  // explicit extension: the tests import this module in plain node
+import { maskNameLeak, askableIngredients } from "./questionEngine.js";  // explicit extension: the tests import this module in plain node
 
 export const norm = (s) => (s || "").toString().trim().toLowerCase();
 
@@ -122,7 +122,7 @@ export function qWithIngredient(cards, rnd = Math.random) {
   for (const cat of cats) {
     const items = byCat[cat];
     if (items.length < MULTI_TARGET + 3) continue;
-    const ings = shuffleWith([...new Set(items.flatMap((c) => c.ingredients || []))], rnd);
+    const ings = shuffleWith([...new Set(items.flatMap((c) => askableIngredients(c)))], rnd);
     for (const ing of ings) {
       const withIt = items.filter((c) => hasIngredient(c, ing));
       if (withIt.length !== MULTI_TARGET) continue;
@@ -175,13 +175,15 @@ export function qPitfall(cards, rnd = Math.random) {
 // answer has to be the exact set. Decoys come from the same category — the near-misses
 // that actually separate two similar dishes.
 export function qCompose(cards, rnd = Math.random) {
-  const pool = cards.filter((c) => (c.ingredients || []).length >= 2);
+  const pool = cards.filter((c) => askableIngredients(c).length >= 2);
   if (pool.length < 3) return null;
   const it = pick(pool, rnd);
   const siblings = pool.filter((c) => c.id !== it.id && c.category === it.category);
   const from = siblings.length >= 3 ? siblings : pool.filter((c) => c.id !== it.id);
-  const real = it.ingredients || [];
-  const near = [...new Set(from.flatMap((c) => c.ingredients || []))].filter((x) => !hasIngredient(it, x));
+  // ⚠️ Rice and nori are in every roll — as a required chip they punish someone who knows
+  // the dish, and as a decoy they are not a decoy at all (user, 2026-08-24).
+  const real = askableIngredients(it);
+  const near = [...new Set(from.flatMap((c) => askableIngredients(c)))].filter((x) => !hasIngredient(it, x));
   if (near.length < 2) return null;
   return {
     kind: "compose",
