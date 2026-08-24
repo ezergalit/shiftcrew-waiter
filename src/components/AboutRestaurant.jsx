@@ -28,7 +28,7 @@ export function AboutCard({ session, onOpen }) {
 
 export function AboutScreen({ session, onClose }) {
   return (
-    <div className="fixed inset-0 z-50 bg-[#0c0d10] flex flex-col max-w-md mx-auto" dir="rtl">
+    <div className="fixed inset-0 z-[55] bg-[#0c0d10] flex flex-col max-w-md mx-auto" dir="rtl">
       <div className="px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3 border-b border-[#22252b] flex items-center gap-3 flex-shrink-0">
         <div className="flex-1 min-w-0">
           <p className="text-base font-black text-[#eef0f6] truncate">{session?.restaurantName || "אודות המסעדה"}</p>
