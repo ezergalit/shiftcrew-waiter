@@ -47,6 +47,9 @@ export default function TeamLogin({ onGranted }) {
       // Same signal, read by App.jsx to send a first-timer to the baseline intake without
       // a second round-trip. A restored profile is checked against the DB column instead.
       isNew: !!result.is_new,
+      // Joined with the restaurant's trainee code — learning-only mode: no shift tasks,
+      // no daily brief, no gates. Decided server-side by which code was typed.
+      trainee: !!result.trainee,
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     onGranted(session);

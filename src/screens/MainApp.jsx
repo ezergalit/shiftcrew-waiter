@@ -94,7 +94,7 @@ const loadResume = (id) => {
 };
 
 export default function MainApp({ session, onSignOut }) {
-  const [tab, setTab] = useState("home");
+  const [tab, setTab] = useState(session?.trainee ? "learn" : "home");
   const [cards, setCards] = useState(null);
   const [mastered, setMastered] = useState(new Set());
   // Raw 1-5 score per dish (id -> score). `mastered` above is still the >=4 threshold set
@@ -125,6 +125,9 @@ export default function MainApp({ session, onSignOut }) {
   // Manager's read-only waiter view (?preview=<team code>). Real menu, no member, no
   // writes — see App.jsx. Kept as one flag so a new write path can't silently forget it.
   const preview = !!session?.preview;
+  // Trainee (starting waiter): a real member in learning-only mode — same learning and
+  // menu, none of the shift-day machinery (tasks tab, shift/brief gates).
+  const trainee = !!session?.trainee;
   const [tourStep, setTourStep] = useState(0);
   const [showMetrics, setShowMetrics] = useState(false); // flashcards | quiz | match | speed | exam | …
   const [modeItems, setModeItems] = useState(null); // scoped items for a challenge round; null = full menu
@@ -151,8 +154,16 @@ export default function MainApp({ session, onSignOut }) {
   // "both" — then today's answer.
   const myRole = profileRole === "both" ? dailyRole : profileRole;
   const [tourOpen, setTourOpen] = useState(() =>
+    // Trainees skip the auto-tour: its steps walk the tasks tab, which learning-only
+    // mode doesn't have (same class of break as the GuidedTour/nav-rename trap).
+    !session?.trainee &&
     !!session?.teamMemberId && localStorage.getItem(`menu-app-apptour-done-${session.teamMemberId}`) !== "1");
   const { rows: shiftRows, doneIds: taskDone, toggle: toggleTask } = useShiftTasks(session);
+  // Learning-only mode has no tasks/daily tabs — anything that lands there (old code
+  // paths, restored state) snaps back to the learning tab instead of a blank screen.
+  useEffect(() => {
+    if (trainee && (tab === "home" || tab === "daily")) setTab("learn");
+  }, [trainee, tab]);
   const [prog, setProg] = useState(null); // { items, label, progress, firstId }
   // Re-running the gate from the daily tab is practice — it never rewrites the ack row.
   const [gatePractice, setGatePractice] = useState(false);
@@ -549,13 +560,13 @@ export default function MainApp({ session, onSignOut }) {
   // The day starts with one question: are you on shift? (user, 2026-08-20). Asked before
   // the brief gate — someone who isn't working today gets no daily tasks and no brief,
   // just the learning path. Answered once per day; changeable any time from the chip.
-  if (!session?.offline && !preview && cards?.length > 0 && !profileRole)
+  if (!session?.offline && !preview && !trainee && cards?.length > 0 && !profileRole)
     return (
       <ProfileGate
         onDone={(role) => { setProfileRole(role); saveRole(session?.teamMemberId, role); }}
       />
     );
-  if (!session?.offline && !preview && cards?.length > 0 && myShift === null)
+  if (!session?.offline && !preview && !trainee && cards?.length > 0 && myShift === null)
     return (
       <ShiftGate
         profileRole={profileRole}
@@ -565,7 +576,7 @@ export default function MainApp({ session, onSignOut }) {
         }}
       />
     );
-  if (!session?.offline && !preview && cards?.length > 0 && brief !== null && briefHasContent(brief) && !briefAck?.read_at && myShift !== "none")
+  if (!session?.offline && !preview && !trainee && cards?.length > 0 && brief !== null && briefHasContent(brief) && !briefAck?.read_at && myShift !== "none")
     return <BriefGate brief={brief} cards={cards} session={session} onPassed={setBriefAck} />;
   if (gatePractice)
     return <BriefGate brief={brief} cards={cards} session={session} practice onClose={() => setGatePractice(false)} />;
@@ -601,7 +612,7 @@ export default function MainApp({ session, onSignOut }) {
           // stats page instead of the tasks they open the app for. Also covers "skip",
           // which can be pressed from any step.
           setShowMetrics(false);
-          setTab("home");
+          setTab(trainee ? "learn" : "home");
           if (session?.teamMemberId) localStorage.setItem(`${TOUR_DONE_KEY}-${session.teamMemberId}`, "1");
         }}
       />
@@ -880,7 +891,7 @@ export default function MainApp({ session, onSignOut }) {
 
       {/* Content */}
       <div key={tab} className="flex-1 overflow-y-auto px-4 py-3 animate-fadeIn">
-        {tab === "home" && (
+        {tab === "home" && !trainee && (
           <TasksTab tasks={dayTasks} onDone={toggleTask}>
             {/* A personal note from the manager outranks everything on this screen —
                 someone wrote it to this waiter by name. */}
@@ -1249,17 +1260,18 @@ export default function MainApp({ session, onSignOut }) {
         )}
               </div>
 
-      <BottomNav tab={tab} setTab={setTab}
+      <BottomNav tab={tab} setTab={setTab} trainee={trainee}
         hasDailyUpdate={!!(brief?.missing_items?.length || brief?.new_items?.length || brief?.oven_items?.length)} />
     </div>
   );
 }
 
-function BottomNav({ tab, setTab, hasDailyUpdate }) {
+function BottomNav({ tab, setTab, hasDailyUpdate, trainee }) {
   const items = [
     // Tasks · Menu · Learning (user, 2026-08-20). "בית" was never a place — it was a
     // pile of cards; the shift checklist is what a waiter actually opens the app for.
-    ["home", ListChecks, "משימות", hasDailyUpdate],
+    // A trainee has no shift yet — the tasks tab is hidden and the app is menu + learning.
+    ...(trainee ? [] : [["home", ListChecks, "משימות", hasDailyUpdate]]),
     ["categories", BookOpen, "תפריט", false],
     ["learn", GraduationCap, "תרגול ובחינה", false],
   ];
