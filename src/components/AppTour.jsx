@@ -189,7 +189,14 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep }) {
   // The card must not cover the thing it is pointing at.
   const cardAtTop = hole ? hole.top + hole.height > window.innerHeight * 0.55 : false;
 
-  const Dim = ({ style }) => <div className="absolute bg-black/70 pointer-events-auto" style={style} />;
+  // ⚠️ The dim panes and the ring animate to their new geometry rather than snapping.
+  // 180ms ease-out is short enough to still feel instant on a tap, and it also smooths the
+  // 120ms polling: while the page scrolls the target into view, the spotlight follows it
+  // instead of stuttering one measurement at a time.
+  const GLIDE = "top 180ms cubic-bezier(0.22,0.61,0.36,1), left 180ms cubic-bezier(0.22,0.61,0.36,1), width 180ms cubic-bezier(0.22,0.61,0.36,1), height 180ms cubic-bezier(0.22,0.61,0.36,1)";
+  const Dim = ({ style }) => (
+    <div className="absolute bg-black/70 pointer-events-auto" style={{ transition: GLIDE, ...style }} />
+  );
 
   return (
     <div className="fixed inset-0 z-[60] pointer-events-none" dir="rtl">
@@ -203,7 +210,7 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep }) {
           <Dim style={{ top: hole.top, left: hole.left + hole.width, right: 0, height: hole.height }} />
           <div
             className="absolute rounded-2xl pointer-events-none animate-pulse"
-            style={{ ...hole, boxShadow: "0 0 0 3px #22c08c, 0 0 24px rgba(34,192,140,0.55)" }}
+            style={{ ...hole, transition: GLIDE, boxShadow: "0 0 0 3px #22c08c, 0 0 24px rgba(34,192,140,0.55)" }}
           />
         </>
       ) : (
@@ -220,49 +227,51 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep }) {
             : "bottom-0 border-t rounded-t-3xl pb-[max(1.25rem,env(safe-area-inset-bottom))]"
         }`}
       >
-        <div className="flex items-start gap-2.5">
-          <span
-            className="w-10 h-10 rounded-xl text-white flex items-center justify-center flex-shrink-0"
-            style={{ background: "linear-gradient(135deg,#22c08c,#0F5C46)" }}
-          >
-            <s.icon size={19} />
-          </span>
-          <div className="flex-1 min-w-0">
-            <p className="text-[15px] font-black text-[#eef0f6] leading-snug">{gz(s.title)}</p>
-            <p className="text-[10px] font-bold text-[#5a5a6e] mt-0.5">שלב {i + 1} מתוך {STEPS.length}</p>
-          </div>
-        </div>
-
-        <p className="text-[13px] text-[#c4c4d4] leading-relaxed">{gz(s.body)}</p>
-
-        {s.target ? (
-          <>
-            {/* No "next" button on purpose — the step ends when the waiter taps the real
-                thing. Reading about a screen and using it are not the same lesson. */}
-            <div className="flex items-center gap-2 bg-[#15302b] border border-[#22c08c]/40 rounded-xl px-3 py-2.5">
-              <Hand size={16} className="text-[#22c08c] flex-shrink-0" />
-              <p className="text-[12px] font-black text-[#22c08c]">{gz(s.cue)}</p>
+        <div key={i} className="animate-tour-step space-y-3">
+          <div className="flex items-start gap-2.5">
+            <span
+              className="w-10 h-10 rounded-xl text-white flex items-center justify-center flex-shrink-0"
+              style={{ background: "linear-gradient(135deg,#22c08c,#0F5C46)" }}
+            >
+              <s.icon size={19} />
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[15px] font-black text-[#eef0f6] leading-snug">{gz(s.title)}</p>
+              <p className="text-[10px] font-bold text-[#5a5a6e] mt-0.5">שלב {i + 1} מתוך {STEPS.length}</p>
             </div>
-            {!rect && (
-              // The element isn't on screen (a restaurant with a single menu has no menu
-              // list at all) — never leave the waiter stuck behind a tap that can't happen.
-              <button
-                onClick={() => go(i + 1)}
-                className="w-full py-2.5 min-h-[44px] rounded-xl bg-[#22252b] text-[#c4c4d4] text-xs font-bold"
-              >
-                לא רואים את זה? אפשר להמשיך הלאה ←
-              </button>
-            )}
-          </>
-        ) : (
-          <button
-            onClick={() => (last ? onDone?.() : go(i + 1))}
-            className="w-full py-3 min-h-[44px] rounded-xl font-black text-sm bg-[#22c08c] text-[#06231a]"
-          >
-            {last ? "יאללה, מתחילים" : "הבא"}
-          </button>
-        )}
+          </div>
 
+          <p className="text-[13px] text-[#c4c4d4] leading-relaxed">{gz(s.body)}</p>
+
+          {s.target ? (
+            <>
+              {/* No "next" button on purpose — the step ends when the waiter taps the real
+                  thing. Reading about a screen and using it are not the same lesson. */}
+              <div className="flex items-center gap-2 bg-[#15302b] border border-[#22c08c]/40 rounded-xl px-3 py-2.5">
+                <Hand size={16} className="text-[#22c08c] flex-shrink-0" />
+                <p className="text-[12px] font-black text-[#22c08c]">{gz(s.cue)}</p>
+              </div>
+              {!rect && (
+                // The element isn't on screen (a restaurant with a single menu has no menu
+                // list at all) — never leave the waiter stuck behind a tap that can't happen.
+                <button
+                  onClick={() => go(i + 1)}
+                  className="w-full py-2.5 min-h-[44px] rounded-xl bg-[#22252b] text-[#c4c4d4] text-xs font-bold"
+                >
+                  לא רואים את זה? אפשר להמשיך הלאה ←
+                </button>
+              )}
+            </>
+          ) : (
+            <button
+              onClick={() => (last ? onDone?.() : go(i + 1))}
+              className="w-full py-3 min-h-[44px] rounded-xl font-black text-sm bg-[#22c08c] text-[#06231a]"
+            >
+              {last ? "יאללה, מתחילים" : "הבא"}
+            </button>
+          )}
+
+        </div>
         <div className="flex items-center justify-between">
           <button onClick={onDone} className="text-[11px] font-bold text-[#5a5a6e] min-h-[44px] px-1">דלגו על הסיור</button>
           {i > 0 && (

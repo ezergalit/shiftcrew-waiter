@@ -75,3 +75,11 @@ body {
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
 }
+
+/* Tour step change: the card keeps its place, the content slides in a few pixels and
+   fades. Short and small on purpose — a big move would read as a new screen. */
+@keyframes tour-step {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-tour-step { animation: tour-step 0.22s cubic-bezier(0.22, 0.61, 0.36, 1); }
