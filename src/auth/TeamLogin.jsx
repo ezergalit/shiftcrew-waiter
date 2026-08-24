@@ -41,6 +41,10 @@ export default function TeamLogin({ onGranted }) {
       restaurantCuisineTypes: rest.cuisine_types || [],
       restaurantServiceStyle: rest.service_style || "",
       restaurantServiceNotes: rest.service_notes || "",
+      // A restaurant can greet new waiters with its own tour video instead of the slide
+      // tutorial (user, 2026-08-24). Set per restaurant in the DB — empty for everyone
+      // who hasn't got a video, and those keep the slides.
+      welcomeVideoUrl: rest.welcome_video_url || "",
       // Drives the one-time welcome tutorial in MainApp — only for a brand-new profile,
       // not someone whose name we just matched back to an existing one.
       showTutorial: !!result.is_new,
