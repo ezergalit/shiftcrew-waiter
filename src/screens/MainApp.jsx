@@ -14,6 +14,7 @@ import {
   saveDailyRole, gz, taskFitsShift, taskFitsRole,
 } from "../lib/shiftChoice";
 import MenuBrowser from "../components/MenuBrowser";
+import { AboutCard, AboutScreen } from "../components/AboutRestaurant";
 import { isUnderstood } from "../lib/progressiveSession";
 import ProgressiveFlashcards from "../games/ProgressiveFlashcards";
 import { buildStudySession, nextConsecutiveFives, isRetired, QUICK_SESSION_SIZE } from "../lib/studySession";
@@ -95,6 +96,7 @@ const loadResume = (id) => {
 
 export default function MainApp({ session, onSignOut }) {
   const [tab, setTab] = useState(session?.trainee ? "learn" : "home");
+  const [showAbout, setShowAbout] = useState(false); // "אודות המסעדה" over the menu tab
   const [cards, setCards] = useState(null);
   const [mastered, setMastered] = useState(new Set());
   // Raw 1-5 score per dish (id -> score). `mastered` above is still the >=4 threshold set
@@ -631,8 +633,11 @@ export default function MainApp({ session, onSignOut }) {
   // there is no member to stamp, and "what the waiter sees" is the whole point of the view.
   // ⚠️ Practice only. It is a study aid, and an exam is not the moment to hand one over —
   // it also delayed the timed exam behind a screen the waiter has already read today.
-  if (mode && mode !== "exam" && mode !== "general_exam" && !colorKeySeen
-      && (preview || needsColorKey(session?.teamMemberId)))
+  // ⚠️ Before the MENU, not before practice (user, 2026-08-24). The flashcards spell the
+  // groups out in words — "אלרגיות: רכיכות, גלוטן" — so the legend there is a screen
+  // explaining something the next screen already says. In the menu the same information
+  // is coloured chips with no heading, and that is where the code has to be learned.
+  if (tab === "categories" && !colorKeySeen && (preview || needsColorKey(session?.teamMemberId)))
     return <ColorKey onDone={() => { markColorKeySeen(session?.teamMemberId); setColorKeySeen(true); }} />;
 
   if (mode === "progressive" && prog)
@@ -1197,7 +1202,12 @@ export default function MainApp({ session, onSignOut }) {
         )}
         {/* The menu tab is the menu: menu → category → dishes with descriptions. Read
             only, so checking a dish mid-shift never touches the waiter's score. */}
-        {tab === "categories" && <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} />}
+        {tab === "categories" && (
+          <>
+            <AboutCard session={session} onOpen={() => setShowAbout(true)} />
+            <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} />
+          </>
+        )}
 
         {tab === "daily" && (
           <div className="space-y-2.5">
@@ -1260,6 +1270,7 @@ export default function MainApp({ session, onSignOut }) {
         )}
               </div>
 
+      {showAbout && <AboutScreen session={session} onClose={() => setShowAbout(false)} />}
       <BottomNav tab={tab} setTab={setTab} trainee={trainee}
         hasDailyUpdate={!!(brief?.missing_items?.length || brief?.new_items?.length || brief?.oven_items?.length)} />
     </div>

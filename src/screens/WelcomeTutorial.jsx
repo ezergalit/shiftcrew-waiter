@@ -8,6 +8,10 @@ import { ChevronRight, Home, Target, GraduationCap, Utensils } from "lucide-reac
 // staff get that context instead of landing cold on an empty dashboard.
 export default function WelcomeTutorial({ session, onDone }) {
   const [step, setStep] = useState(0);
+  // Trainee (learning-only) mode has no tasks tab — its tutorial only covers the menu
+  // and learning sections (user, 2026-08-24: "a custom tutorial for waiters only with
+  // the menu section").
+  const trainee = !!session.trainee;
 
   const slides = [
     {
@@ -21,10 +25,16 @@ export default function WelcomeTutorial({ session, onDone }) {
           {session.restaurantDescription && (
             <p className="text-sm text-[#c4c4d4] leading-relaxed">{session.restaurantDescription}</p>
           )}
+          {/* The full hosting guide is a reference, not a doormat — the welcome screen
+              only points at it (user, 2026-08-24: "this shouldn't be the start page").
+              It lives in the menu tab under "אודות המסעדה". */}
           {session.restaurantServiceNotes && (
             <div className="bg-[#16181c] border border-[#22252b] rounded-xl p-3">
-              <p className="text-[11px] font-bold text-[#8a8aa0] mb-1">איך אנחנו מארחים כאן</p>
-              <p className="text-sm text-[#eef0f6] leading-relaxed whitespace-pre-line text-right">{session.restaurantServiceNotes}</p>
+              <p className="text-sm text-[#eef0f6] leading-relaxed">
+                📖 יש לנו מדריך אירוח — כללי הבית, מה מגישים ואיך. תמצאו אותו בטאב
+                התפריט, תחת <span className="font-black">״אודות המסעדה״</span>. שווה
+                לקרוא לפני המשמרת הראשונה.
+              </p>
             </div>
           )}
           {!session.restaurantDescription && !session.restaurantServiceNotes && (
@@ -39,8 +49,8 @@ export default function WelcomeTutorial({ session, onDone }) {
       body: (
         <div className="space-y-2.5">
           {[
-            ["משימות", "מה צריך לעשות היום — ממוספר, וכל משימה פותחת את מה שצריך לעשות"],
-            ["תפריט", "התפריט עצמו: מנות, תיאורים, מרכיבים ואלרגיות — להצצה מהירה בשירות"],
+            ...(trainee ? [] : [["משימות", "מה צריך לעשות היום — ממוספר, וכל משימה פותחת את מה שצריך לעשות"]]),
+            ["תפריט", "התפריט עצמו: מנות, תיאורים, מרכיבים ואלרגיות — וגם ״אודות המסעדה״ עם מדריך האירוח"],
             ["תרגול ובחינה", "כאן לומדים ונבחנים — כרטיסיות לפי קטגוריה, בוחן לכל קטגוריה ומבחן התפריט"],
           ].map(([t, d]) => (
             <div key={t} className="flex items-start gap-2">
@@ -85,7 +95,9 @@ export default function WelcomeTutorial({ session, onDone }) {
             <p className="text-xs text-[#eef0f6] font-bold">🏆 ובסוף — מבחן התפריט המלא, על הכול</p>
             <p className="text-[11px] text-[#8a8aa0]">המנהל/ת רואה את הציונים. את המבחן עצמו עושים במסעדה.</p>
           </div>
-          <p className="text-sm text-[#c4c4d4] text-center pt-1">מתחילים מהמשימות של היום — בהצלחה!</p>
+          <p className="text-sm text-[#c4c4d4] text-center pt-1">
+            {trainee ? "מתחילים מהתפריט — בהצלחה!" : "מתחילים מהמשימות של היום — בהצלחה!"}
+          </p>
         </div>
       ),
     },
