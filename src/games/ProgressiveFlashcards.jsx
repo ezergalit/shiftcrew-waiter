@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { GraduationCap, Coffee } from "lucide-react";
 import { Star } from "lucide-react";
 import { dishLabel } from "../lib/questionEngine";
-import { countLabel } from "./shared";
+import { countLabel, nLabel } from "./shared";
 import { categoryVisual } from "../lib/categoryVisual";
 import { pickNext, isUnderstood } from "../lib/progressiveSession";
 import { nextConsecutiveFives } from "../lib/studySession";
@@ -108,7 +108,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
         <Coffee size={34} className="text-[#a79bff]" />
       </div>
       <p className="text-xl font-black">עברת {CHECKPOINT_EVERY} כרטיסיות 💪</p>
-      <p className="text-sm text-[#8a8aa0]">הכרת {understoodCount} מתוך {items.length} מנות ב{label}. ממשיכים?</p>
+      <p className="text-sm text-[#8a8aa0]">הכרת {understoodCount} מתוך {nLabel(items.length, "מנה", "מנות")} ב{label}. ממשיכים?</p>
       {/* Enough of the category is known to sit the quiz — offer it here rather than
           making the waiter leave, find the category row and press it there (user,
           2026-08-23). Still only an offer: practising more is a fine answer. */}
@@ -181,7 +181,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
               {it.pitfalls?.length > 0 && <div className="bg-[#3a2f1d] p-2 rounded-lg"><p className="text-xs font-bold text-[#f3c14b]">מוקשים: {it.pitfalls.join(", ")}</p></div>}
               <div className="pt-1">
                 <p className="text-xs font-bold text-[#8a8aa0] mb-1.5">כמה טוב ידעת?</p>
-                <p className="text-[11px] text-[#5a5a6e] mb-1.5">הדירוג העצמי קובע מה תחזרו עליו — נקודות נצברות במשחקים ובמבחנים</p>
+                <p className="text-[11px] text-[#5a5a6e] mb-1.5">הדירוג העצמי קובע מה חוזרים עליו — נקודות נצברות רק בבחנים ובמבחן</p>
                 <div className="grid grid-cols-5 gap-1.5">
                   {[1, 2, 3, 4, 5].map(v => (
                     <button key={v} onClick={() => rate(v)} className={`py-3 min-h-[44px] rounded-lg font-black text-base ${RATING_STYLE[v]}`}>{v}</button>

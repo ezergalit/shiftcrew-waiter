@@ -41,7 +41,7 @@ const STEPS = [
   },
   {
     tab: "categories", deep: true, icon: Sparkles, title: "ככה נראית מנה",
-    body: "לדוגמה: מנה עם תגית אדומה \u05f4שומשום\u05f4 היא מנה שאסור להגיש לאורח עם אלרגיה לשומשום, ותגית צהובה \u05f4חריף\u05f4 היא רק עניין של טעם. החצים למטה מעבירים למנה הבאה, אז אפשר לעבור על קטגוריה שלמה ברצף — וזה בדיוק מה שעושים לפני שמתחילים לתרגל.",
+    body: "תגית אדומה היא אלרגיה — מה שאסור להגיש לאורח שרגיש לה; תגית צהובה היא העדפה — רק עניין של טעם. החצים למטה מעבירים למנה הבאה, אז אפשר לעבור על קטגוריה שלמה ברצף — וזה בדיוק מה שעושים לפני שמתחילים לתרגל.",
   },
   {
     // ⚠️ Needs `tab`+`reset` even though it points at the bottom nav: the previous step
@@ -65,7 +65,7 @@ const STEPS = [
   },
   {
     tab: "learn", icon: GraduationCap, title: "שלב 3 — הבחנים והמבחן",
-    body: "כשתכיר/י מספיק מנות בקטגוריה, יופיע בה כפתור בוחן — עם שעון. עוברים בוחן בכל קטגוריה, ורק אחרי שעוברים את כולם נפתח מבחן התפריט המלא — המבחן שלך על התפריט. את המבחן עצמו צריך לעשות במסעדה.",
+    body: "כשתכיר/י מספיק מנות בקטגוריה, יופיע בה כפתור בוחן — עם שעון. עוברים בוחן בכל קטגוריה, ורק אחרי שעוברים את כולם נפתח מבחן התפריט המלא — המבחן שלך על התפריט. את מבחן התפריט עושים יחד עם המנהל/ת, במסעדה.",
   },
   {
     tab: "home", icon: ListChecks, title: "ומה עושים כל יום?",
@@ -237,7 +237,7 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep }) {
             </span>
             <div className="flex-1 min-w-0">
               <p className="text-[15px] font-black text-[#eef0f6] leading-snug">{gz(s.title)}</p>
-              <p className="text-[10px] font-bold text-[#5a5a6e] mt-0.5">שלב {i + 1} מתוך {STEPS.length}</p>
+              <p className="text-[10px] font-bold text-[#5a5a6e] mt-0.5">צעד {i + 1} מתוך {STEPS.length}</p>
             </div>
           </div>
 
@@ -273,7 +273,7 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep }) {
 
         </div>
         <div className="flex items-center justify-between">
-          <button onClick={onDone} className="text-[11px] font-bold text-[#5a5a6e] min-h-[44px] px-1">דלגו על הסיור</button>
+          <button onClick={onDone} className="text-[11px] font-bold text-[#5a5a6e] min-h-[44px] px-1">דילוג על הסיור</button>
           {i > 0 && (
             <button onClick={() => go(i - 1)} className="text-[11px] font-bold text-[#5a5a6e] min-h-[44px] px-1">→ אחורה</button>
           )}

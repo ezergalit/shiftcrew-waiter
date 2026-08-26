@@ -51,7 +51,7 @@ export default function ManagerMessages({ session }) {
             <span className="w-7 h-7 rounded-lg bg-[#8b5cf6]/20 flex items-center justify-center flex-shrink-0">
               <MessageCircle size={14} className="text-[#a78bfa]" />
             </span>
-            <p className="text-xs font-black text-[#a78bfa]">הודעה אישית מההנהלה</p>
+            <p className="text-xs font-black text-[#a78bfa]">הודעה אישית מהמנהל/ת</p>
           </div>
           <p className="text-[13px] text-[#eef0f6] leading-relaxed whitespace-pre-line font-semibold">{m.body}</p>
           <button

@@ -66,7 +66,7 @@ export default function BriefAck({ brief, cards, session, ack, onAcked }) {
       <div className="flex items-center gap-2 bg-[#15302b] border border-[#0d8066] rounded-lg p-3">
         <ShieldCheck size={15} className="text-[#22c08c] flex-shrink-0" />
         <p className="text-[11px] font-bold text-[#22c08c]">
-          אישרת שקראת את הבריף של היום
+          אישרתם שקראתם את העדכון של היום
           {ack.correct === false && " — כדאי לעבור עליו שוב"}
         </p>
       </div>
@@ -102,7 +102,7 @@ export default function BriefAck({ brief, cards, session, ack, onAcked }) {
         disabled={saving}
         className="w-full py-2.5 rounded-lg bg-[#6d5efc] text-white text-xs font-black disabled:opacity-50"
       >
-        {saving ? "שומר…" : "קראתי את הבריף"}
+        {saving ? "שומר…" : "קראתי את העדכון"}
       </button>
     );
   }

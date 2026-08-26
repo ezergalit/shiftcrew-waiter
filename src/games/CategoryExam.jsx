@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import ExitExam from "./ExitExam";
 import { GraduationCap } from "lucide-react";
 import { dishLabel, askableIngredients } from "../lib/questionEngine";
 import { shortCat, shuffle, ALLERGENS } from "./shared";
@@ -178,7 +179,7 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-2.5 flex items-center justify-between flex-shrink-0">
-        <button onClick={onDone} className="text-xs text-[#8a8aa0]">← יציאה</button>
+        <ExitExam onDone={onDone} />
         <p className="text-xs font-bold truncate px-2">בוחן {shortCat(categoryLabel)}</p>
         <div className="flex items-center gap-2 flex-shrink-0">
           {/* Red for the last 30s — enough warning to finish the dish in hand. */}
@@ -249,7 +250,7 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
               <div className="bg-[#3a1d22] border border-[#e0315a]/40 rounded-xl p-3">
                 <p className="text-[11px] font-black text-[#e0315a] mb-1">⚠️ פספסת אלרגיות</p>
                 <p className="text-sm text-[#eef0f6]">{result.missAll.join(", ")}</p>
-                <p className="text-[11px] text-[#c4c4d4] mt-1.5">זה הדבר הכי חשוב לדעת — לקוח עלול להיפגע.</p>
+                <p className="text-[11px] text-[#c4c4d4] mt-1.5">זה הדבר הכי חשוב לדעת — אורח עלול להיפגע.</p>
               </div>
             )}
             {result.wrongAll.length > 0 && (

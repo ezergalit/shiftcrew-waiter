@@ -3,6 +3,7 @@ import { Loader2, Timer, ClipboardCheck, ArrowLeft } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { buildWeightedDeck, availableFacets, withDisplayNames } from "../lib/questionEngine";
 import { gz } from "../lib/shiftChoice";
+import { nLabel } from "../games/shared";
 
 const db = supabase.schema("menu_app");
 
@@ -186,11 +187,11 @@ export default function BaselineIntake({ session, onDone }) {
             style={{ background: "linear-gradient(135deg,#6d5efc,#9b7bff)" }}>
             <ClipboardCheck size={30} />
           </div>
-          <h1 className="text-xl font-black text-[#eef0f6]">{gz("בוא/י נראה איפה את/ה עומד/ת")}</h1>
+          <h1 className="text-xl font-black text-[#eef0f6]">{"בואו נראה מאיפה מתחילים"}</h1>
           <p className="text-sm text-[#b4b4c4] leading-relaxed">
             {enough
-              ? <>כמה שאלות קצרות עלייך, ואז מבחן היכרות של כ-{examMinutes} דקות על התפריט.
-                  אין פה ציון עובר — זו נקודת ההתחלה שממנה נמדוד את ההתקדמות שלך.</>
+              ? <>כמה שאלות קצרות, ואז בוחן היכרות של כ-{examMinutes} דקות על התפריט.
+                  אין פה ציון עובר — זו רק נקודת ההתחלה למדידת ההתקדמות.</>
               : <>התפריט של המסעדה עדיין לא מוכן לבוחן. אפשר להתחיל ללמוד ולחזור לזה אחר כך.</>}
           </p>
           <button
@@ -200,7 +201,7 @@ export default function BaselineIntake({ session, onDone }) {
             {enough ? "מתחילים" : "לאפליקציה"}
           </button>
           {enough && (
-            <button onClick={() => onDone(null)} className="text-xs text-[#8a8aa0]">אעשה את זה אחר כך</button>
+            <button onClick={() => onDone(null)} className="text-xs text-[#8a8aa0]">לא עכשיו</button>
           )}
         </div>
       </Shell>
@@ -285,7 +286,7 @@ export default function BaselineIntake({ session, onDone }) {
             a shift had to force-quit the app. Skipping counts as skipped, exactly like
             the intro: no baseline recorded, offered again on a new device. */}
         <button onClick={() => onDone(null)} className="w-full text-center text-[11px] text-[#5a5a6e] font-bold mt-4 min-h-[44px]">
-          אעשה את זה אחר כך
+          לא עכשיו
         </button>
       </Shell>
     );
@@ -301,7 +302,7 @@ export default function BaselineIntake({ session, onDone }) {
         <p className="text-6xl font-black" style={{ color: result.pct >= 70 ? "#22c08c" : result.pct >= 40 ? "#f3a712" : "#e0315a" }}>
           {result.pct}%
         </p>
-        <p className="text-sm text-[#b4b4c4]">{result.correct} מתוך {result.asked} שאלות</p>
+        <p className="text-sm text-[#b4b4c4]">{result.correct} מתוך {nLabel(result.asked, "שאלה", "שאלות")}</p>
         <p className="text-xs text-[#8a8aa0] leading-relaxed px-2 mt-1">
           זו נקודת ההתחלה. מכאן נלמד קטגוריה אחרי קטגוריה, וכל שיפור יימדד מול המספר הזה.
         </p>

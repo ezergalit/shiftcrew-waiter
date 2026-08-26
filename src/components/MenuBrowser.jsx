@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronRight, ChevronLeft, X } from "lucide-react";
 import { categoryVisual } from "../lib/categoryVisual";
-import { shortCat } from "../games/shared";
+import { shortCat, nLabel } from "../games/shared";
 
 // The menu, as a menu (user, 2026-08-20). Not progress, not exams — the thing a waiter
 // opens mid-shift to check what is actually in a dish. Three levels, the same shape the
@@ -23,7 +23,7 @@ const FLAG_GROUPS = [
     note: "מרכיב שעלול לסכן אורח עם אלרגיה — תמיד לוודא במטבח לפני שמאשרים." },
   { key: "pregnancy", title: "רגישות בהריון", cls: "bg-[#2a2140] text-[#c4b5fd]",
     note: "לא אלרגיה, אבל לא מתאים לאורחת בהריון — כדאי להזכיר." },
-  { key: "pitfalls", title: "מוקשים", cls: "bg-[#33290f] text-[#f3c14b]",
+  { key: "pitfalls", title: "מוקשים והעדפות", cls: "bg-[#33290f] text-[#f3c14b]",
     note: "לא מסוכן — פשוט טעם שאורחים רבים מבקשים בלעדיו (כוסברה, חריף, שום)." },
 ];
 
@@ -137,7 +137,7 @@ export default function MenuBrowser({ cards, onPractice }) {
             <div className="space-y-2">
               <h2 className="text-[24px] font-black text-[#eef0f6] leading-tight">עברת על כל {shortCat(cat)}</h2>
               <p className="text-[14px] text-[#8a8aa0] leading-relaxed">
-                {dishes.length} מנות. לחזור עליהן שוב מההתחלה, או להמשיך הלאה?
+                {nLabel(dishes.length, "מנה", "מנות")}. לחזור עליהן שוב מההתחלה, או להמשיך הלאה?
               </p>
             </div>
 
@@ -275,7 +275,7 @@ export default function MenuBrowser({ cards, onPractice }) {
     return (
       <div className="space-y-3.5">
         <Crumb over={flat ? null : menu} title={`${categoryVisual(cat).emoji} ${shortCat(cat)}`} onBack={() => setCat(null)} />
-        <p className="text-[11.5px] text-[#5a5a6e] px-1">{dishes.length} מנות · הקשה על מנה פותחת אותה במלואה</p>
+        <p className="text-[11.5px] text-[#5a5a6e] px-1">{nLabel(dishes.length, "מנה", "מנות")} · הקשה על מנה פותחת אותה במלואה</p>
         {dishes.map((d, i) => (
           <button
             key={d.id}
@@ -323,7 +323,7 @@ export default function MenuBrowser({ cards, onPractice }) {
               </span>
               <span className="flex-1 min-w-0">
                 <span className="block text-[18px] font-black text-[#eef0f6] line-clamp-1">{shortCat(c)}</span>
-                <span className="block text-[12px] text-[#8a8aa0] mt-1.5">{n} מנות</span>
+                <span className="block text-[12px] text-[#8a8aa0] mt-1.5">{nLabel(n, "מנה", "מנות")}</span>
               </span>
               <ChevronLeft size={18} className="text-[#5a5a6e] flex-shrink-0" />
             </button>
@@ -349,7 +349,7 @@ export default function MenuBrowser({ cards, onPractice }) {
           >
             <span className="flex-1 min-w-0">
               <span className="block text-[18px] font-black text-[#eef0f6]">{m}</span>
-              <span className="block text-[11px] text-[#8a8aa0] mt-1">{catCount} קטגוריות · {inG.length} פריטים</span>
+              <span className="block text-[11px] text-[#8a8aa0] mt-1">{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nLabel(inG.length, "פריט", "פריטים")}</span>
             </span>
             <ChevronLeft size={18} className="text-[#5a5a6e] flex-shrink-0" />
           </button>

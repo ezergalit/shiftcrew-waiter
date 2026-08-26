@@ -244,16 +244,16 @@ for (const it of pricesInNames)
 }
 
 // masking basics
-if (maskNameLeak("סלמון ואבוקדו בציפוי שומשום", "סלמון אבוקדו") !== "▢▢▢ ▢▢▢ בציפוי שומשום")
+if (maskNameLeak("סלמון ואבוקדו בציפוי שומשום", "סלמון אבוקדו") !== "___ ___ בציפוי שומשום")
   fail("MASK", "prefix-aware masking regressed");
 if (splitChanges("בסיס. שינויים: אין").changes !== "אין") fail("MASK", "splitChanges regressed");
 
 // spelling variants — the real leak found in the live baseline exam
 if (hebKey("לימון") !== hebKey("למון")) fail("MASK", "hebKey should fold לימון/למון");
 if (hebKey("חלב") === hebKey("חלבה")) fail("MASK", "hebKey must NOT fold חלב/חלבה");
-if (!maskNameLeak("ומניפת לימון מעל", "למון טוויסט").includes("▢"))
+if (!maskNameLeak("ומניפת לימון מעל", "למון טוויסט").includes("_"))
   fail("MASK", 'description "מניפת לימון" must be masked against the dish "למון טוויסט"');
-if (maskNameLeak("רוטב טחינה", "חלב").includes("▢")) fail("MASK", "unrelated words must survive masking");
+if (maskNameLeak("רוטב טחינה", "חלב").includes("_")) fail("MASK", "unrelated words must survive masking");
 
 // Row 14: counts parsed off the category line, and numeric options surviving the gates.
 {
@@ -299,7 +299,7 @@ if (maskNameLeak("רוטב טחינה", "חלב").includes("▢")) fail("MASK", 
     new Set(String(x || "").toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ")
       .split(/\s+/).filter((w) => w.length >= 2).map(hebKey));
   const overlaps = (a, b) => { const A = wordsOf(a); return [...wordsOf(b)].some((w) => A.has(w)); };
-  const strip = (x) => String(x).replace(/▢+/g, "").replace(/\s+/g, " ").trim();
+  const strip = (x) => String(x).replace(/_+/g, "").replace(/\s+/g, " ").trim();
 
   const trueAnswers = (pool, q, it) => {
     if (q.facet === "ingredients")

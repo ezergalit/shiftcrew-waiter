@@ -46,7 +46,7 @@ export default function TasksTab({ tasks, onDone, children }) {
   // things this shift needs; "ללמוד ראשונות" is not tied to a day at all. Mixing them
   // made one numbered list whose numbers meant nothing.
   const GROUPS = [
-    { key: "daily", title: "משימה יומית", hint: "בריף, פתיחה, סגירה ומשימות המשמרת" },
+    { key: "daily", title: "משימות היום", hint: "העדכון היומי ומשימות המשמרת" },
     { key: "general", title: "משימות כלליות", hint: "למידת התפריט ותרגול" },
   ];
 
@@ -192,8 +192,10 @@ export default function TasksTab({ tasks, onDone, children }) {
                 <X size={18} />
               </button>
             </div>
-            <p className="text-[13px] text-[#c4c4d4] leading-relaxed whitespace-pre-line">{sheet.body}</p>
-            <p className="text-[10.5px] text-[#5a5a6e]">המשימה נשלחה על ידי ההנהלה</p>
+            {sheet.body?.trim() !== sheet.title?.trim() && (
+              <p className="text-[13px] text-[#c4c4d4] leading-relaxed whitespace-pre-line">{sheet.body}</p>
+            )}
+            <p className="text-[10.5px] text-[#5a5a6e]">המשימה נשלחה על ידי המנהל/ת</p>
             {!sheet.done ? (
               <button
                 onClick={() => {

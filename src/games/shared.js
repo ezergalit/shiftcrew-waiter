@@ -24,6 +24,11 @@ export const FEEDBACK_MS = 1800;
 export const countLabel = (arr, one, many) =>
   arr?.length > 0 ? `${arr.length} ${arr.length === 1 ? one : many}` : null;
 
+// Same rule when what you have is already a number rather than the list. Kept separate
+// rather than overloading countLabel: `[...Array(n)]` at every call site is a real array
+// allocation for a string, and it reads like a trick.
+export const nLabel = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
 export const COLORS = ["#22c08c", "#ff7a59", "#e0315a", "#f3a712", "#3a86ff", "#6d5efc", "#9b7bff", "#1aa376"];
 export const colorFor = name => COLORS[String(name).charCodeAt(0) % COLORS.length];
 

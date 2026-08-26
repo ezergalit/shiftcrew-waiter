@@ -178,7 +178,7 @@ export default function BriefGate({ brief, cards, session, practice = false, onP
           </div>
           {cooldown > 0 && (
             <p className="text-center text-xs font-black text-[#f3a712] mb-2">
-              טעית — כדאי לקרוא שוב את העדכון · אפשר לנסות בעוד {cooldown} שניות
+              לא בדיוק — הנה העדכון שוב · אפשר לענות שוב בעוד {cooldown} שניות
             </p>
           )}
           {questions.length ? (
@@ -205,7 +205,7 @@ export default function BriefGate({ brief, cards, session, practice = false, onP
       {stage === "quiz" && questions[qIdx] && (
         <>
           <p className="text-[11px] text-[#8a8aa0] mb-1">
-            אישור הבנה · גרסה {variant.name} · שאלה {qIdx + 1} מתוך {questions.length}
+            אישור הבנה · שאלה {qIdx + 1} מתוך {questions.length}
           </p>
           <p className="text-lg font-black mb-3">{questions[qIdx].question}</p>
           <div className="flex flex-col gap-2">
@@ -231,7 +231,7 @@ export default function BriefGate({ brief, cards, session, practice = false, onP
           </div>
           <div className="flex-1" />
           <p className="text-center text-[11px] text-[#5a5a6e]">
-            טעות מחזירה לעדכון ונועלת ל-{COOLDOWN_S} שניות
+            תשובה לא נכונה מחזירה לעדכון ל-{COOLDOWN_S} שניות
           </p>
         </>
       )}

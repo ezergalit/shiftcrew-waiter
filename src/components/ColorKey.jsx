@@ -48,7 +48,7 @@ export default function ColorKey({ onDone }) {
     <div className="h-full max-w-md mx-auto flex flex-col px-5 py-6 bg-[#0c0d10] text-[#eef0f6] overflow-y-auto" dir="rtl">
       <p className="text-xl font-black mb-1.5">רגע לפני התפריט — הצבעים</p>
       <p className="text-sm text-[#8a8aa0] mb-5 leading-relaxed">
-        בתפריט כל מנה נושאת תגיות צבעוניות. הצבע הוא המשמעות:
+        בתפריט כל מנה נושאת תגיות צבעוניות, ולכל צבע יש משמעות משלו:
       </p>
 
       <div className="space-y-3 flex-1">

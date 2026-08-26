@@ -57,8 +57,8 @@ export default function App() {
                 restaurantName: data.restaurant.name,
                 restaurantDescription: data.restaurant.description,
                 restaurantCuisineTypes: data.restaurant.cuisine_types,
-                serviceStyle: data.restaurant.service_style,
-                serviceNotes: data.restaurant.service_notes,
+                restaurantServiceStyle: data.restaurant.service_style,
+                restaurantServiceNotes: data.restaurant.service_notes,
               });
               setPhase("app");
             }

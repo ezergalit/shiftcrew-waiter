@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import ExitExam from "./ExitExam";
 import { GraduationCap, Timer } from "lucide-react";
 import { buildWeightedDeck } from "../lib/questionEngine";
 import { FEEDBACK_MS } from "./shared";
@@ -59,7 +60,7 @@ export default function QuizExam({ items, facets, categoryLabel, deckSize = DEFA
   if (deck.length < 3) return (
     <div className="h-screen flex flex-col items-center justify-center gap-3 px-8 text-center bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <p className="text-sm">אין מספיק פרטים במנות של {categoryLabel} כדי לבנות מבחן.</p>
-      <p className="text-xs text-[#8a8aa0]">בקשו מהמנהל/ת להשלים תיאורים או מרכיבים.</p>
+      <p className="text-xs text-[#8a8aa0]">כדאי לבקש מהמנהל/ת להשלים תיאורים או מרכיבים.</p>
       <button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white text-xs font-bold">חזרה</button>
     </div>
   );
@@ -89,7 +90,7 @@ export default function QuizExam({ items, facets, categoryLabel, deckSize = DEFA
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-2.5 flex items-center justify-between flex-shrink-0">
-        <button onClick={onDone} className="text-xs text-[#8a8aa0]">← יציאה</button>
+        <ExitExam onDone={onDone} />
         <p className="text-xs font-bold">בוחן {categoryLabel}</p>
         <div className="flex items-center gap-2">
           {/* The clock is part of what makes this an exam — it was an 12px icon and a

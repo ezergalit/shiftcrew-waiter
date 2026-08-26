@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, Home, Target, GraduationCap, Utensils } from "lucide-react";
+import { ChevronRight, GraduationCap, Utensils } from "lucide-react";
 
 // Shown once, right after a brand-new team member is created (see TeamLogin.jsx's
 // `showTutorial` flag — not shown when we just matched someone back to an existing
@@ -43,44 +43,10 @@ export default function WelcomeTutorial({ session, onDone }) {
         </div>
       ),
     },
-    {
-      icon: Home,
-      title: "איפה כל דבר",
-      body: (
-        <div className="space-y-2.5">
-          {[
-            ...(trainee ? [] : [["משימות", "מה צריך לעשות היום — ממוספר, וכל משימה פותחת את מה שצריך לעשות"]]),
-            ["תפריט", "התפריט עצמו: מנות, תיאורים, מרכיבים ואלרגיות — וגם ״אודות המסעדה״ עם מדריך האירוח"],
-            ["תרגול ובחינה", "כאן לומדים ונבחנים — כרטיסיות לפי קטגוריה, בוחן לכל קטגוריה ומבחן התפריט"],
-          ].map(([t, d]) => (
-            <div key={t} className="flex items-start gap-2">
-              <span className="text-sm font-black text-[#6d5efc] w-14 flex-shrink-0">{t}</span>
-              <span className="text-sm text-[#c4c4d4]">{d}</span>
-            </div>
-          ))}
-        </div>
-      ),
-    },
-    {
-      icon: Target,
-      title: "איך לומדים",
-      body: (
-        <div className="space-y-3">
-          <div>
-            <p className="text-sm font-black text-[#eef0f6]">קוראים מהתפריט</p>
-            <p className="text-xs text-[#8a8aa0]">כל מנה נפתחת על כל המסך — תיאור, מרכיבים ואזהרות — וחצים מעבירים למנה הבאה, כך שאפשר לעבור על קטגוריה שלמה ברצף</p>
-          </div>
-          <div>
-            <p className="text-sm font-black text-[#eef0f6]">מתרגלים בכרטיסיות</p>
-            <p className="text-xs text-[#8a8aa0]">מדרגים 1-5 כמה ידעת; מנה שמקבלת 5 פעמיים ברצף מסומנת ✓ ויוצאת מהסבב, והבאה נכנסת במקומה</p>
-          </div>
-          <div>
-            <p className="text-sm font-black text-[#eef0f6]">נבחנים</p>
-            <p className="text-xs text-[#8a8aa0]">הבחנים והמבחן הם שבודקים באמת — הציון נקבע לפי תשובה נכונה ולא לפי דירוג עצמי</p>
-          </div>
-        </div>
-      ),
-    },
+    // The "where is everything" and "how to learn" slides were cut on purpose: the
+    // interactive tour (AppTour) opens right after this screen and teaches exactly those
+    // two things by having the waiter tap the real elements. Reading the same lesson as
+    // text first meant every new waiter sat through the whole explanation twice.
     {
       icon: GraduationCap,
       title: "המטרה: לעבור את מבחן התפריט",

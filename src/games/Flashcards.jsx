@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Trophy, Star } from "lucide-react";
 import { dishLabel } from "../lib/questionEngine";
-import { countLabel } from "./shared";
+import { countLabel, nLabel } from "./shared";
 import { categoryVisual } from "../lib/categoryVisual";
 import { gz } from "../lib/shiftChoice";
 
@@ -28,7 +28,7 @@ export default function Flashcards({ items, session, quick, onRate, onDone }) {
       )}
       {session?.poolCount > items.length && (
         <p className="text-xs text-[#8a8aa0]">
-          נשארו עוד {session.poolCount - new Set(items.map((x) => x.id)).size} מנות בקטגוריה — סבב נוסף?
+          נשארו עוד {nLabel(session.poolCount - new Set(items.map((x) => x.id)).size, "מנה", "מנות")} בקטגוריה — סבב נוסף?
         </p>
       )}
       {session?.allRetired && (
@@ -102,7 +102,7 @@ export default function Flashcards({ items, session, quick, onRate, onDone }) {
                 <p className="text-xs font-bold text-[#8a8aa0] mb-1.5">כמה טוב ידעת?</p>
                 {/* Says plainly that this is practice, not scoring — otherwise a waiter
                     rates 5s expecting points and quietly gets none. */}
-                <p className="text-[11px] text-[#5a5a6e] mb-1.5">הדירוג העצמי קובע מה תחזרו עליו — נקודות נצברות במשחקים ובמבחנים</p>
+                <p className="text-[11px] text-[#5a5a6e] mb-1.5">הדירוג העצמי קובע מה חוזרים עליו — נקודות נצברות רק בבחנים ובמבחן</p>
                 <div className="grid grid-cols-5 gap-1.5">
                   {[1, 2, 3, 4, 5].map(v => (
                     <button key={v} onClick={() => rate(v)} className={`py-3 min-h-[44px] rounded-lg font-black text-base ${RATING_STYLE[v]}`}>{v}</button>

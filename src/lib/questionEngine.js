@@ -7,7 +7,7 @@
 // menu-build time, never per answer per waiter):
 //
 // 1. LEAK MASKING — every word of the dish name that appears in shown text is blanked
-//    out (▢▢▢), including common Hebrew prefixes (ואבוקדו, בסלמון). Masking is applied
+//    out (___), including common Hebrew prefixes (ואבוקדו, בסלמון). Masking is applied
 //    uniformly to ALL options so the mask itself carries no signal.
 // 2. SIMILARITY-RANKED DISTRACTORS — wrong options come from the most-confusable dishes
 //    (same category first, then most shared ingredients/description words), not random
@@ -61,8 +61,8 @@ export function maskNameLeak(text, name) {
   if (!keys.size) return text;
   return String(text).replace(/[\p{L}\p{N}]+/gu, (tok) => {
     const low = tok.toLowerCase();
-    if (keys.has(hebKey(low))) return "▢▢▢";
-    if (low.length > 2 && /^[ובלהמשכ]/.test(low) && keys.has(hebKey(low.slice(1)))) return "▢▢▢";
+    if (keys.has(hebKey(low))) return "___";
+    if (low.length > 2 && /^[ובלהמשכ]/.test(low) && keys.has(hebKey(low.slice(1)))) return "___";
     return tok;
   });
 }
@@ -113,7 +113,7 @@ export function withDisplayNames(cards) {
 
 // True when, after masking, the text still has enough substance to be a fair question —
 // "סלמון ואבוקדו" masked against "סלמון אבוקדו" leaves nothing, so skip that question.
-const survivesMasking = (masked) => norm(masked.replace(/▢/g, " ")).length >= 3;
+const survivesMasking = (masked) => norm(masked.replace(/_/g, " ")).length >= 3;
 
 // How alike two dishes are, for picking confusable distractors: shared ingredients
 // weigh double, shared description words weigh single.
@@ -240,10 +240,10 @@ export function qChanges(pool, it) {
   const mask = (t) => maskNameLeak(t, it.name);
   const maskedCorrect = mask(correct);
   // If masking touched the correct option, prefer traps that also get masked (and vice
-  // versa) — otherwise "the option with ▢▢▢ is the answer" becomes a tell.
-  const correctHasMask = maskedCorrect.includes("▢");
+  // versa) — otherwise "the option with ___ is the answer" becomes a tell.
+  const correctHasMask = maskedCorrect.includes("_");
   const ranked = [...sibChanges].sort(
-    (a, b) => (mask(b).includes("▢") === correctHasMask) - (mask(a).includes("▢") === correctHasMask)
+    (a, b) => (mask(b).includes("_") === correctHasMask) - (mask(a).includes("_") === correctHasMask)
   );
   let wrong = ranked.slice(0, 2);
   if (changes && wrong.length < 2) wrong = [...wrong, NO_CHANGES];

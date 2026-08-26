@@ -191,7 +191,7 @@ export default function MetricsScreen({ session, cards, masteryById, weekly = []
             <Card title={`ההכנסות שלי — ${monthName}`} accent="#f3c14b">
               {earnings.length === 0 ? (
                 <p className="text-[11px] text-[#8a8aa0]">
-                  עוד לא נרשמו משמרות החודש — בערב של יום לימוד תופיע הצעה להזין כמה הרווחת.
+                  עוד לא נרשמו משמרות החודש — אפשר לרשום כמה הרווחת עם הכפתור למטה.
                 </p>
               ) : (
                 <div className="flex">
@@ -409,7 +409,7 @@ function DeleteProfile() {
   };
 
   return (
-    <div className="pt-2 pb-4">
+    <div className="mt-6 pt-4 pb-4 border-t border-[#22252b]">
       {!open ? (
         <button onClick={() => setOpen(true)}
           className="w-full text-center text-[11px] text-[#5a5a6e] font-bold underline underline-offset-2 py-2">

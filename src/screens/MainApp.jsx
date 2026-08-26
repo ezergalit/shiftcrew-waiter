@@ -24,7 +24,7 @@ import { pathState } from "../lib/learningPath";
 import { useStudyTime } from "../lib/studyTime";
 import { hapticAnswer } from "../lib/haptics";
 import {
-  CAT_LABELS, CAT_ORDER, catLabel, shortCat, countLabel, colorFor, shuffle,
+  CAT_LABELS, CAT_ORDER, catLabel, shortCat, countLabel, nLabel, colorFor, shuffle,
   todayStr, loadDaily, saveDaily, loadNum, saveNum, FEEDBACK_MS,
 } from "../games/shared";
 import Flashcards from "../games/Flashcards";
@@ -159,6 +159,12 @@ export default function MainApp({ session, onSignOut }) {
     // Trainees skip the auto-tour: its steps walk the tasks tab, which learning-only
     // mode doesn't have (same class of break as the GuidedTour/nav-rename trap).
     !session?.trainee &&
+    // ⚠️ A restaurant with its own welcome video has ALREADY walked the new waiter through
+    // the app — menu, practice, exams, metrics — and the tour covers exactly the same
+    // ground (user, 2026-08-26: "if there is an explanation video we don't need another
+    // tutorial"). One explanation per waiter. Still reachable by hand from the metrics
+    // screen, so nobody loses it; only the automatic second telling goes away.
+    !session?.welcomeVideoUrl &&
     !!session?.teamMemberId && localStorage.getItem(`menu-app-apptour-done-${session.teamMemberId}`) !== "1");
   const { rows: shiftRows, doneIds: taskDone, toggle: toggleTask } = useShiftTasks(session);
   // Learning-only mode has no tasks/daily tabs — anything that lands there (old code
@@ -638,7 +644,10 @@ export default function MainApp({ session, onSignOut }) {
   // explaining something the next screen already says. In the menu the same information
   // is coloured chips with no heading, and that is where the code has to be learned.
   if (tab === "categories" && !colorKeySeen && (preview || needsColorKey(session?.teamMemberId)))
-    return <ColorKey onDone={() => { markColorKeySeen(session?.teamMemberId); setColorKeySeen(true); }} />;
+    // {tourNode} stays mounted on top, like the metrics branch below — without it, the
+    // tour's "tap the menu tab" step navigated a first-day waiter straight into this
+    // screen and the tour overlay silently vanished under it.
+    return <>{tourNode}<ColorKey onDone={() => { markColorKeySeen(session?.teamMemberId); setColorKeySeen(true); }} /></>;
 
   if (mode === "progressive" && prog)
     // ⚠️ Recomputed here, not captured when the session started: the waiter is rating
@@ -805,7 +814,7 @@ export default function MainApp({ session, onSignOut }) {
     dayTasks.push({
       id: "focus", group: "general",
       title: studiedEnough ? `לתרגל ${shortCat(focusCat.key)}` : `ללמוד ${shortCat(focusCat.key)} מהתפריט`,
-      subtitle: `${focusCat.pct}% · ${focusCat.items?.length || 0} מנות בקטגוריה`,
+      subtitle: `${focusCat.pct}% · ${nLabel(focusCat.items?.length || 0, "מנה", "מנות")} בקטגוריה`,
       done: todaySeconds >= goalMinutes * 60, cta: studiedEnough ? "לתרגול ←" : "ללימוד ←",
       onOpen: () => (studiedEnough ? startProgressive(focusCat.key) : setTab("categories")),
     });
@@ -1042,7 +1051,7 @@ export default function MainApp({ session, onSignOut }) {
                     className="w-full py-3 min-h-[48px] rounded-xl font-black text-sm flex items-center justify-center gap-1.5 active:scale-[0.99] transition-transform bg-[#22c08c] text-white"
                   >
                     <GraduationCap size={15} />
-                    {cat.passed ? "עברת את הבוחן! אפשר לגשת שוב" : `מבחן ${shortCat(catView)}`}
+                    {cat.passed ? "עברת את הבוחן! אפשר לגשת שוב" : `בוחן ${shortCat(catView)}`}
                   </button>
                 );
               })()}
@@ -1091,7 +1100,7 @@ export default function MainApp({ session, onSignOut }) {
                   <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mt-2">
                     <div className="h-full transition-all" style={{ width: `${pct}%`, background: pct >= 50 ? "#22c08c" : "#6d5efc" }} />
                   </div>
-                  <p className="text-[11px] text-[#8a8aa0] mt-1.5">{catCount} קטגוריות · {items.length} מנות</p>
+                  <p className="text-[11px] text-[#8a8aa0] mt-1.5">{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nLabel(items.length, "מנה", "מנות")}</p>
                   {/* Say what the tap does, in the words the waiter would use for it
                       (user, 2026-08-20) — "לתרגול תפריט סושי", not a bare menu name. */}
                   <p className="text-[11px] font-black text-[#22c08c] mt-1.5">לתרגול {g} ←</p>
@@ -1153,7 +1162,7 @@ export default function MainApp({ session, onSignOut }) {
                       {/* shortCat, not the full label: imported categories carry their
                           whole explanation ("מאקי — 6 יחידות, אצה בחוץ ואורז בפנים") and
                           inlining that makes the sentence unreadable. */}
-                      {cat.items.length} מנות · {gz("לחץ/י כדי לתרגל")}
+                      {nLabel(cat.items.length, "מנה", "מנות")} · {gz("לחץ/י כדי לתרגל")}
                       {cat.passed
                         ? " · נכלל בתרגול"
                         : path.recommended?.key === cat.key ? " · מומלץ להתחיל כאן" : ""}
