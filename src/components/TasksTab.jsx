@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { X, ChevronDown, ChevronLeft, EyeOff } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
 const db = supabase.schema("menu_app");
@@ -33,9 +33,10 @@ export function periodStart(kind, now = new Date()) {
 // Order is meaning: open tasks first in the restaurant's priority order, finished ones
 // collected under a divider. The number is the priority rank, not the row position, so
 // it never renumbers under the waiter's feet.
-export default function TasksTab({ tasks, onDone, children }) {
+export default function TasksTab({ tasks, onDone, children, hidden = [], hiddenNote, onFixShift }) {
   const [sheet, setSheet] = useState(null);   // manager instruction opened for reading
   const [bump, setBump] = useState(0);
+  const [showHidden, setShowHidden] = useState(false);
 
   useEffect(() => {
     if (!bump) return;
@@ -121,13 +122,19 @@ export default function TasksTab({ tasks, onDone, children }) {
     <div className="space-y-3">
       {children}
 
+      {/* ⚠️ "אין משימות היום" is a LIE whenever rows are only hidden by today's shift
+          answer, and it is the exact screen that made a mis-tap unrecoverable: the list
+          looked legitimately empty. With hidden rows present the empty card is replaced
+          by the section below, which names the cause and offers the fix. */}
       {tasks.length === 0 ? (
-        <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-5 text-center space-y-1.5">
-          <p className="text-sm font-black text-[#eef0f6]">אין משימות פתוחות היום ✨</p>
-          <p className="text-[11px] text-[#8a8aa0] leading-relaxed">
-            כשהמנהל/ת ישלחו עדכון או משימה — הם יופיעו כאן.
-          </p>
-        </div>
+        hidden.length === 0 && (
+          <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-5 text-center space-y-1.5">
+            <p className="text-sm font-black text-[#eef0f6]">אין משימות פתוחות היום ✨</p>
+            <p className="text-[11px] text-[#8a8aa0] leading-relaxed">
+              כשהמנהל/ת ישלחו עדכון או משימה — הם יופיעו כאן.
+            </p>
+          </div>
+        )
       ) : (
         <>
           {GROUPS.map((g, gi) => {
@@ -176,6 +183,58 @@ export default function TasksTab({ tasks, onDone, children }) {
             </div>
           )}
         </>
+      )}
+
+      {/* Hidden, not gone (user, 2026-08-26).
+          Answering "בלי משמרת" — or picking the wrong phase — used to DELETE the
+          manager's checklists from the screen, and the waiter had no way to tell that
+          from a day the manager simply sent nothing. Now the rows collapse instead:
+          nothing on this screen is ever unreachable, the reason is written out, and the
+          answer is one tap from being corrected. The rows here are deliberately plain —
+          reading a checklist you are not on is useful, ticking it is not: that would
+          feed the manager's "how many marked it today" count with work nobody did. */}
+      {hidden.length > 0 && (
+        <div className="pt-1">
+          <button
+            onClick={() => setShowHidden((v) => !v)}
+            className="w-full bg-[#16181c] border border-[#22252b] rounded-2xl px-3 py-2.5 flex items-center gap-2 active:scale-[0.99] transition-transform"
+          >
+            <EyeOff size={14} className="text-[#8a8aa0] flex-shrink-0" />
+            <span className="flex-1 text-right text-[12px] font-black text-[#c4c4d4]">
+              משימות המשמרת מוסתרות · {hidden.length}
+            </span>
+            {showHidden
+              ? <ChevronDown size={15} className="text-[#8a8aa0] flex-shrink-0" />
+              : <ChevronLeft size={15} className="text-[#8a8aa0] flex-shrink-0" />}
+          </button>
+
+          {showHidden && (
+            <div className="mt-2 space-y-2">
+              {hiddenNote && (
+                <p className="text-[11px] text-[#8a8aa0] leading-relaxed px-1">{hiddenNote}</p>
+              )}
+              {onFixShift && (
+                <button
+                  onClick={onFixShift}
+                  className="w-full py-2.5 min-h-[44px] rounded-xl font-black text-[12px] bg-[#22c08c] text-[#06231a]"
+                >
+                  לעדכון המשמרת של היום ←
+                </button>
+              )}
+              {hidden.map((t) => (
+                <div
+                  key={t.id}
+                  className="w-full rounded-2xl bg-[#16181c]/60 border border-[#22252b] px-3 py-2.5 opacity-70"
+                >
+                  <span className="block text-[12.5px] font-black text-[#c4c4d4] leading-snug">{t.title}</span>
+                  {t.subtitle && (
+                    <span className="block text-[10.5px] text-[#5a5a6e] mt-0.5 leading-snug">{t.subtitle}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* A manager instruction has no screen to jump to, so tapping it opens the

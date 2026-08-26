@@ -770,6 +770,8 @@ export default function MainApp({ session, onSignOut }) {
   // working on in general. The numbers are assigned by TasksTab from the open rows,
   // so finishing one renumbers the rest — nothing here carries a fixed position.
   const dayTasks = [];
+  // The manager's rows that today's shift answer filters out — see the loop below.
+  const hiddenShiftTasks = [];
 
   // Shown for EVERY shift answer, including "בלי משמרת" (user, 2026-08-22): no shift
   // means no phase checklists, not no information — the daily update still reaches them.
@@ -827,7 +829,17 @@ export default function MainApp({ session, onSignOut }) {
   // that role. Both filters default to VISIBLE for anything they don't recognise.
   for (const r of shiftRows) {
     if (r.kind === "learning") continue;   // handled above, from real progress
-    if (myShift && !taskFitsShift(r.kind, myShift)) continue;
+    // Filtered out by TODAY's shift answer ⇒ set aside, not dropped (user, 2026-08-26).
+    // The answer is one tap made at the door, and hiding its consequence silently made a
+    // mis-tap look exactly like a quiet day. These rows are handed to TasksTab and shown
+    // collapsed, with the reason and a way back.
+    // ⚠️ ROLE is filtered out for real, not collapsed: the role is a standing profile
+    // answer with its own reset link, and a floor waiter does not want the bar's whole
+    // checklist parked at the bottom of every screen.
+    if (myShift && !taskFitsShift(r.kind, myShift)) {
+      if (taskFitsRole(r.role, myRole)) hiddenShiftTasks.push({ id: r.id, title: r.title, subtitle: r.subtitle });
+      continue;
+    }
     if (!taskFitsRole(r.role, myRole)) continue;
     dayTasks.push({
       id: r.id, group: r.kind === "training" ? "general" : "daily",
@@ -906,7 +918,17 @@ export default function MainApp({ session, onSignOut }) {
       {/* Content */}
       <div key={tab} className="flex-1 overflow-y-auto px-4 py-3 animate-fadeIn">
         {tab === "home" && !trainee && (
-          <TasksTab tasks={dayTasks} onDone={toggleTask}>
+          <TasksTab
+            tasks={dayTasks}
+            onDone={toggleTask}
+            hidden={preview ? [] : hiddenShiftTasks}
+            hiddenNote={
+              myShift === "none"
+                ? "סימנת היום ״בלי משמרת״, ולכן משימות המשמרת לא מוצגות. עובד היום? אפשר לעדכן והן יחזרו."
+                : "אלו המשימות של משמרת אחרת. אם סימנת את המשמרת הלא נכונה — אפשר לשנות והן יחזרו."
+            }
+            onFixShift={() => setShiftEditing(true)}
+          >
             {/* A personal note from the manager outranks everything on this screen —
                 someone wrote it to this waiter by name. */}
             <ManagerMessages session={session} />

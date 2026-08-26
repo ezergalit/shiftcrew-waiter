@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CalendarCheck, UserRound, Sunrise, Moon, Coffee, UtensilsCrossed, Martini, Pencil, Layers } from "lucide-react";
-import { SHIFTS, ROLES, PROFILE_ROLES, shiftLabel, roleLabel, gz } from "../lib/shiftChoice";
+import { SHIFTS, ROLES, PROFILE_ROLES, shiftLabel, roleLabel, gz, guessShift } from "../lib/shiftChoice";
 
 const SHIFT_ICONS = { opening: Sunrise, closing: Moon, none: Coffee };
 const ROLE_ICONS = { waiter: UtensilsCrossed, bar: Martini, both: Layers };
@@ -52,6 +52,8 @@ export function ProfileGate({ onDone }) {
 // still reaches them). A "both" profile answers which hat today first.
 export function ShiftGate({ profileRole, onPick }) {
   const [dayRole, setDayRole] = useState(profileRole !== "both" ? profileRole : null);
+  // The clock's guess, marked but never pre-selected — see `guessShift`.
+  const suggested = guessShift();
 
   return (
     <div className="h-full max-w-md mx-auto flex flex-col justify-center px-6 bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
@@ -93,13 +95,20 @@ export function ShiftGate({ profileRole, onPick }) {
                 <button
                   key={sh.id}
                   onClick={() => onPick(sh.id, dayRole)}
-                  className="w-full py-3.5 min-h-[56px] rounded-2xl bg-[#16181c] border border-[#22252b] flex items-center gap-3 px-4 active:scale-[0.98] transition-transform"
+                  className={`w-full py-3.5 min-h-[56px] rounded-2xl bg-[#16181c] border flex items-center gap-3 px-4 active:scale-[0.98] transition-transform ${
+                    sh.id === suggested ? "border-[#22c08c]" : "border-[#22252b]"
+                  }`}
                 >
                   <Icon size={18} className="text-[#22c08c] flex-shrink-0" />
                   <span className="flex-1 text-right">
                     <span className="block text-sm font-black text-[#eef0f6]">{sh.label}</span>
                     <span className="block text-[11px] text-[#5a5a6e]">{sh.hint}</span>
                   </span>
+                  {sh.id === suggested && (
+                    <span className="text-[9.5px] font-black text-[#22c08c] bg-[#22c08c]/10 rounded px-1.5 py-0.5 flex-shrink-0">
+                      לפי השעה
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -115,9 +124,15 @@ export function ShiftGate({ profileRole, onPick }) {
 // that changed hands — and the one-time questions run again.
 export function ShiftQuestion({ profileRole, onPick, onResetProfile }) {
   const [dayRole, setDayRole] = useState(profileRole !== "both" ? profileRole : null);
+  const suggested = guessShift();
+  // This card is reopened from two places, and one of them — "לעדכון המשמרת" inside the
+  // hidden-tasks section — sits at the BOTTOM of a scrolled screen while the card itself
+  // renders at the top. Without this the fix button looked like it did nothing.
+  const box = useRef(null);
+  useEffect(() => { box.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, []);
 
   return (
-    <div className="bg-[#16181c] border border-[#22c08c]/40 rounded-2xl p-4 space-y-3">
+    <div ref={box} className="bg-[#16181c] border border-[#22c08c]/40 rounded-2xl p-4 space-y-3">
       <div>
         <p className="text-[15px] font-black text-[#eef0f6]">איזו משמרת היום?</p>
         <p className="text-[11px] text-[#8a8aa0] mt-0.5">התשובה קובעת אילו משימות יוצגו.</p>
@@ -152,7 +167,9 @@ export function ShiftQuestion({ profileRole, onPick, onResetProfile }) {
               <button
                 key={sh.id}
                 onClick={() => onPick(sh.id, dayRole)}
-                className="py-3 min-h-[64px] rounded-xl bg-[#20232b] border border-[#22252b] flex flex-col items-center gap-1 px-1 active:scale-[0.98] transition-transform"
+                className={`py-3 min-h-[64px] rounded-xl bg-[#20232b] border flex flex-col items-center gap-1 px-1 active:scale-[0.98] transition-transform ${
+                  sh.id === suggested ? "border-[#22c08c]" : "border-[#22252b]"
+                }`}
               >
                 <Icon size={17} className="text-[#22c08c]" />
                 <span className="text-[11px] font-black text-[#eef0f6] leading-tight text-center">{sh.label}</span>
@@ -173,17 +190,25 @@ export function ShiftQuestion({ profileRole, onPick, onResetProfile }) {
 }
 
 // The collapsed state: one line saying what was answered, tappable to change it.
+// ⚠️ "בלי משמרת" is drawn LOUDER than the other two answers (user, 2026-08-26). It is the
+// only answer that takes content off the screen, and in grey 11px nobody connected the
+// missing checklists to a tap they made at the door — the list just looked short.
 export function ShiftChip({ shift, role, onChange }) {
+  const muting = shift === "none";
   return (
     <button
       onClick={onChange}
-      className="w-full bg-[#16181c] border border-[#22252b] rounded-xl px-3 py-2 flex items-center gap-2 active:scale-[0.99] transition-transform"
+      className={`w-full rounded-xl px-3 py-2 flex items-center gap-2 active:scale-[0.99] transition-transform border ${
+        muting ? "bg-[#33290f]/40 border-[#f3a712]/50" : "bg-[#16181c] border-[#22252b]"
+      }`}
     >
-      <span className="text-[11px] font-black text-[#22c08c]">{shiftLabel(shift)}</span>
+      <span className={`text-[11px] font-black ${muting ? "text-[#f3a712]" : "text-[#22c08c]"}`}>{shiftLabel(shift)}</span>
       <span className="text-[10px] text-[#5a5a6e]">·</span>
       <span className="text-[11px] font-bold text-[#c4c4d4]">{gz(roleLabel(role))}</span>
       <span className="flex-1" />
-      <span className="text-[10px] font-bold text-[#5a5a6e] flex items-center gap-1"><Pencil size={11} />לשינוי</span>
+      <span className={`text-[10px] font-bold flex items-center gap-1 ${muting ? "text-[#f3a712]" : "text-[#5a5a6e]"}`}>
+        <Pencil size={11} />לשינוי
+      </span>
     </button>
   );
 }

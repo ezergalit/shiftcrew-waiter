@@ -23,6 +23,18 @@ export const SHIFTS = [
 
 export const shiftLabel = (id) => SHIFTS.find((s) => s.id === id)?.short || "";
 
+// A suggested answer, from the clock (user, 2026-08-26). Someone opening the app before
+// mid-afternoon is nearly always starting the opening shift, and after it the evening
+// one — so the app offers the likely answer and the waiter confirms or corrects, rather
+// than choosing from scratch at the door (partner ledger #8: we fill in, they approve).
+// ⚠️ A guess is a SUGGESTION and never a default: nothing is stored until the waiter
+// taps. It is safe precisely because a wrong shift no longer hides anything — the
+// checklists it filters out stay on screen, collapsed and one tap from coming back.
+export const OPENING_UNTIL_HOUR = 15;
+export function guessShift(now = new Date()) {
+  return now.getHours() < OPENING_UNTIL_HOUR ? "opening" : "closing";
+}
+
 const today = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
