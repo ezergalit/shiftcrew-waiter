@@ -19,7 +19,7 @@ const db = supabase.schema("menu_app");
 const SELF_RATING_QUESTIONS = [
   {
     id: "experience",
-    q: "כמה זמן את/ה עובד/ת במסעדנות?",
+    q: "כמה זמן במסעדנות?",
     options: ["זו ההתחלה שלי", "פחות משנה", "1–3 שנים", "יותר מ-3 שנים"],
   },
   {
@@ -212,7 +212,7 @@ export default function BaselineIntake({ session, onDone }) {
     const allAnswered = SELF_RATING_QUESTIONS.every((q) => ratings[q.id]);
     return (
       <Shell>
-        <p className="text-[11px] font-bold text-[#8a8aa0] mb-3">קודם כמה שאלות עלייך</p>
+        <p className="text-[11px] font-bold text-[#8a8aa0] mb-3">קודם כמה שאלות היכרות</p>
         <div className="flex-1 overflow-y-auto space-y-5">
           {SELF_RATING_QUESTIONS.map((q) => (
             <div key={q.id}>

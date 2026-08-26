@@ -112,7 +112,7 @@ export default function TasksTab({ tasks, onDone, children }) {
         )}
       </span>
       <span className={`flex-shrink-0 font-black ${t.done ? "text-[10px] text-[#22c08c]" : "text-[11px] text-[#22c08c]"}`}>
-        {t.done ? "בוצע ✓" : t.cta || "לפתיחה ←"}
+        {t.done ? "בוצע ✓" : t.cta || "לפרטים ←"}
       </span>
     </button>
   );
