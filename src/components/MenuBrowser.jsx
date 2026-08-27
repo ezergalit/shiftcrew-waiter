@@ -372,12 +372,43 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
 
   // ---- level 1: the menu door (source of truth: crewmenu-menu-page.html) ----
   // One flat page: greeting (topSlot) · search · color legend · every category as a
-  // glass row with a progress miniring · About (bottomSlot). No menu-group level —
-  // search replaces drilling, and the categories keep the printed menu's order.
+  // glass row with a progress miniring · About (bottomSlot). No menu-group level.
+  // A search shows the MATCHING DISHES themselves (user, 2026-08-27), with any
+  // category whose own name matches above them; tapping a dish opens it in its
+  // category context, so the prev/next walk still works.
   const allCats = [...new Set((cards || []).map((c) => c.category).filter(Boolean))];
   const nq = q.trim();
-  const catMatches = (c, inCat) => !nq || c.includes(nq) ||
-    inCat.some((d) => (d.name || "").includes(nq) || (d.ingredients || []).some((i) => String(i).includes(nq)));
+  const openDish = (d) => {
+    const items = (cards || []).filter((x) => x.category === d.category)
+      .sort((a, b) => (a.menuPosition ?? 0) - (b.menuPosition ?? 0));
+    setCat(d.category);
+    setIdx(Math.max(0, items.findIndex((x) => x.id === d.id)));
+  };
+  const catRow = (c) => {
+    const inCat = (cards || []).filter((x) => x.category === c);
+    const vis = categoryVisual(c);
+    const photo = inCat.find((x) => x.imageUrl)?.imageUrl;
+    const knowledge = inCat.every((x) => x.knowledge);
+    const pct = pctFor ? pctFor(inCat) : 0;
+    const left = leftFor ? leftFor(inCat) : inCat.length;
+    const nWord = knowledge ? nLabel(inCat.length, "נושא", "נושאים") : nLabel(inCat.length, "מנה", "מנות");
+    const sub = pct > 0 ? `${nWord} · ${left > 0 ? `נשארו ${left} לשליטה` : "הכל בשליטה"}` : nWord;
+    return (
+      <button key={c} className="glass cat" data-tour="browse-category" onClick={() => setCat(c)}>
+        <span className="icon" aria-hidden>{photo ? <img src={photo} alt="" loading="lazy" /> : vis.emoji}</span>
+        <span className="flex-1 min-w-0"><h3 className="line-clamp-1">{shortCat(c)}</h3><p>{sub}</p></span>
+        {/* r=18 ⇒ circumference 113; dashoffset = 113 * (1 - pct/100) */}
+        <span className="miniring">
+          <svg width="46" height="46"><circle className="track" cx="23" cy="23" r="18" /><circle className="fill" cx="23" cy="23" r="18" strokeDasharray="113" strokeDashoffset={113 * (1 - pct / 100)} /></svg>
+          <b className="num tabular-nums">{pct}%</b>
+        </span>
+      </button>
+    );
+  };
+  const nameCats = nq ? allCats.filter((c) => c.includes(nq)) : [];
+  const dishMatches = nq
+    ? (cards || []).filter((d) => (d.name || "").includes(nq) || (d.ingredients || []).some((i) => String(i).includes(nq))).slice(0, 40)
+    : [];
   return (
     <div className="flex flex-col gap-3.5">
       {topSlot}
@@ -390,31 +421,33 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
         <span className="chip purple"><i className="dot" />הריון</span>
         <span className="chip amber"><i className="dot" />מוקשים</span>
       </div>
-      <div className="flex flex-col gap-3">
-        {allCats.map((c) => {
-          const inCat = (cards || []).filter((x) => x.category === c);
-          if (!catMatches(c, inCat)) return null;
-          const vis = categoryVisual(c);
-          const photo = inCat.find((x) => x.imageUrl)?.imageUrl;
-          const knowledge = inCat.every((x) => x.knowledge);
-          const pct = pctFor ? pctFor(inCat) : 0;
-          const left = leftFor ? leftFor(inCat) : inCat.length;
-          const nWord = knowledge ? nLabel(inCat.length, "נושא", "נושאים") : nLabel(inCat.length, "מנה", "מנות");
-          const sub = pct > 0 ? `${nWord} · ${left > 0 ? `נשארו ${left} לשליטה` : "הכל בשליטה"}` : nWord;
-          return (
-            <button key={c} className="glass cat" data-tour="browse-category" onClick={() => setCat(c)}>
-              <span className="icon" aria-hidden>{photo ? <img src={photo} alt="" loading="lazy" /> : vis.emoji}</span>
-              <span className="flex-1 min-w-0"><h3 className="line-clamp-1">{shortCat(c)}</h3><p>{sub}</p></span>
-              {/* r=18 ⇒ circumference 113; dashoffset = 113 * (1 - pct/100) */}
-              <span className="miniring">
-                <svg width="46" height="46"><circle className="track" cx="23" cy="23" r="18" /><circle className="fill" cx="23" cy="23" r="18" strokeDasharray="113" strokeDashoffset={113 * (1 - pct / 100)} /></svg>
-                <b className="num tabular-nums">{pct}%</b>
-              </span>
-            </button>
-          );
-        })}
-        {(!nq || "אודות המסעדה".includes(nq)) && bottomSlot}
-      </div>
+      {!nq ? (
+        <div className="flex flex-col gap-3">
+          {allCats.map(catRow)}
+          {bottomSlot}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {nameCats.map(catRow)}
+          {dishMatches.length > 0 && <p className="au-label px-1">{nLabel(dishMatches.length, "מנה", "מנות")} שנמצאו</p>}
+          {dishMatches.map((d) => {
+            const vis = categoryVisual(d.category);
+            return (
+              <button key={d.id} className="glass cat" onClick={() => openDish(d)}>
+                <span className="icon" aria-hidden>{d.imageUrl ? <img src={d.imageUrl} alt="" loading="lazy" /> : vis.emoji}</span>
+                <span className="flex-1 min-w-0">
+                  <h3 className="line-clamp-1">{d.name}</h3>
+                  <p className="line-clamp-1">{shortCat(d.category)}{Number(d.price) > 0 ? ` · ${Number(d.price)} ₪` : ""}</p>
+                </span>
+                <ChevronLeft size={16} className="chev" />
+              </button>
+            );
+          })}
+          {nameCats.length === 0 && dishMatches.length === 0 && (
+            <p className="au-label px-1">לא נמצא כלום עבור ״{nq}״ — נסו שם מנה, מרכיב או קטגוריה.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
