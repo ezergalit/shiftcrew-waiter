@@ -14,7 +14,7 @@ import {
   saveDailyRole, gz, taskFitsShift, taskFitsRole,
 } from "../lib/shiftChoice";
 import MenuBrowser from "../components/MenuBrowser";
-import { AboutScreen } from "../components/AboutRestaurant";
+import { AboutCard, AboutScreen } from "../components/AboutRestaurant";
 import Ring from "../components/Ring";
 import "../aurora.css";
 import { isUnderstood } from "../lib/progressiveSession";
@@ -143,6 +143,10 @@ export default function MainApp({ session, onSignOut }) {
   // Per-restaurant wallpaper: features.tasks === false strips the shift layer (tasks tab,
   // shift picker, brief gate) and the app becomes menu + learning — Studio's request.
   const tasksOff = trainee || session?.features?.tasks === false;
+  // ⚠️ The «אורורה» skin is opt-in per restaurant (restaurants.features.design).
+  // Without it a restaurant renders exactly the app it rendered before — which is what
+  // keeps CREWDEMO (in Apple review) and the Google testers' restaurants untouched.
+  const aurora = session?.features?.design === "aurora";
   const [tourStep, setTourStep] = useState(0);
   const [showMetrics, setShowMetrics] = useState(false); // flashcards | quiz | match | speed | exam | …
   const [modeItems, setModeItems] = useState(null); // scoped items for a challenge round; null = full menu
@@ -862,6 +866,39 @@ export default function MainApp({ session, onSignOut }) {
   // the top of the learning tab is the first thing a new waiter reads, and it frames the
   // screen as blocked. The tour explains the path; this tab just shows what to practise,
   // and the exam appears the day it is actually available.
+  // The concept's hero (crewmenu-menu-page.html language): the one thing to do next,
+  // stated as a sentence — how many dishes are left and whether the exam is in reach.
+  const learnHero = () => {
+    const rec = path.recommended;
+    if (!rec || !aurora) return null;
+    const left = (rec.items || []).filter((it) => (fivesById?.[it.id] || 0) < 2).length;
+    const line = rec.examUnlocked
+      ? "יש לך מספיק ידע — אפשר לגשת לבוחן"
+      : left > 0
+        ? `נשארו ${left} ${left === 1 ? "מנה" : "מנות"} ואפשר לגשת לבוחן`
+        : "עוד קצת תרגול ואפשר לגשת לבוחן";
+    return (
+      <div className="glass" style={{ borderColor: "rgba(34,192,140,.28)", background: "linear-gradient(160deg,rgba(20,72,58,.55),rgba(14,42,34,.6))" }}>
+        <div className="flex items-center gap-3.5">
+          <span className="miniring" style={{ width: 54, height: 54 }}>
+            <svg width="54" height="54" viewBox="0 0 46 46"><circle className="track" cx="23" cy="23" r="18" /><circle className="fill" cx="23" cy="23" r="18" strokeDasharray="113" strokeDashoffset={113 * (1 - (rec.pct ?? 0) / 100)} /></svg>
+            <b className="num tabular-nums">{rec.pct ?? 0}%</b>
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-[10.5px] font-black text-[#22C08C] tracking-wide">מומלץ עכשיו</span>
+            <h3 className="text-[19px] font-extrabold leading-tight line-clamp-1">{shortCat(rec.key)}</h3>
+            <span className="block au-label mt-0.5 line-clamp-1">{line}</span>
+          </span>
+        </div>
+        <button onClick={() => startProgressive(rec.key)}
+          className="w-full mt-3.5 py-3 min-h-[46px] rounded-2xl font-extrabold text-sm text-[#06231a] active:scale-[0.98] transition-transform"
+          style={{ background: "linear-gradient(135deg,#22C08C,#17805d)" }}>
+          המשך תרגול ←
+        </button>
+      </div>
+    );
+  };
+
   const generalExamCard = () =>
     generalUnlocked ? (
       <button
@@ -880,15 +917,16 @@ export default function MainApp({ session, onSignOut }) {
     ) : null;
 
   return (
-    <div className="h-screen max-w-md mx-auto flex flex-col bg-transparent text-[#eef0f6]" dir="rtl">
-      <div className="aurora" aria-hidden><i></i><i></i><i></i></div>
-      <div className="grain" aria-hidden></div>
+    <div className={`h-screen max-w-md mx-auto flex flex-col text-[#eef0f6] ${aurora ? "aurora-skin bg-[#0C0D10]" : "bg-[#0c0d10]"}`} dir="rtl">
+      {aurora && <><div className="aurora" aria-hidden><i></i><i></i><i></i></div><div className="grain" aria-hidden></div></>}
       {/* First-run interactive tour: walks the real screens, one step per tab. Shown once
           per member — the flag is device-scoped, same as the welcome slides. */}
       {tourNode}
       {/* Header */}
       <div className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 flex items-center justify-between flex-shrink-0"
-           style={{ background: "rgba(12,13,16,0.75)", backdropFilter: "blur(18px)", borderBottom: "1px solid rgba(238,240,246,0.08)" }}>
+           style={aurora
+             ? { background: "rgba(12,13,16,0.75)", backdropFilter: "blur(18px)", borderBottom: "1px solid rgba(238,240,246,0.08)" }
+             : { background: "#16181c", borderBottom: "1px solid #22252b" }}>
         <SignOutButton onSignOut={onSignOut} />
         <div className="text-center">
           <p className="text-sm font-black">{session?.name}</p>
@@ -1100,43 +1138,39 @@ export default function MainApp({ session, onSignOut }) {
           <div className="space-y-2">
             {/* The whole-menu exam is the goal this tab exists for, so it sits at the top
                 level rather than one drill-down in. */}
+            {aurora && <h2 className="text-[23px] font-extrabold">תרגול ובחינה</h2>}
+            <p className={aurora ? "au-label leading-relaxed" : "text-[11px] text-[#8a8aa0] px-1 leading-relaxed"}>בוחרים תפריט, מתרגלים את המנות שבו, וכשמוכנים — נבחנים.</p>
+            {learnHero()}
             {generalExamCard()}
-            <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">
-              קודם עוברים על המנות בתפריט, אחר כך נבחנים בכל קטגוריה.
-            </p>
-            {/* Aurora hero: the one thing to do next, above the full list */}
-            {path.recommended && (
-              <div className="rounded-3xl p-4 bg-[#123528]/70 border border-[#22c08c]/25"
-                   style={{ boxShadow: "0 0 46px rgba(34,192,140,0.12) inset, 0 0 26px rgba(34,192,140,0.10)" }}>
-                <div className="flex items-center gap-3.5">
-                  <Ring pct={path.recommended.pct ?? 0} size={54} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10.5px] font-black text-[#22c08c] tracking-wide">מומלץ עכשיו</p>
-                    <p className="text-base font-black text-[#eef0f6] leading-tight line-clamp-1">{shortCat(path.recommended.key)}</p>
-                  </div>
-                </div>
-                <button onClick={() => startProgressive(path.recommended.key)}
-                  className="w-full mt-3 py-3 min-h-[46px] rounded-2xl font-black text-sm text-[#06231a] active:scale-[0.99] transition-transform"
-                  style={{ background: "linear-gradient(135deg,#22c08c,#17805d)" }}>
-                  המשך תרגול ←
-                </button>
-              </div>
-            )}
+            {aurora && <p className="au-label px-1 mt-1">כל התפריטים</p>}
             {menuGroups.map(({ g, items, catCount }) => {
               const pct = scorePct(items);
               return (
-                <button key={g} data-tour="learn-menu" onClick={() => setGroupView(g)}
-                  className="w-full text-right rounded-3xl p-4 border active:scale-[0.99] transition-transform flex items-center gap-3.5"
-                  style={{ background: "linear-gradient(160deg, rgba(34,192,140,0.06), rgba(255,255,255,0.03))", borderColor: "rgba(34,192,140,0.14)" }}>
-                  <Ring pct={pct} />
+                aurora ? (
+                <button key={g} data-tour="learn-menu" onClick={() => setGroupView(g)} className="glass cat">
                   <span className="flex-1 min-w-0">
-                    <span className="block text-sm font-black text-[#eef0f6] line-clamp-1">{g}</span>
-                    <span className="block text-[11px] text-[#8a8aa0] mt-1">{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nLabel(items.length, "מנה", "מנות")}</span>
-                    {/* Say what the tap does, in the words the waiter would use for it
-                        (user, 2026-08-20) — "לתרגול תפריט סושי", not a bare menu name. */}
-                    <span className="block text-[11px] font-black text-[#22c08c] mt-1">לתרגול {g} ←</span>
+                    <h3 className="line-clamp-1">{g}</h3>
+                    <p>{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nLabel(items.length, "מנה", "מנות")}</p>
+                  </span>
+                  <span className="miniring">
+                    <svg width="46" height="46"><circle className="track" cx="23" cy="23" r="18" /><circle className="fill" cx="23" cy="23" r="18" strokeDasharray="113" strokeDashoffset={113 * (1 - pct / 100)} /></svg>
+                    <b className="num tabular-nums">{pct}%</b>
                   </span>
                 </button>
+                ) : (
+                <button key={g} data-tour="learn-menu" onClick={() => setGroupView(g)}
+                  className="w-full text-right bg-[#16181c] rounded-2xl p-3.5 border border-[#22252b] active:scale-[0.99] transition-transform">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-black text-[#eef0f6]">{g}</span>
+                    <span className="text-xs font-black" style={{ color: pct >= 50 ? "#22c08c" : pct > 0 ? "#f3a712" : "#5a5a6e" }}>{pct}%</span>
+                  </div>
+                  <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mt-2">
+                    <div className="h-full transition-all" style={{ width: `${pct}%`, background: pct >= 50 ? "#22c08c" : "#6d5efc" }} />
+                  </div>
+                  <p className="text-[11px] text-[#8a8aa0] mt-1.5">{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nLabel(items.length, "מנה", "מנות")}</p>
+                  <p className="text-[11px] font-black text-[#22c08c] mt-1.5">לתרגול {g} ←</p>
+                </button>
+                )
               );
             })}
           </div>
@@ -1156,12 +1190,15 @@ export default function MainApp({ session, onSignOut }) {
                 </div>
               </div>
             )}
-            {generalExamCard()}
-            <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">
+            {aurora && !groupView && <h2 className="text-[23px] font-extrabold">תרגול ובחינה</h2>}
+            <p className={aurora ? "au-label leading-relaxed" : "text-[11px] text-[#8a8aa0] px-1 leading-relaxed"}>
               {/* No order is imposed — steer, never block. */}
-              בוחרים קטגוריה, עוברים על המנות שבה, וכשמכירים אותן — נבחנים.
-              {path.recommended ? ` ממליצים להתחיל ב${shortCat(path.recommended.key)}.` : ""}
+              בוחרים קטגוריה, מתרגלים את המנות שבה, וכשמוכנים — נבחנים.
+              {!aurora && path.recommended ? ` ממליצים להתחיל ב${shortCat(path.recommended.key)}.` : ""}
             </p>
+            {!groupView && learnHero()}
+            {generalExamCard()}
+            {aurora && <p className="au-label px-1 mt-1">כל הקטגוריות</p>}
             {/* `path.categories` is built from the whole menu — inside a menu, show only
                 that menu's categories, or the header and the list disagree. */}
             {path.categories.filter((cat) => !groupView || cat.items?.[0]?.menuGroup === groupView).map((cat) => {
@@ -1171,34 +1208,51 @@ export default function MainApp({ session, onSignOut }) {
               // unpassable — a locked graduation would stall every category behind it.
               const examReady = cat.examUnlocked;
               return (
-                <div key={cat.key} className="rounded-2xl p-3 bg-[#16181c]">
+                <div key={cat.key} className={aurora ? "glass" : "rounded-2xl p-3 bg-[#16181c]"} style={aurora ? { padding: 14 } : undefined}>
                   <button
                     data-tour="learn-category"
                     onClick={() => setCatView(cat.key)}
-                    className="w-full text-right active:scale-[0.99] transition-transform"
+                    className={aurora ? "cat" : "w-full text-right active:scale-[0.99] transition-transform"}
                   >
-                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                    {!aurora && (
+                      <>
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <p className="text-xs font-black text-[#eef0f6] line-clamp-2 flex-1 flex items-center gap-1.5" title={catLabel(cat.key)}>
+                            {cat.passed && <Check size={12} className="text-[#22c08c] flex-shrink-0" />}
+                            {catLabel(cat.key)}
+                          </p>
+                          <span className="text-[11px] font-bold text-[#6d5efc] flex-shrink-0">{cat.pct}%</span>
+                        </div>
+                        <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden">
+                          <div className="h-full transition-all" style={{ width: `${cat.pct}%`, background: cat.passed ? "#22c08c" : "#6d5efc" }} />
+                        </div>
+                        <p className="text-[11px] text-[#8a8aa0] mt-1">
+                          {nLabel(cat.items.length, "מנה", "מנות")} · {gz("לחץ/י כדי לתרגל")}
+                          {cat.passed ? " · נכלל בתרגול" : path.recommended?.key === cat.key ? " · מומלץ להתחיל כאן" : ""}
+                        </p>
+                      </>
+                    )}
+                    {aurora && <span className="flex-1 min-w-0">
                       {/* Imported categories can carry their whole explanatory line
                           ("מאקי — 6 יחידות, אצה בחוץ…"), so clamp instead of letting one
                           row grow to four lines. */}
-                      <p className="text-xs font-black text-[#eef0f6] line-clamp-2 flex-1 flex items-center gap-1.5" title={catLabel(cat.key)}>
-                        {cat.passed && <Check size={12} className="text-[#22c08c] flex-shrink-0" />}
-                        {catLabel(cat.key)}
+                      <h3 className="line-clamp-1 flex items-center gap-1.5" title={catLabel(cat.key)}>
+                        {cat.passed && <Check size={13} className="text-[#22C08C] flex-shrink-0" />}
+                        {shortCat(cat.key)}
+                      </h3>
+                      <p>
+                        {nLabel(cat.items.length, "מנה", "מנות")}
+                        {(() => { const m = cat.items.filter((it) => (fivesById?.[it.id] || 0) >= 2).length; return m > 0 ? ` · ${m} בשליטה` : ""; })()}
                       </p>
-                      <span className="text-[11px] font-bold text-[#6d5efc] flex-shrink-0">{cat.pct}%</span>
-                    </div>
-                    <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden">
-                      <div className="h-full transition-all" style={{ width: `${cat.pct}%`, background: cat.passed ? "#22c08c" : "#6d5efc" }} />
-                    </div>
-                    <p className="text-[11px] text-[#8a8aa0] mt-1">
-                      {/* shortCat, not the full label: imported categories carry their
-                          whole explanation ("מאקי — 6 יחידות, אצה בחוץ ואורז בפנים") and
-                          inlining that makes the sentence unreadable. */}
-                      {nLabel(cat.items.length, "מנה", "מנות")} · {gz("לחץ/י כדי לתרגל")}
-                      {cat.passed
-                        ? " · נכלל בתרגול"
-                        : path.recommended?.key === cat.key ? " · מומלץ להתחיל כאן" : ""}
-                    </p>
+                      <span className={`chip mt-2 ${examReady ? "" : "opacity-60"}`}
+                            style={examReady ? { background: "rgba(34,192,140,.12)", borderColor: "rgba(34,192,140,.35)", color: "#22C08C" } : undefined}>
+                        {cat.passed ? "עברת את הבוחן ✓" : examReady ? "הבוחן זמין" : `בוחן ב-${examConfig?.pass_threshold ?? 50}%`}
+                      </span>
+                    </span>}
+                    {aurora && <span className="miniring">
+                      <svg width="46" height="46"><circle className="track" cx="23" cy="23" r="18" /><circle className="fill" cx="23" cy="23" r="18" strokeDasharray="113" strokeDashoffset={113 * (1 - cat.pct / 100)} /></svg>
+                      <b className="num tabular-nums">{cat.pct}%</b>
+                    </span>}
                   </button>
                   {/* ⚠️ Not ready ⇒ no exam row at all (user, 2026-08-20). The old
                       "reach 50% to take the exam" line named a number the waiter has no
@@ -1244,32 +1298,40 @@ export default function MainApp({ session, onSignOut }) {
         {/* The menu tab is the menu: menu → category → dishes with descriptions. Read
             only, so checking a dish mid-shift never touches the waiter's score. */}
         {tab === "categories" && (
-          <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} pctFor={scorePct} leftFor={leftFor}
+          <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} pctFor={scorePct} leftFor={leftFor} aurora={aurora}
             bottomSlot={
-              <button onClick={() => setShowAbout(true)} className="glass cat" data-name="אודות המסעדה">
-                <span className="icon" aria-hidden>🏛️</span>
-                <span className="flex-1 min-w-0"><h3>אודות המסעדה</h3><p>מי אנחנו ואיך אנחנו מארחים</p></span>
-                <ChevronLeft size={16} className="chev" />
-              </button>
+              aurora ? (
+                <button onClick={() => setShowAbout(true)} className="glass cat" data-name="אודות המסעדה">
+                  <span className="icon" aria-hidden>🏛️</span>
+                  <span className="flex-1 min-w-0"><h3>אודות המסעדה</h3><p>מי אנחנו ואיך אנחנו מארחים</p></span>
+                  <ChevronLeft size={16} className="chev" />
+                </button>
+              ) : <AboutCard session={session} onOpen={() => setShowAbout(true)} />
             }
             topSlot={<>
               {tasksOff && !trainee && (() => {
                 const h = new Date().getHours();
                 const hello = h < 5 ? "לילה טוב" : h < 12 ? "בוקר טוב" : h < 17 ? "צהריים טובים" : "ערב טוב";
                 const first = (session?.firstName || session?.name || "").split(" ")[0];
-                return (
+                const sub = `${session?.restaurantName}${pct > 0 ? ` · ${pct}% מהתפריט אצלך` : " · מתחילים מהתפריט"}`;
+                return aurora ? (
                   <button className="hdr" aria-label="פתיחת המדדים שלי" onClick={() => setShowMetrics(true)}>
                     <span className="avatar">{(first || "🙂").slice(0, 2)}</span>
                     <span className="flex-1 min-w-0 text-right">
                       <h2>{hello}, {first || "לך"}
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 10 6 6 6-6" /></svg>
                       </h2>
-                      <span className="au-label">{session?.restaurantName}{pct > 0 ? ` · ${pct}% מהתפריט אצלך` : " · מתחילים מהתפריט"}</span>
+                      <span className="au-label">{sub}</span>
                     </span>
                   </button>
+                ) : (
+                  <div className="rounded-2xl p-4 mb-2.5 text-[#EEF0F6]" style={{ background: "linear-gradient(135deg,#0F5C46,#0a3d2f)" }}>
+                    <p className="text-base font-black">שלום {first || "לך"} 👋</p>
+                    <p className="text-xs font-bold text-[#EEF0F6]/80 mt-1">{sub}</p>
+                  </div>
                 );
               })()}
-              <h2 className="text-[23px] font-extrabold mt-0.5">התפריט</h2>
+              {aurora && <h2 className="text-[23px] font-extrabold mt-0.5">התפריט</h2>}
             </>} />
         )}
 
@@ -1335,13 +1397,13 @@ export default function MainApp({ session, onSignOut }) {
               </div>
 
       {showAbout && <AboutScreen session={session} onClose={() => setShowAbout(false)} />}
-      <BottomNav tab={tab} setTab={setTab} hideTasks={tasksOff}
+      <BottomNav tab={tab} setTab={setTab} aurora={aurora} hideTasks={tasksOff}
         hasDailyUpdate={!!(brief?.missing_items?.length || brief?.new_items?.length || brief?.oven_items?.length)} />
     </div>
   );
 }
 
-function BottomNav({ tab, setTab, hasDailyUpdate, hideTasks }) {
+function BottomNav({ tab, setTab, hasDailyUpdate, hideTasks, aurora }) {
   const items = [
     // Tasks · Menu · Learning (user, 2026-08-20). "בית" was never a place — it was a
     // pile of cards; the shift checklist is what a waiter actually opens the app for.
@@ -1352,17 +1414,20 @@ function BottomNav({ tab, setTab, hasDailyUpdate, hideTasks }) {
     ["learn", "🎓", "תרגול ובחינה", false],
   ];
   return (
-    <div className="au-nav flex-shrink-0 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+    <div className={`${aurora ? "au-nav" : ""} flex-shrink-0 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]`}
+      style={aurora ? undefined : { background: "rgba(22,24,28,0.92)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
       <div className="flex">
         {items.map(([t, icon, label, badge]) => {
           const active = tab === t;
           return (
-            <button key={t} data-tour={`nav-${t}`} onClick={() => setTab(t)} className={`flex-1 ${active ? "on" : ""}`}>
+            <button key={t} data-tour={`nav-${t}`} onClick={() => setTab(t)}
+              className={aurora ? `flex-1 ${active ? "on" : ""}` : "flex-1 flex flex-col items-center gap-1 py-1 relative transition-colors"}>
+              {!aurora && active && <div className="absolute inset-x-2 top-0 h-9 bg-white/[0.07] rounded-2xl" />}
               <span className="relative">
-                <span className="ic" aria-hidden>{icon}</span>
+                <span className={aurora ? "ic" : `text-[19px] leading-none ${active ? "" : "grayscale opacity-70"}`} aria-hidden>{icon}</span>
                 {badge && <span className="absolute -top-1 -left-1.5 w-2 h-2 rounded-full bg-[#e0315a]" />}
               </span>
-              {label}
+              {aurora ? label : <span className={`text-[11px] font-semibold ${active ? "text-white" : "text-[#8a8aa0]"}`}>{label}</span>}
             </button>
           );
         })}

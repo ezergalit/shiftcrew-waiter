@@ -28,7 +28,7 @@ const FLAG_GROUPS = [
     note: "לא מסוכן — פשוט טעם שאורחים רבים מבקשים בלעדיו (כוסברה, חריף, שום)." },
 ];
 
-export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, pctFor = null, leftFor = null }) {
+export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, pctFor = null, leftFor = null, aurora = false }) {
   // Search on the menu door (the handoff page's dynamic): a query matches a category by
   // its name, or by any dish name / ingredient inside it — a waiter looking for "כמהין"
   // should land on the categories that serve it.
@@ -370,6 +370,32 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
     );
   }
 
+
+  // Unskinned restaurants keep the two-level browser they already had: menus, then
+  // categories. Nothing about their app changed.
+  if (!aurora) {
+    return (
+      <div className="space-y-2.5">
+        {topSlot}
+        <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">התפריט של המסעדה — אפשר לפתוח כל תפריט ולעיין בו.</p>
+        {menus.map((m2) => {
+          const inG = (cards || []).filter((c) => c.menuGroup === m2);
+          const catCount = new Set(inG.map((c) => c.category)).size;
+          return (
+            <button key={m2} onClick={() => setMenu(m2)} data-tour="browse-menu"
+              className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-5 flex items-center gap-3 active:scale-[0.99] transition-transform">
+              <span className="flex-1 min-w-0">
+                <span className="block text-[18px] font-black text-[#eef0f6]">{m2}</span>
+                <span className="block text-[11px] text-[#8a8aa0] mt-1">{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nLabel(inG.length, "פריט", "פריטים")}</span>
+              </span>
+              <ChevronLeft size={18} className="text-[#5a5a6e] flex-shrink-0" />
+            </button>
+          );
+        })}
+        {bottomSlot}
+      </div>
+    );
+  }
   // ---- level 1: the menu door (source of truth: crewmenu-menu-page.html) ----
   // One flat page: greeting (topSlot) · search · color legend · every category as a
   // glass row with a progress miniring · About (bottomSlot). No menu-group level.
