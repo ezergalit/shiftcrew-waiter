@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronRight, ChevronLeft, X } from "lucide-react";
 import { categoryVisual } from "../lib/categoryVisual";
+import Ring from "./Ring";
 import { shortCat, nLabel } from "../games/shared";
 
 // The menu, as a menu (user, 2026-08-20). Not progress, not exams — the thing a waiter
@@ -27,16 +28,21 @@ const FLAG_GROUPS = [
     note: "לא מסוכן — פשוט טעם שאורחים רבים מבקשים בלעדיו (כוסברה, חריף, שום)." },
 ];
 
-export default function MenuBrowser({ cards, onPractice }) {
+export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, pctFor = null, leftFor = null, aurora = false }) {
+  // Search on the menu door (the handoff page's dynamic): a query matches a category by
+  // its name, or by any dish name / ingredient inside it — a waiter looking for "כמהין"
+  // should land on the categories that serve it.
+  const [q, setQ] = useState("");
   const [menu, setMenu] = useState(null);
   const [cat, setCat] = useState(null);
-  const [idx, setIdx] = useState(null);   // index into the open category, or null
+  const [idx, setIdx] = useState(null);
+  const [zoom, setZoom] = useState(null); // full-screen photo overlay   // index into the open category, or null
 
   const groups = [...new Set((cards || []).map((c) => c.menuGroup).filter(Boolean))];
   const firstPos = (g) => Math.min(...(cards || []).filter((c) => c.menuGroup === g).map((c) => c.menuPosition ?? 1e9));
   const menus = groups.sort((a, b) => firstPos(a) - firstPos(b));
   const flat = menus.length <= 1;
-  const inMenu = (c) => (flat ? true : c.menuGroup === menu);
+  const inMenu = (c) => (menu ? c.menuGroup === menu : true);
 
   const dishes = cat
     ? (cards || []).filter((c) => c.category === cat && inMenu(c))
@@ -195,6 +201,12 @@ export default function MenuBrowser({ cards, onPractice }) {
         <div className="flex-1 overflow-y-auto px-5 py-6">
           <div className="max-w-md mx-auto space-y-5">
             <div className="text-center space-y-3">
+              {d.imageUrl ? (
+                <button onClick={() => setZoom(d.imageUrl)} className="block w-full" aria-label="הגדלת התמונה">
+                  <img src={d.imageUrl} alt={d.name}
+                    className="w-full max-h-64 rounded-3xl object-contain bg-[#16181c] border border-[#22252b]" />
+                </button>
+              ) : (
               <span
                 className="w-20 h-20 rounded-3xl inline-flex items-center justify-center text-5xl"
                 style={{ background: `linear-gradient(135deg, ${vis.from}, ${vis.to}44)` }}
@@ -202,6 +214,7 @@ export default function MenuBrowser({ cards, onPractice }) {
               >
                 {vis.emoji}
               </span>
+              )}
               <h2 className="text-[28px] font-black text-[#eef0f6] leading-tight text-balance">{d.name}</h2>
               {Number(d.price) > 0 && (
                 <p className="text-[22px] font-black text-[#22c08c] tabular-nums">{Number(d.price)} ₪</p>
@@ -217,7 +230,7 @@ export default function MenuBrowser({ cards, onPractice }) {
 
             {d.ingredients?.length > 0 && (
               <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
-                <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide mb-2.5">מרכיבים</p>
+                <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide mb-2.5">{d.knowledge ? "נקודות מפתח" : "מרכיבים"}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {d.ingredients.map((i) => (
                     <span key={i} className="text-[13px] font-bold px-3 py-1.5 rounded-lg bg-[#20232b] text-[#c4c4d4]">{i}</span>
@@ -247,6 +260,16 @@ export default function MenuBrowser({ cards, onPractice }) {
           </div>
         </div>
 
+        {zoom && (
+          <button
+            onClick={() => setZoom(null)}
+            className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-3"
+            aria-label="סגירת התמונה"
+          >
+            <img src={zoom} alt="" className="max-w-full max-h-full rounded-2xl object-contain" />
+          </button>
+        )}
+
         {/* Walking the category is the study loop — the arrows are the main control here,
             not an afterthought, so they get a full bar of their own. */}
         <div className="flex-shrink-0 border-t border-[#22252b] bg-[#16181c] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center gap-2">
@@ -275,7 +298,7 @@ export default function MenuBrowser({ cards, onPractice }) {
     return (
       <div className="space-y-3.5">
         <Crumb over={flat ? null : menu} title={`${categoryVisual(cat).emoji} ${shortCat(cat)}`} onBack={() => setCat(null)} />
-        <p className="text-[11.5px] text-[#5a5a6e] px-1">{nLabel(dishes.length, "מנה", "מנות")} · הקשה על מנה פותחת אותה במלואה</p>
+        <p className="text-[11.5px] text-[#5a5a6e] px-1">{cat.startsWith("הדרכת") ? `${nLabel(dishes.length, "נושא", "נושאים")} · הקשה על נושא פותחת אותו במלואו` : `${nLabel(dishes.length, "מנה", "מנות")} · הקשה על מנה פותחת אותה במלואה`}</p>
         {dishes.map((d, i) => (
           <button
             key={d.id}
@@ -283,7 +306,11 @@ export default function MenuBrowser({ cards, onPractice }) {
             onClick={() => setIdx(i)}
             className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-5 space-y-2.5 active:scale-[0.99] transition-transform"
           >
-            <div className="flex items-baseline gap-3">
+            <div className="flex items-center gap-3">
+              {d.imageUrl && (
+                <img src={d.imageUrl} alt="" loading="lazy"
+                  className="w-14 h-14 rounded-xl object-cover flex-shrink-0 border border-[#22252b]" />
+              )}
               <p className="flex-1 text-[22px] font-black text-[#eef0f6] leading-snug">{d.name}</p>
               {Number(d.price) > 0 && (
                 <p className="text-[19px] font-black text-[#22c08c] tabular-nums flex-shrink-0">{Number(d.price)} ₪</p>
@@ -303,10 +330,15 @@ export default function MenuBrowser({ cards, onPractice }) {
     const list = [...new Set(pool.map((c) => c.category).filter(Boolean))];
     return (
       <div className="space-y-2.5">
+        {flat && topSlot}
         {!flat && <Crumb over="התפריטים" title={menu} onBack={() => setMenu(null)} />}
         {list.map((c) => {
           const vis = categoryVisual(c);
-          const n = pool.filter((x) => x.category === c).length;
+          const inCat = pool.filter((x) => x.category === c);
+          const n = inCat.length;
+          // A real dish photo from the category beats the generic emoji tile (user,
+          // 2026-08-27) — the emoji stays only for categories with no photos at all.
+          const photo = inCat.find((x) => x.imageUrl)?.imageUrl;
           return (
             <button
               key={c}
@@ -314,6 +346,10 @@ export default function MenuBrowser({ cards, onPractice }) {
               data-tour="browse-category"
               className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-5 flex items-center gap-4 active:scale-[0.99] transition-transform"
             >
+              {photo ? (
+                <img src={photo} alt="" loading="lazy"
+                  className="w-11 h-11 rounded-2xl object-cover flex-shrink-0 border border-[#22252b]" />
+              ) : (
               <span
                 className="w-11 h-11 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
                 style={{ background: `linear-gradient(135deg, ${vis.from}, ${vis.to}44)` }}
@@ -321,9 +357,10 @@ export default function MenuBrowser({ cards, onPractice }) {
               >
                 {vis.emoji}
               </span>
+              )}
               <span className="flex-1 min-w-0">
                 <span className="block text-[18px] font-black text-[#eef0f6] line-clamp-1">{shortCat(c)}</span>
-                <span className="block text-[12px] text-[#8a8aa0] mt-1.5">{nLabel(n, "מנה", "מנות")}</span>
+                <span className="block text-[12px] text-[#8a8aa0] mt-1.5">{c.startsWith("הדרכת") ? nLabel(n, "נושא", "נושאים") : nLabel(n, "מנה", "מנות")}</span>
               </span>
               <ChevronLeft size={18} className="text-[#5a5a6e] flex-shrink-0" />
             </button>
@@ -333,28 +370,106 @@ export default function MenuBrowser({ cards, onPractice }) {
     );
   }
 
-  // ---- level 1: the restaurant's menus ----
+
+  // Unskinned restaurants keep the two-level browser they already had: menus, then
+  // categories. Nothing about their app changed.
+  if (!aurora) {
+    return (
+      <div className="space-y-2.5">
+        {topSlot}
+        <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">התפריט של המסעדה — אפשר לפתוח כל תפריט ולעיין בו.</p>
+        {menus.map((m2) => {
+          const inG = (cards || []).filter((c) => c.menuGroup === m2);
+          const catCount = new Set(inG.map((c) => c.category)).size;
+          return (
+            <button key={m2} onClick={() => setMenu(m2)} data-tour="browse-menu"
+              className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-5 flex items-center gap-3 active:scale-[0.99] transition-transform">
+              <span className="flex-1 min-w-0">
+                <span className="block text-[18px] font-black text-[#eef0f6]">{m2}</span>
+                <span className="block text-[11px] text-[#8a8aa0] mt-1">{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nLabel(inG.length, "פריט", "פריטים")}</span>
+              </span>
+              <ChevronLeft size={18} className="text-[#5a5a6e] flex-shrink-0" />
+            </button>
+          );
+        })}
+        {bottomSlot}
+      </div>
+    );
+  }
+  // ---- level 1: the menu door (source of truth: crewmenu-menu-page.html) ----
+  // One flat page: greeting (topSlot) · search · color legend · every category as a
+  // glass row with a progress miniring · About (bottomSlot). No menu-group level.
+  // A search shows the MATCHING DISHES themselves (user, 2026-08-27), with any
+  // category whose own name matches above them; tapping a dish opens it in its
+  // category context, so the prev/next walk still works.
+  const allCats = [...new Set((cards || []).map((c) => c.category).filter(Boolean))];
+  const nq = q.trim();
+  const openDish = (d) => {
+    const items = (cards || []).filter((x) => x.category === d.category)
+      .sort((a, b) => (a.menuPosition ?? 0) - (b.menuPosition ?? 0));
+    setCat(d.category);
+    setIdx(Math.max(0, items.findIndex((x) => x.id === d.id)));
+  };
+  const catRow = (c) => {
+    const inCat = (cards || []).filter((x) => x.category === c);
+    const vis = categoryVisual(c);
+    const photo = inCat.find((x) => x.imageUrl)?.imageUrl;
+    const knowledge = inCat.every((x) => x.knowledge);
+    const pct = pctFor ? pctFor(inCat) : 0;
+    const left = leftFor ? leftFor(inCat) : inCat.length;
+    const nWord = knowledge ? nLabel(inCat.length, "נושא", "נושאים") : nLabel(inCat.length, "מנה", "מנות");
+    const sub = pct > 0 ? `${nWord} · ${left > 0 ? `נשארו ${left} לשליטה` : "הכל בשליטה"}` : nWord;
+    return (
+      <button key={c} className="glass cat" data-tour="browse-category" onClick={() => setCat(c)}>
+        <span className="icon" aria-hidden>{photo ? <img src={photo} alt="" loading="lazy" /> : vis.emoji}</span>
+        <span className="flex-1 min-w-0"><h3 className="line-clamp-1">{shortCat(c)}</h3><p>{sub}</p></span>
+        <Ring pct={pct} />
+      </button>
+    );
+  };
+  const nameCats = nq ? allCats.filter((c) => c.includes(nq)) : [];
+  const dishMatches = nq
+    ? (cards || []).filter((d) => (d.name || "").includes(nq) || (d.ingredients || []).some((i) => String(i).includes(nq))).slice(0, 40)
+    : [];
   return (
-    <div className="space-y-2.5">
-      <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">התפריט של המסעדה — אפשר לפתוח כל תפריט ולעיין בו.</p>
-      {menus.map((m) => {
-        const inG = (cards || []).filter((c) => c.menuGroup === m);
-        const catCount = new Set(inG.map((c) => c.category)).size;
-        return (
-          <button
-            key={m}
-            onClick={() => setMenu(m)}
-            data-tour="browse-menu"
-            className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-5 flex items-center gap-3 active:scale-[0.99] transition-transform"
-          >
-            <span className="flex-1 min-w-0">
-              <span className="block text-[18px] font-black text-[#eef0f6]">{m}</span>
-              <span className="block text-[11px] text-[#8a8aa0] mt-1">{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nLabel(inG.length, "פריט", "פריטים")}</span>
-            </span>
-            <ChevronLeft size={18} className="text-[#5a5a6e] flex-shrink-0" />
-          </button>
-        );
-      })}
+    <div className="flex flex-col gap-3.5">
+      {topSlot}
+      <label className="search">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="חיפוש מנה או מרכיב..." />
+      </label>
+      <div className="flex flex-wrap gap-[7px]">
+        <span className="chip red"><i className="dot" />אלרגיות</span>
+        <span className="chip purple"><i className="dot" />הריון</span>
+        <span className="chip amber"><i className="dot" />מוקשים</span>
+      </div>
+      {!nq ? (
+        <div className="flex flex-col gap-3">
+          {allCats.map(catRow)}
+          {bottomSlot}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {nameCats.map(catRow)}
+          {dishMatches.length > 0 && <p className="au-label px-1">{nLabel(dishMatches.length, "מנה", "מנות")} שנמצאו</p>}
+          {dishMatches.map((d) => {
+            const vis = categoryVisual(d.category);
+            return (
+              <button key={d.id} className="glass cat" onClick={() => openDish(d)}>
+                <span className="icon" aria-hidden>{d.imageUrl ? <img src={d.imageUrl} alt="" loading="lazy" /> : vis.emoji}</span>
+                <span className="flex-1 min-w-0">
+                  <h3 className="line-clamp-1">{d.name}</h3>
+                  <p className="line-clamp-1">{shortCat(d.category)}{Number(d.price) > 0 ? ` · ${Number(d.price)} ₪` : ""}</p>
+                </span>
+                <ChevronLeft size={16} className="chev" />
+              </button>
+            );
+          })}
+          {nameCats.length === 0 && dishMatches.length === 0 && (
+            <p className="au-label px-1">לא נמצא כלום עבור ״{nq}״ — נסו שם מנה, מרכיב או קטגוריה.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

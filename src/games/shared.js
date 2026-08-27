@@ -58,3 +58,18 @@ export const ALLERGENS = ["גלוטן", "לקטוז", "ביצים", "אגוזי�
 // list less trustworthy, and a waiter reads the two for different reasons. Free text, so
 // these are only a starting palette — any restaurant adds its own.
 export const PITFALLS = ["כוסברה", "חריף", "דג נא", "שום", "בצל", "ג'ינג'ר", "וסאבי", "מיונז", "אלכוהול", "טחינה"];
+
+// The study card teaches three things and only three: ingredients, allergies, and
+// "mokshim" — everything else a guest may care about, folded into one yellow list
+// (user, 2026-08-27: "מוקש ורגישות — תקרא להם מוקשים פשוט"). Pregnancy warnings and the
+// problematic-kashrut facts live here; the plain kashrut classification (בשרי/חלבי/פרווה)
+// is menu-reference detail, not a card fact. The full four-group split stays in the menu.
+const KASHRUT_WARN = new Set(["לא כשר", "בשר וחלב יחד", "פירות ים", "חזיר"]);
+// "דגים עתירי כספית" is a real pregnancy fact but reads as noise on a study card
+// (user, 2026-08-27) — the menu's full detail view still shows it.
+const MOKSHIM_SKIP = new Set(["דגים עתירי כספית"]);
+export const mokshim = (it) => [...new Set([
+  ...(it?.pitfalls || []),
+  ...(it?.pregnancy || []),
+  ...(it?.kashrut || []).filter((k) => KASHRUT_WARN.has(k)),
+])].filter((m) => !MOKSHIM_SKIP.has(m));

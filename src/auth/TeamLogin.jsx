@@ -54,6 +54,9 @@ export default function TeamLogin({ onGranted }) {
       // Joined with the restaurant's trainee code — learning-only mode: no shift tasks,
       // no daily brief, no gates. Decided server-side by which code was typed.
       trainee: !!result.trainee,
+      // Per-restaurant wallpaper flags (restaurants.features) — e.g. {"tasks": false}
+      // turns the whole app into menu + learning, like a permanent trainee mode.
+      features: rest.features || {},
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     onGranted(session);

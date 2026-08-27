@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { BookOpen, BarChart3, Home, LogOut, WifiOff, Check, ChevronRight, ListChecks, GraduationCap, Repeat, Layers, HelpCircle, Puzzle, Zap, ShieldAlert, FileText, Lock, Eye } from "lucide-react";
+import {ChevronLeft, BookOpen, BarChart3, Home, LogOut, WifiOff, Check, ChevronRight, ListChecks, GraduationCap, Repeat, Layers, HelpCircle, Puzzle, Zap, ShieldAlert, FileText, Lock, Eye} from "lucide-react";
 import { supabase } from "../lib/supabase";
 import MetricsScreen from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
@@ -15,6 +15,8 @@ import {
 } from "../lib/shiftChoice";
 import MenuBrowser from "../components/MenuBrowser";
 import { AboutCard, AboutScreen } from "../components/AboutRestaurant";
+import Ring from "../components/Ring";
+import "../aurora.css";
 import { isUnderstood } from "../lib/progressiveSession";
 import ProgressiveFlashcards from "../games/ProgressiveFlashcards";
 import { buildStudySession, nextConsecutiveFives, isRetired, QUICK_SESSION_SIZE } from "../lib/studySession";
@@ -70,7 +72,12 @@ function pubToCard(p) {
   return { id: p.source_item_id, name: p.name, price: Number(p.price), category: p.category, menuGroup: p.menu_group || null, desc: p.description || "", ingredients: ing, allergens: (p.allergens || []).filter(Boolean), pregnancy: (p.pregnancy || []).filter(Boolean), pitfalls: (p.pitfalls || []).filter(Boolean), kashrut: (p.kashrut || []).filter(Boolean), menuPosition: p.menu_position, createdAt: p.created_at, // `starred` is the manager's emphasis toggle (owner app, 2026-08-13); `is_special` is
   // the older flag some seeded dishes still carry. Either one lights the star — reading
   // only the old column silently disconnected the manager's button from the waiter side.
-  isSpecial: !!(p.starred || p.is_special) };
+  isSpecial: !!(p.starred || p.is_special),
+  // Real dish photo, shown in the menu browser only — learning cards stay photo-free on purpose.
+  imageUrl: p.image_url || null,
+  // Knowledge cards (categories named הדרכת·) are learnable like dishes but are not dishes:
+  // the whole-menu exam and its scenario builders must never treat them as orderable food.
+  knowledge: (p.category || "").startsWith("הדרכת") || (p.name || "").startsWith("מה חשוב לדעת") };
 }
 
 // Where the waiter was when they last closed the app. Stored per member and stamped, so a
@@ -95,7 +102,7 @@ const loadResume = (id) => {
 };
 
 export default function MainApp({ session, onSignOut }) {
-  const [tab, setTab] = useState(session?.trainee ? "learn" : "home");
+  const [tab, setTab] = useState(session?.trainee ? "learn" : session?.features?.tasks === false ? "categories" : "home");
   const [showAbout, setShowAbout] = useState(false); // "אודות המסעדה" over the menu tab
   const [cards, setCards] = useState(null);
   const [mastered, setMastered] = useState(new Set());
@@ -118,6 +125,9 @@ export default function MainApp({ session, onSignOut }) {
   // Success percentage = how much of the *available* score you've actually earned, not how
   // many dishes crossed the pass mark. 4/5 on every dish reads as 80%, which is what the
   // score actually means — a threshold count would round that up to a misleading 100%.
+  // "נשארו X לשליטה" on the menu door — understood = two consecutive 5s, the same
+  // definition the progressive session retires dishes by.
+  const leftFor = (list) => (list || []).filter((it) => (fivesById?.[it.id] || 0) < 2).length;
   const scorePct = (list) => {
     if (!list?.length) return 0;
     const earned = list.reduce((sum, x) => sum + (masteryById[x.id] || 0), 0);
@@ -130,6 +140,13 @@ export default function MainApp({ session, onSignOut }) {
   // Trainee (starting waiter): a real member in learning-only mode — same learning and
   // menu, none of the shift-day machinery (tasks tab, shift/brief gates).
   const trainee = !!session?.trainee;
+  // Per-restaurant wallpaper: features.tasks === false strips the shift layer (tasks tab,
+  // shift picker, brief gate) and the app becomes menu + learning — Studio's request.
+  const tasksOff = trainee || session?.features?.tasks === false;
+  // ⚠️ The «אורורה» skin is opt-in per restaurant (restaurants.features.design).
+  // Without it a restaurant renders exactly the app it rendered before — which is what
+  // keeps CREWDEMO (in Apple review) and the Google testers' restaurants untouched.
+  const aurora = session?.features?.design === "aurora";
   const [tourStep, setTourStep] = useState(0);
   const [showMetrics, setShowMetrics] = useState(false); // flashcards | quiz | match | speed | exam | …
   const [modeItems, setModeItems] = useState(null); // scoped items for a challenge round; null = full menu
@@ -158,7 +175,7 @@ export default function MainApp({ session, onSignOut }) {
   const [tourOpen, setTourOpen] = useState(() =>
     // Trainees skip the auto-tour: its steps walk the tasks tab, which learning-only
     // mode doesn't have (same class of break as the GuidedTour/nav-rename trap).
-    !session?.trainee &&
+    !session?.trainee && session?.features?.tasks !== false &&
     // ⚠️ A restaurant with its own welcome video has ALREADY walked the new waiter through
     // the app — menu, practice, exams, metrics — and the tour covers exactly the same
     // ground (user, 2026-08-26: "if there is an explanation video we don't need another
@@ -170,8 +187,8 @@ export default function MainApp({ session, onSignOut }) {
   // Learning-only mode has no tasks/daily tabs — anything that lands there (old code
   // paths, restored state) snaps back to the learning tab instead of a blank screen.
   useEffect(() => {
-    if (trainee && (tab === "home" || tab === "daily")) setTab("learn");
-  }, [trainee, tab]);
+    if (tasksOff && (tab === "home" || tab === "daily")) setTab(trainee ? "learn" : "categories");
+  }, [tasksOff, trainee, tab]);
   const [prog, setProg] = useState(null); // { items, label, progress, firstId }
   // Re-running the gate from the daily tab is practice — it never rewrites the ack row.
   const [gatePractice, setGatePractice] = useState(false);
@@ -568,13 +585,13 @@ export default function MainApp({ session, onSignOut }) {
   // The day starts with one question: are you on shift? (user, 2026-08-20). Asked before
   // the brief gate — someone who isn't working today gets no daily tasks and no brief,
   // just the learning path. Answered once per day; changeable any time from the chip.
-  if (!session?.offline && !preview && !trainee && cards?.length > 0 && !profileRole)
+  if (!session?.offline && !preview && !tasksOff && cards?.length > 0 && !profileRole)
     return (
       <ProfileGate
         onDone={(role) => { setProfileRole(role); saveRole(session?.teamMemberId, role); }}
       />
     );
-  if (!session?.offline && !preview && !trainee && cards?.length > 0 && myShift === null)
+  if (!session?.offline && !preview && !tasksOff && cards?.length > 0 && myShift === null)
     return (
       <ShiftGate
         profileRole={profileRole}
@@ -584,7 +601,7 @@ export default function MainApp({ session, onSignOut }) {
         }}
       />
     );
-  if (!session?.offline && !preview && !trainee && cards?.length > 0 && brief !== null && briefHasContent(brief) && !briefAck?.read_at && myShift !== "none")
+  if (!session?.offline && !preview && !tasksOff && cards?.length > 0 && brief !== null && briefHasContent(brief) && !briefAck?.read_at && myShift !== "none")
     return <BriefGate brief={brief} cards={cards} session={session} onPassed={setBriefAck} />;
   if (gatePractice)
     return <BriefGate brief={brief} cards={cards} session={session} practice onClose={() => setGatePractice(false)} />;
@@ -620,7 +637,7 @@ export default function MainApp({ session, onSignOut }) {
           // stats page instead of the tasks they open the app for. Also covers "skip",
           // which can be pressed from any step.
           setShowMetrics(false);
-          setTab(trainee ? "learn" : "home");
+          setTab(trainee ? "learn" : tasksOff ? "categories" : "home");
           if (session?.teamMemberId) localStorage.setItem(`${TOUR_DONE_KEY}-${session.teamMemberId}`, "1");
         }}
       />
@@ -643,7 +660,7 @@ export default function MainApp({ session, onSignOut }) {
   // groups out in words — "אלרגיות: רכיכות, גלוטן" — so the legend there is a screen
   // explaining something the next screen already says. In the menu the same information
   // is coloured chips with no heading, and that is where the code has to be learned.
-  if (tab === "categories" && !colorKeySeen && (preview || needsColorKey(session?.teamMemberId)))
+  if (tab === "categories" && session?.features?.color_key !== false && !colorKeySeen && (preview || needsColorKey(session?.teamMemberId)))
     // {tourNode} stays mounted on top, like the metrics branch below — without it, the
     // tour's "tap the menu tab" step navigated a first-day waiter straight into this
     // screen and the tour overlay silently vanished under it.
@@ -653,7 +670,7 @@ export default function MainApp({ session, onSignOut }) {
     // ⚠️ Recomputed here, not captured when the session started: the waiter is rating
     // dishes right now, so the category can cross the exam threshold mid-session — and
     // that is exactly the moment worth offering the exam (user, 2026-08-23).
-    return <ProgressiveFlashcards items={prog.items} label={prog.label} firstId={prog.firstId} initialProgress={prog.progress}
+    return <ProgressiveFlashcards slim={aurora} items={prog.items} label={prog.label} firstId={prog.firstId} initialProgress={prog.progress}
       examReady={!!prog.catKey && scorePct(prog.items) >= (examConfig?.pass_threshold ?? 50)}
       onExam={prog.catKey ? () => {
         setExamCategory({ key: prog.catKey, label: catLabel(prog.catKey) });
@@ -662,8 +679,8 @@ export default function MainApp({ session, onSignOut }) {
       } : null}
       onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={() => { setMode(null); setProg(null); }} />;
 
-  if (mode === "flashcards") return <Flashcards items={studySession.deck} session={studySession} onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
-  if (mode === "quick") return <Flashcards items={quickSession.deck} session={quickSession} quick onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
+  if (mode === "flashcards") return <Flashcards slim={aurora} items={studySession.deck} session={studySession} onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
+  if (mode === "quick") return <Flashcards slim={aurora} items={quickSession.deck} session={quickSession} quick onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
   // Thin-category study: group cards (front = "שתייה קלה מוגזת", back = the carry list
   // with prices). A per-item flashcard there flips קולה into קולה — teaches nothing.
   if (mode === "groupcards") return <GroupFlashcards items={gameItems} onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
@@ -684,7 +701,7 @@ export default function MainApp({ session, onSignOut }) {
   // exams in this app pass at 70, so the number means the same thing wherever it appears.
   if (mode === "general_exam") {
     return <MenuExam
-      items={cards}
+      items={cards.filter((c) => !c.knowledge)}
       deckSize={examConfig?.general_exam_questions || 40}
       categoryOrder={examConfig?.category_order || []}
       onAnswer={learnItem}
@@ -849,12 +866,42 @@ export default function MainApp({ session, onSignOut }) {
   // the top of the learning tab is the first thing a new waiter reads, and it frames the
   // screen as blocked. The tour explains the path; this tab just shows what to practise,
   // and the exam appears the day it is actually available.
+  // The concept's hero (crewmenu-menu-page.html language): the one thing to do next,
+  // stated as a sentence — how many dishes are left and whether the exam is in reach.
+  const learnHero = () => {
+    const rec = path.recommended;
+    if (!rec || !aurora) return null;
+    const left = (rec.items || []).filter((it) => (fivesById?.[it.id] || 0) < 2).length;
+    const line = rec.examUnlocked
+      ? "יש לך מספיק ידע — אפשר לגשת לבוחן"
+      : left > 0
+        ? `נשארו ${left} ${left === 1 ? "מנה" : "מנות"} ואפשר לגשת לבוחן`
+        : "עוד קצת תרגול ואפשר לגשת לבוחן";
+    return (
+      <div className="glass" style={{ borderColor: "rgba(34,192,140,.28)", background: "linear-gradient(160deg,rgba(20,72,58,.55),rgba(14,42,34,.6))" }}>
+        <div className="flex items-center gap-3.5">
+          <Ring pct={rec.pct ?? 0} />
+          <span className="flex-1 min-w-0">
+            <span className="block text-[10.5px] font-black text-[#22C08C] tracking-wide">מומלץ עכשיו</span>
+            <h3 className="text-[19px] font-extrabold leading-tight line-clamp-1">{shortCat(rec.key)}</h3>
+            <span className="block au-label mt-0.5 line-clamp-1">{line}</span>
+          </span>
+        </div>
+        <button onClick={() => startProgressive(rec.key)}
+          className="w-full mt-3.5 py-3 min-h-[46px] rounded-2xl font-extrabold text-sm text-[#06231a] active:scale-[0.98] transition-transform"
+          style={{ background: "linear-gradient(135deg,#22C08C,#17805d)" }}>
+          המשך תרגול ←
+        </button>
+      </div>
+    );
+  };
+
   const generalExamCard = () =>
     generalUnlocked ? (
       <button
         onClick={() => { setExamCategory({ key: "general", label: "התפריט המלא" }); setMode("general_exam"); }}
         className="w-full rounded-2xl p-3.5 text-right text-white active:scale-[0.99] transition-transform flex items-center gap-3"
-        style={{ background: "linear-gradient(135deg,#14b8a6,#0d7f74)" }}
+        style={{ background: aurora ? "linear-gradient(135deg,#22C08C,#17805d)" : "linear-gradient(135deg,#14b8a6,#0d7f74)" }}
       >
         <GraduationCap size={20} className="flex-shrink-0" />
         <span className="flex-1">
@@ -867,19 +914,27 @@ export default function MainApp({ session, onSignOut }) {
     ) : null;
 
   return (
-    <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
+    <div className={`h-screen mx-auto flex flex-col text-[#eef0f6] ${aurora ? "aurora-skin" : "max-w-md bg-[#0c0d10]"}`} dir="rtl">
+      {aurora && <><div className="aurora" aria-hidden><i></i><i></i><i></i></div><div className="grain" aria-hidden></div></>}
       {/* First-run interactive tour: walks the real screens, one step per tab. Shown once
           per member — the flag is device-scoped, same as the welcome slides. */}
       {tourNode}
       {/* Header */}
-      <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 flex items-center justify-between flex-shrink-0">
+      <div className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 flex items-center justify-between flex-shrink-0"
+           style={aurora
+             ? { background: "rgba(12,13,16,0.75)", backdropFilter: "blur(18px)", borderBottom: "1px solid rgba(238,240,246,0.08)" }
+             : { background: "#16181c", borderBottom: "1px solid #22252b" }}>
         <SignOutButton onSignOut={onSignOut} />
+        {/* Skinned: the .hdr greeting right below IS the identity — repeating the name
+            and the restaurant here is the same fact twice on one screen. */}
         <div className="text-center">
-          <p className="text-sm font-black">{session?.name}</p>
-          {session?.restaurantName && <p className="text-[11px] text-[#8a8aa0] font-semibold">{session.restaurantName}</p>}
+          {!aurora && <>
+            <p className="text-sm font-black">{session?.name}</p>
+            {session?.restaurantName && <p className="text-[11px] text-[#8a8aa0] font-semibold">{session.restaurantName}</p>}
+          </>}
         </div>
         <div className="flex items-center gap-1.5">
-          {myRank > 0 && <span className="text-[11px] font-bold text-[#f3c14b] bg-[#33290f] px-2 py-1 rounded-md">מקום {myRank}</span>}
+          {!aurora && myRank > 0 && <span className="text-[11px] font-bold text-[#f3c14b] bg-[#33290f] px-2 py-1 rounded-md">מקום {myRank}</span>}
           <button
             onClick={() => setShowMetrics(true)}
             data-tour="metrics"
@@ -904,8 +959,8 @@ export default function MainApp({ session, onSignOut }) {
       )}
 
       {/* Content */}
-      <div key={tab} className="flex-1 overflow-y-auto px-4 py-3 animate-fadeIn">
-        {tab === "home" && !trainee && (
+      <div key={tab} className={`flex-1 overflow-y-auto animate-fadeIn ${aurora ? "au-screen" : "px-4 py-3"}`}>
+        {tab === "home" && !tasksOff && (
           <TasksTab tasks={dayTasks} onDone={toggleTask}>
             {/* A personal note from the manager outranks everything on this screen —
                 someone wrote it to this waiter by name. */}
@@ -1084,13 +1139,23 @@ export default function MainApp({ session, onSignOut }) {
           <div className="space-y-2">
             {/* The whole-menu exam is the goal this tab exists for, so it sits at the top
                 level rather than one drill-down in. */}
+            {aurora && <h2 className="text-[23px] font-extrabold">תרגול ובחינה</h2>}
+            <p className={aurora ? "au-label leading-relaxed" : "text-[11px] text-[#8a8aa0] px-1 leading-relaxed"}>בוחרים תפריט, מתרגלים את המנות שבו, וכשמוכנים — נבחנים.</p>
+            {learnHero()}
             {generalExamCard()}
-            <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">
-              קודם עוברים על המנות בתפריט, אחר כך נבחנים בכל קטגוריה.
-            </p>
+            {aurora && <p className="au-label px-1 mt-1">כל התפריטים</p>}
             {menuGroups.map(({ g, items, catCount }) => {
               const pct = scorePct(items);
               return (
+                aurora ? (
+                <button key={g} data-tour="learn-menu" onClick={() => setGroupView(g)} className="glass cat">
+                  <span className="flex-1 min-w-0">
+                    <h3 className="line-clamp-1">{g}</h3>
+                    <p>{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nLabel(items.length, "מנה", "מנות")}</p>
+                  </span>
+                  <Ring pct={pct} />
+                </button>
+                ) : (
                 <button key={g} data-tour="learn-menu" onClick={() => setGroupView(g)}
                   className="w-full text-right bg-[#16181c] rounded-2xl p-3.5 border border-[#22252b] active:scale-[0.99] transition-transform">
                   <div className="flex items-center justify-between gap-2">
@@ -1101,10 +1166,9 @@ export default function MainApp({ session, onSignOut }) {
                     <div className="h-full transition-all" style={{ width: `${pct}%`, background: pct >= 50 ? "#22c08c" : "#6d5efc" }} />
                   </div>
                   <p className="text-[11px] text-[#8a8aa0] mt-1.5">{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nLabel(items.length, "מנה", "מנות")}</p>
-                  {/* Say what the tap does, in the words the waiter would use for it
-                      (user, 2026-08-20) — "לתרגול תפריט סושי", not a bare menu name. */}
                   <p className="text-[11px] font-black text-[#22c08c] mt-1.5">לתרגול {g} ←</p>
                 </button>
+                )
               );
             })}
           </div>
@@ -1124,12 +1188,15 @@ export default function MainApp({ session, onSignOut }) {
                 </div>
               </div>
             )}
-            {generalExamCard()}
-            <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">
+            {aurora && !groupView && <h2 className="text-[23px] font-extrabold">תרגול ובחינה</h2>}
+            <p className={aurora ? "au-label leading-relaxed" : "text-[11px] text-[#8a8aa0] px-1 leading-relaxed"}>
               {/* No order is imposed — steer, never block. */}
-              בוחרים קטגוריה, עוברים על המנות שבה, וכשמכירים אותן — נבחנים.
-              {path.recommended ? ` ממליצים להתחיל ב${shortCat(path.recommended.key)}.` : ""}
+              בוחרים קטגוריה, מתרגלים את המנות שבה, וכשמוכנים — נבחנים.
+              {!aurora && path.recommended ? ` ממליצים להתחיל ב${shortCat(path.recommended.key)}.` : ""}
             </p>
+            {!groupView && learnHero()}
+            {generalExamCard()}
+            {aurora && <p className="au-label px-1 mt-1">כל הקטגוריות</p>}
             {/* `path.categories` is built from the whole menu — inside a menu, show only
                 that menu's categories, or the header and the list disagree. */}
             {path.categories.filter((cat) => !groupView || cat.items?.[0]?.menuGroup === groupView).map((cat) => {
@@ -1139,34 +1206,48 @@ export default function MainApp({ session, onSignOut }) {
               // unpassable — a locked graduation would stall every category behind it.
               const examReady = cat.examUnlocked;
               return (
-                <div key={cat.key} className="rounded-2xl p-3 bg-[#16181c]">
+                <div key={cat.key} className={aurora ? "glass" : "rounded-2xl p-3 bg-[#16181c]"} style={aurora ? { padding: 14 } : undefined}>
                   <button
                     data-tour="learn-category"
                     onClick={() => setCatView(cat.key)}
-                    className="w-full text-right active:scale-[0.99] transition-transform"
+                    className={aurora ? "cat" : "w-full text-right active:scale-[0.99] transition-transform"}
                   >
-                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                    {!aurora && (
+                      <>
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <p className="text-xs font-black text-[#eef0f6] line-clamp-2 flex-1 flex items-center gap-1.5" title={catLabel(cat.key)}>
+                            {cat.passed && <Check size={12} className="text-[#22c08c] flex-shrink-0" />}
+                            {catLabel(cat.key)}
+                          </p>
+                          <span className="text-[11px] font-bold text-[#6d5efc] flex-shrink-0">{cat.pct}%</span>
+                        </div>
+                        <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden">
+                          <div className="h-full transition-all" style={{ width: `${cat.pct}%`, background: cat.passed ? "#22c08c" : "#6d5efc" }} />
+                        </div>
+                        <p className="text-[11px] text-[#8a8aa0] mt-1">
+                          {nLabel(cat.items.length, "מנה", "מנות")} · {gz("לחץ/י כדי לתרגל")}
+                          {cat.passed ? " · נכלל בתרגול" : path.recommended?.key === cat.key ? " · מומלץ להתחיל כאן" : ""}
+                        </p>
+                      </>
+                    )}
+                    {aurora && <span className="flex-1 min-w-0">
                       {/* Imported categories can carry their whole explanatory line
                           ("מאקי — 6 יחידות, אצה בחוץ…"), so clamp instead of letting one
                           row grow to four lines. */}
-                      <p className="text-xs font-black text-[#eef0f6] line-clamp-2 flex-1 flex items-center gap-1.5" title={catLabel(cat.key)}>
-                        {cat.passed && <Check size={12} className="text-[#22c08c] flex-shrink-0" />}
-                        {catLabel(cat.key)}
+                      <h3 className="line-clamp-1 flex items-center gap-1.5" title={catLabel(cat.key)}>
+                        {cat.passed && <Check size={13} className="text-[#22C08C] flex-shrink-0" />}
+                        {shortCat(cat.key)}
+                      </h3>
+                      <p>
+                        {nLabel(cat.items.length, "מנה", "מנות")}
+                        {(() => { const m = cat.items.filter((it) => (fivesById?.[it.id] || 0) >= 2).length; return m > 0 ? ` · ${m} בשליטה` : ""; })()}
                       </p>
-                      <span className="text-[11px] font-bold text-[#6d5efc] flex-shrink-0">{cat.pct}%</span>
-                    </div>
-                    <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden">
-                      <div className="h-full transition-all" style={{ width: `${cat.pct}%`, background: cat.passed ? "#22c08c" : "#6d5efc" }} />
-                    </div>
-                    <p className="text-[11px] text-[#8a8aa0] mt-1">
-                      {/* shortCat, not the full label: imported categories carry their
-                          whole explanation ("מאקי — 6 יחידות, אצה בחוץ ואורז בפנים") and
-                          inlining that makes the sentence unreadable. */}
-                      {nLabel(cat.items.length, "מנה", "מנות")} · {gz("לחץ/י כדי לתרגל")}
-                      {cat.passed
-                        ? " · נכלל בתרגול"
-                        : path.recommended?.key === cat.key ? " · מומלץ להתחיל כאן" : ""}
-                    </p>
+                      <span className={`chip mt-2 ${examReady ? "" : "opacity-60"}`}
+                            style={examReady ? { background: "rgba(34,192,140,.12)", borderColor: "rgba(34,192,140,.35)", color: "#22C08C" } : undefined}>
+                        {cat.passed ? "עברת את הבוחן ✓" : examReady ? "הבוחן זמין" : `בוחן ב-${examConfig?.pass_threshold ?? 50}%`}
+                      </span>
+                    </span>}
+                    {aurora && <Ring pct={cat.pct} />}
                   </button>
                   {/* ⚠️ Not ready ⇒ no exam row at all (user, 2026-08-20). The old
                       "reach 50% to take the exam" line named a number the waiter has no
@@ -1212,10 +1293,41 @@ export default function MainApp({ session, onSignOut }) {
         {/* The menu tab is the menu: menu → category → dishes with descriptions. Read
             only, so checking a dish mid-shift never touches the waiter's score. */}
         {tab === "categories" && (
-          <>
-            <AboutCard session={session} onOpen={() => setShowAbout(true)} />
-            <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} />
-          </>
+          <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} pctFor={scorePct} leftFor={leftFor} aurora={aurora}
+            bottomSlot={
+              aurora ? (
+                <button onClick={() => setShowAbout(true)} className="glass cat" data-name="אודות המסעדה">
+                  <span className="icon" aria-hidden>🏛️</span>
+                  <span className="flex-1 min-w-0"><h3>אודות המסעדה</h3><p>מי אנחנו ואיך אנחנו מארחים</p></span>
+                  <ChevronLeft size={16} className="chev" />
+                </button>
+              ) : <AboutCard session={session} onOpen={() => setShowAbout(true)} />
+            }
+            topSlot={<>
+              {tasksOff && !trainee && (() => {
+                const h = new Date().getHours();
+                const hello = h < 5 ? "לילה טוב" : h < 12 ? "בוקר טוב" : h < 17 ? "צהריים טובים" : "ערב טוב";
+                const first = (session?.firstName || session?.name || "").split(" ")[0];
+                const sub = `${session?.restaurantName}${pct > 0 ? ` · ${pct}% מהתפריט אצלך` : " · מתחילים מהתפריט"}`;
+                return aurora ? (
+                  <button className="hdr" aria-label="פתיחת המדדים שלי" onClick={() => setShowMetrics(true)}>
+                    <span className="avatar">{(first || "🙂").slice(0, 2)}</span>
+                    <span className="flex-1 min-w-0 text-right">
+                      <h2>{hello}, {first || "לך"}
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 10 6 6 6-6" /></svg>
+                      </h2>
+                      <span className="au-label">{sub}</span>
+                    </span>
+                  </button>
+                ) : (
+                  <div className="rounded-2xl p-4 mb-2.5 text-[#EEF0F6]" style={{ background: "linear-gradient(135deg,#0F5C46,#0a3d2f)" }}>
+                    <p className="text-base font-black">שלום {first || "לך"} 👋</p>
+                    <p className="text-xs font-bold text-[#EEF0F6]/80 mt-1">{sub}</p>
+                  </div>
+                );
+              })()}
+              {aurora && <h2 className="text-[23px] font-extrabold mt-0.5">התפריט</h2>}
+            </>} />
         )}
 
         {tab === "daily" && (
@@ -1280,37 +1392,40 @@ export default function MainApp({ session, onSignOut }) {
               </div>
 
       {showAbout && <AboutScreen session={session} onClose={() => setShowAbout(false)} />}
-      <BottomNav tab={tab} setTab={setTab} trainee={trainee}
+      <BottomNav tab={tab} setTab={setTab} aurora={aurora} hideTasks={tasksOff}
         hasDailyUpdate={!!(brief?.missing_items?.length || brief?.new_items?.length || brief?.oven_items?.length)} />
     </div>
   );
 }
 
-function BottomNav({ tab, setTab, hasDailyUpdate, trainee }) {
+function BottomNav({ tab, setTab, hasDailyUpdate, hideTasks, aurora }) {
   const items = [
     // Tasks · Menu · Learning (user, 2026-08-20). "בית" was never a place — it was a
     // pile of cards; the shift checklist is what a waiter actually opens the app for.
     // A trainee has no shift yet — the tasks tab is hidden and the app is menu + learning.
-    ...(trainee ? [] : [["home", ListChecks, "משימות", hasDailyUpdate]]),
-    ["categories", BookOpen, "תפריט", false],
-    ["learn", GraduationCap, "תרגול ובחינה", false],
+    // Emoji icons are the Aurora concept's pick ("האימוגי אחלה"); every other
+    // restaurant keeps the lucide set it already had.
+    ...(hideTasks ? [] : [["home", aurora ? "📋" : ListChecks, "משימות", hasDailyUpdate]]),
+    ["categories", aurora ? "📖" : BookOpen, "תפריט", false],
+    ["learn", aurora ? "🎓" : GraduationCap, "תרגול ובחינה", false],
   ];
   return (
-    <div
-      className="flex-shrink-0 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
-      style={{ background: "rgba(22,24,28,0.92)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(255,255,255,0.06)" }}
-    >
-      <div className="flex">
-        {items.map(([t, Icon, label, badge]) => {
+    <div className={`${aurora ? "au-nav" : ""} flex-shrink-0 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]`}
+      style={aurora ? undefined : { background: "rgba(22,24,28,0.92)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <div className={aurora ? "flex gap-1.5" : "flex"}>
+        {items.map(([t, icon, label, badge]) => {
           const active = tab === t;
           return (
-            <button key={t} data-tour={`nav-${t}`} onClick={() => setTab(t)} className="flex-1 flex flex-col items-center gap-1 py-1 relative transition-colors">
-              {active && <div className="absolute inset-x-2 top-0 h-9 bg-white/[0.07] rounded-2xl" />}
-              <div className="relative">
-                <Icon size={20} strokeWidth={active ? 2.3 : 1.6} className={active ? "text-white" : "text-[#8a8aa0]"} />
+            <button key={t} data-tour={`nav-${t}`} onClick={() => setTab(t)}
+              className={aurora ? `flex-1 ${active ? "on" : ""}` : "flex-1 flex flex-col items-center gap-1 py-1 relative transition-colors"}>
+              {!aurora && active && <div className="absolute inset-x-2 top-0 h-9 bg-white/[0.07] rounded-2xl" />}
+              <span className="relative">
+                {aurora
+                  ? <span className="ic" aria-hidden>{icon}</span>
+                  : (() => { const Icon = icon; return <Icon size={20} strokeWidth={active ? 2.3 : 1.6} className={active ? "text-white" : "text-[#8a8aa0]"} />; })()}
                 {badge && <span className="absolute -top-1 -left-1.5 w-2 h-2 rounded-full bg-[#e0315a]" />}
-              </div>
-              <span className={`text-[11px] font-semibold transition-colors ${active ? "text-white" : "text-[#8a8aa0]"}`}>{label}</span>
+              </span>
+              {aurora ? label : <span className={`text-[11px] font-semibold ${active ? "text-white" : "text-[#8a8aa0]"}`}>{label}</span>}
             </button>
           );
         })}
