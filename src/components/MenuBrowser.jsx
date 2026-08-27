@@ -30,7 +30,8 @@ const FLAG_GROUPS = [
 export default function MenuBrowser({ cards, onPractice }) {
   const [menu, setMenu] = useState(null);
   const [cat, setCat] = useState(null);
-  const [idx, setIdx] = useState(null);   // index into the open category, or null
+  const [idx, setIdx] = useState(null);
+  const [zoom, setZoom] = useState(null); // full-screen photo overlay   // index into the open category, or null
 
   const groups = [...new Set((cards || []).map((c) => c.menuGroup).filter(Boolean))];
   const firstPos = (g) => Math.min(...(cards || []).filter((c) => c.menuGroup === g).map((c) => c.menuPosition ?? 1e9));
@@ -196,8 +197,10 @@ export default function MenuBrowser({ cards, onPractice }) {
           <div className="max-w-md mx-auto space-y-5">
             <div className="text-center space-y-3">
               {d.imageUrl ? (
-                <img src={d.imageUrl} alt={d.name}
-                  className="w-full max-h-56 rounded-3xl object-cover border border-[#22252b]" />
+                <button onClick={() => setZoom(d.imageUrl)} className="block w-full" aria-label="הגדלת התמונה">
+                  <img src={d.imageUrl} alt={d.name}
+                    className="w-full max-h-64 rounded-3xl object-contain bg-[#16181c] border border-[#22252b]" />
+                </button>
               ) : (
               <span
                 className="w-20 h-20 rounded-3xl inline-flex items-center justify-center text-5xl"
@@ -251,6 +254,16 @@ export default function MenuBrowser({ cards, onPractice }) {
             )}
           </div>
         </div>
+
+        {zoom && (
+          <button
+            onClick={() => setZoom(null)}
+            className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-3"
+            aria-label="סגירת התמונה"
+          >
+            <img src={zoom} alt="" className="max-w-full max-h-full rounded-2xl object-contain" />
+          </button>
+        )}
 
         {/* Walking the category is the study loop — the arrows are the main control here,
             not an afterthought, so they get a full bar of their own. */}
