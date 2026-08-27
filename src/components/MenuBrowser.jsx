@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronRight, ChevronLeft, X } from "lucide-react";
 import { categoryVisual } from "../lib/categoryVisual";
+import Ring from "./Ring";
 import { shortCat, nLabel } from "../games/shared";
 
 // The menu, as a menu (user, 2026-08-20). Not progress, not exams — the thing a waiter
@@ -27,7 +28,7 @@ const FLAG_GROUPS = [
     note: "לא מסוכן — פשוט טעם שאורחים רבים מבקשים בלעדיו (כוסברה, חריף, שום)." },
 ];
 
-export default function MenuBrowser({ cards, onPractice, topSlot = null }) {
+export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, pctFor = null }) {
   const [menu, setMenu] = useState(null);
   const [cat, setCat] = useState(null);
   const [idx, setIdx] = useState(null);
@@ -387,10 +388,11 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null }) {
               <span className="block text-[18px] font-black text-[#eef0f6]">{m}</span>
               <span className="block text-[11px] text-[#8a8aa0] mt-1">{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nLabel(inG.length, "פריט", "פריטים")}</span>
             </span>
-            <ChevronLeft size={18} className="text-[#5a5a6e] flex-shrink-0" />
+            {pctFor ? <Ring pct={pctFor(inG)} /> : <ChevronLeft size={18} className="text-[#5a5a6e] flex-shrink-0" />}
           </button>
         );
       })}
+      {bottomSlot}
     </div>
   );
 }

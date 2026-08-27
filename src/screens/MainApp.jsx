@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { BookOpen, BarChart3, Home, LogOut, WifiOff, Check, ChevronRight, ListChecks, GraduationCap, Repeat, Layers, HelpCircle, Puzzle, Zap, ShieldAlert, FileText, Lock, Eye } from "lucide-react";
+import {ChevronLeft, BookOpen, BarChart3, Home, LogOut, WifiOff, Check, ChevronRight, ListChecks, GraduationCap, Repeat, Layers, HelpCircle, Puzzle, Zap, ShieldAlert, FileText, Lock, Eye} from "lucide-react";
 import { supabase } from "../lib/supabase";
 import MetricsScreen from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
@@ -14,7 +14,8 @@ import {
   saveDailyRole, gz, taskFitsShift, taskFitsRole,
 } from "../lib/shiftChoice";
 import MenuBrowser from "../components/MenuBrowser";
-import { AboutCard, AboutScreen } from "../components/AboutRestaurant";
+import { AboutScreen } from "../components/AboutRestaurant";
+import Ring from "../components/Ring";
 import { isUnderstood } from "../lib/progressiveSession";
 import ProgressiveFlashcards from "../games/ProgressiveFlashcards";
 import { buildStudySession, nextConsecutiveFives, isRetired, QUICK_SESSION_SIZE } from "../lib/studySession";
@@ -876,12 +877,13 @@ export default function MainApp({ session, onSignOut }) {
 
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl"
-         style={{ background: "#0b100e radial-gradient(70% 48% at 80% -8%, rgba(34,192,140,0.18), transparent 64%) no-repeat, #0b100e radial-gradient(55% 40% at 5% 108%, rgba(34,192,140,0.10), transparent 62%) no-repeat" }}>
+         style={{ background: "#0c1310 radial-gradient(75% 52% at 78% -10%, rgba(34,192,140,0.22), transparent 66%) no-repeat, #0c1310 radial-gradient(60% 42% at 2% 110%, rgba(34,192,140,0.12), transparent 64%) no-repeat" }}>
       {/* First-run interactive tour: walks the real screens, one step per tab. Shown once
           per member — the flag is device-scoped, same as the welcome slides. */}
       {tourNode}
       {/* Header */}
-      <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 flex items-center justify-between flex-shrink-0">
+      <div className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 flex items-center justify-between flex-shrink-0"
+           style={{ background: "rgba(19,26,22,0.9)", borderBottom: "1px solid rgba(34,192,140,0.10)" }}>
         <SignOutButton onSignOut={onSignOut} />
         <div className="text-center">
           <p className="text-sm font-black">{session?.name}</p>
@@ -1237,7 +1239,19 @@ export default function MainApp({ session, onSignOut }) {
         {/* The menu tab is the menu: menu → category → dishes with descriptions. Read
             only, so checking a dish mid-shift never touches the waiter's score. */}
         {tab === "categories" && (
-          <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)}
+          <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} pctFor={scorePct}
+            bottomSlot={
+              <button onClick={() => setShowAbout(true)}
+                className="w-full text-right rounded-3xl p-4 flex items-center gap-3.5 border active:scale-[0.99] transition-transform"
+                style={{ background: "linear-gradient(160deg, rgba(34,192,140,0.06), rgba(255,255,255,0.03))", borderColor: "rgba(34,192,140,0.14)" }}>
+                <span className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 border border-white/[0.08] bg-white/[0.04]" aria-hidden>🏛️</span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[18px] font-black text-[#eef0f6]">אודות המסעדה</span>
+                  <span className="block text-[11px] text-[#8a8aa0] mt-1">מי אנחנו ואיך אנחנו מארחים</span>
+                </span>
+                <ChevronLeft size={18} className="text-[#5a5a6e] flex-shrink-0" />
+              </button>
+            }
             topSlot={<>
             {tasksOff && !trainee && (() => {
               const h = new Date().getHours();
@@ -1269,7 +1283,6 @@ export default function MainApp({ session, onSignOut }) {
                 </div>
               );
             })()}
-              <AboutCard session={session} onOpen={() => setShowAbout(true)} />
             </>} />
         )}
 
@@ -1341,21 +1354,6 @@ export default function MainApp({ session, onSignOut }) {
   );
 }
 
-// Aurora progress ring (design concept 2026-08, approved for the main pages): a ring
-// reads as "how much of this is mine" at a glance, where a bar reads as a loading state.
-function Ring({ pct, size = 46 }) {
-  const r = (size - 7) / 2, c = 2 * Math.PI * r;
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="flex-shrink-0" aria-hidden>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#22252b" strokeWidth="5.5" />
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={pct >= 50 ? "#22c08c" : pct > 0 ? "#f3a712" : "#2c3038"}
-        strokeWidth="5.5" strokeLinecap="round" strokeDasharray={`${Math.max(0.001, (pct / 100) * c)} ${c}`}
-        transform={`rotate(-90 ${size / 2} ${size / 2})`} />
-      <text x="50%" y="52%" textAnchor="middle" dominantBaseline="central" fill="#eef0f6" fontSize="11.5" fontWeight="800">{pct}%</text>
-    </svg>
-  );
-}
-
 function BottomNav({ tab, setTab, hasDailyUpdate, hideTasks }) {
   const items = [
     // Tasks · Menu · Learning (user, 2026-08-20). "בית" was never a place — it was a
@@ -1375,13 +1373,15 @@ function BottomNav({ tab, setTab, hasDailyUpdate, hideTasks }) {
         {items.map(([t, icon, label, badge]) => {
           const active = tab === t;
           return (
-            <button key={t} data-tour={`nav-${t}`} onClick={() => setTab(t)} className="flex-1 flex flex-col items-center gap-1 py-1 relative transition-colors">
-              {active && <div className="absolute inset-x-2 top-0 h-10 bg-[#22c08c]/10 border border-[#22c08c]/20 rounded-2xl" />}
-              <div className="relative">
-                <span className={`text-[19px] leading-none ${active ? "" : "grayscale opacity-70"}`} aria-hidden>{icon}</span>
-                {badge && <span className="absolute -top-1 -left-1.5 w-2 h-2 rounded-full bg-[#e0315a]" />}
+            <button key={t} data-tour={`nav-${t}`} onClick={() => setTab(t)} className="flex-1 flex flex-col items-center relative transition-colors">
+              <div className={`flex flex-col items-center gap-1 px-4 py-1.5 rounded-2xl transition-colors ${active ? "border" : "border border-transparent"}`}
+                   style={active ? { background: "linear-gradient(180deg, rgba(34,192,140,0.20), rgba(34,192,140,0.08))", borderColor: "rgba(34,192,140,0.35)", boxShadow: "0 0 18px rgba(34,192,140,0.15)" } : undefined}>
+                <div className="relative">
+                  <span className={`text-[19px] leading-none ${active ? "" : "grayscale opacity-70"}`} aria-hidden>{icon}</span>
+                  {badge && <span className="absolute -top-1 -left-1.5 w-2 h-2 rounded-full bg-[#e0315a]" />}
+                </div>
+                <span className={`text-[11px] font-bold transition-colors ${active ? "text-[#9ef0cf]" : "text-[#8a8aa0]"}`}>{label}</span>
               </div>
-              <span className={`text-[11px] font-semibold transition-colors ${active ? "text-[#22c08c]" : "text-[#8a8aa0]"}`}>{label}</span>
             </button>
           );
         })}
