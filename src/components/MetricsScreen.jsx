@@ -387,7 +387,7 @@ function Board({ session, weekly, leaderboard }) {
 // erase it from inside the app. The RPC resolves who to delete from the session
 // token, deletes the team_members row, and the FK cascades take the progress,
 // leaderboard and history rows with it.
-function DeleteProfile() {
+export function DeleteProfile() {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");

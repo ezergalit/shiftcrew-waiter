@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import {ChevronLeft, BookOpen, BarChart3, Home, LogOut, WifiOff, Check, ChevronRight, ListChecks, GraduationCap, Repeat, Layers, HelpCircle, Puzzle, Zap, ShieldAlert, FileText, Lock, Eye} from "lucide-react";
 import { supabase } from "../lib/supabase";
-import MetricsScreen from "../components/MetricsScreen";
+import MetricsScreen, { DeleteProfile } from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
 import BriefGate, { briefHasContent } from "../components/BriefGate";
 import AppTour from "../components/AppTour";
@@ -143,6 +143,10 @@ export default function MainApp({ session, onSignOut }) {
   // Per-restaurant wallpaper: features.tasks === false strips the shift layer (tasks tab,
   // shift picker, brief gate) and the app becomes menu + learning — Studio's request.
   const tasksOff = trainee || session?.features?.tasks === false;
+  // features.metrics === false removes the whole metrics screen for this restaurant
+  // (user, 2026-08-28). The account-deletion path it used to host moves into the
+  // sign-out dialog — Apple requires it to stay reachable in-app.
+  const metricsOff = session?.features?.metrics === false;
   // ⚠️ The «אורורה» skin is opt-in per restaurant (restaurants.features.design).
   // Without it a restaurant renders exactly the app it rendered before — which is what
   // keeps CREWDEMO (in Apple review) and the Google testers' restaurants untouched.
@@ -644,7 +648,7 @@ export default function MainApp({ session, onSignOut }) {
   ) : null;
 
   // Full-screen, above the tabs: it is a place you go to, not a tab you live in.
-  if (showMetrics)
+  if (showMetrics && !metricsOff)
     return <>{tourNode}<MetricsScreen session={session} cards={cards} masteryById={masteryById} weekly={weekly} leaderboard={leaderboard}
       onDone={() => setShowMetrics(false)}
       onReplayTour={() => { setShowMetrics(false); setTourStep(0); setTourOpen(true); }} /></>;
@@ -924,7 +928,7 @@ export default function MainApp({ session, onSignOut }) {
            style={aurora
              ? { background: "rgba(12,13,16,0.75)", backdropFilter: "blur(18px)", borderBottom: "1px solid rgba(238,240,246,0.08)" }
              : { background: "#16181c", borderBottom: "1px solid #22252b" }}>
-        <SignOutButton onSignOut={onSignOut} />
+        <SignOutButton onSignOut={onSignOut} withDelete={metricsOff && !preview && !session?.offline} />
         {/* Skinned: the .hdr greeting right below IS the identity — repeating the name
             and the restaurant here is the same fact twice on one screen. */}
         <div className="text-center">
@@ -935,14 +939,14 @@ export default function MainApp({ session, onSignOut }) {
         </div>
         <div className="flex items-center gap-1.5">
           {!aurora && myRank > 0 && <span className="text-[11px] font-bold text-[#f3c14b] bg-[#33290f] px-2 py-1 rounded-md">מקום {myRank}</span>}
-          <button
+          {!metricsOff && <button
             onClick={() => setShowMetrics(true)}
             data-tour="metrics"
             title="המדדים שלי"
             className="w-8 h-8 rounded-lg bg-[#191b1f] flex items-center justify-center text-[#8a8aa0]"
           >
             <BarChart3 size={16} />
-          </button>
+          </button>}
         </div>
       </div>
       {preview && (
@@ -1310,11 +1314,12 @@ export default function MainApp({ session, onSignOut }) {
                 const first = (session?.firstName || session?.name || "").split(" ")[0];
                 const sub = `${session?.restaurantName}${pct > 0 ? ` · ${pct}% מהתפריט אצלך` : " · מתחילים מהתפריט"}`;
                 return aurora ? (
-                  <button className="hdr" aria-label="פתיחת המדדים שלי" onClick={() => setShowMetrics(true)}>
+                  <button className="hdr" aria-label={metricsOff ? undefined : "פתיחת המדדים שלי"}
+                          onClick={metricsOff ? undefined : () => setShowMetrics(true)}>
                     <span className="avatar">{(first || "🙂").slice(0, 2)}</span>
                     <span className="flex-1 min-w-0 text-right">
                       <h2>{hello}, {first || "לך"}
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 10 6 6 6-6" /></svg>
+                        {!metricsOff && <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 10 6 6 6-6" /></svg>}
                       </h2>
                       <span className="au-label">{sub}</span>
                     </span>
@@ -1438,7 +1443,7 @@ function BottomNav({ tab, setTab, hasDailyUpdate, hideTasks, aurora }) {
 // tapping the header icon opens a confirmation whose "התנתקות" button stays LOCKED for
 // five counted-down seconds — only after the timer runs out can it be pressed. Nothing
 // disconnects on its own; cancel is available the whole time.
-function SignOutButton({ onSignOut }) {
+function SignOutButton({ onSignOut, withDelete = false }) {
   const [open, setOpen] = useState(false);
   const [secs, setSecs] = useState(5);
 
@@ -1481,6 +1486,10 @@ function SignOutButton({ onSignOut }) {
                 {secs > 0 ? `התנתקות (${secs})` : "התנתקות מהחשבון"}
               </button>
             </div>
+            {/* Account deletion has to stay reachable in-app (App Store 5.1.1(v)).
+                It used to live at the bottom of the metrics screen; when that screen
+                is switched off for a restaurant, this dialog is its new home. */}
+            {withDelete && <DeleteProfile />}
           </div>
         </div>
       )}
