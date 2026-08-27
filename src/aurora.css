@@ -26,7 +26,8 @@
 /* --- 3. פריסת המסך --- */
 /* ⚠️ `isolation:isolate` הוא מה שמחזיק את סעיף 2. בלעדיו שכבות ה-z השלילי
    מצוירות מתחת לרקע של השורש עצמו — הן רצות ולא נראות (נתפס בביקורת 27.8). */
-.aurora-skin{isolation:isolate; max-width:430px; margin:0 auto}
+.aurora-skin{isolation:isolate; max-width:430px; margin:0 auto;
+  font-family:'Heebo',system-ui,sans-serif}
 .aurora-skin .au-screen{padding:26px 20px 12px}
 
 /* --- 2. רקע האורורה (שכבות קבועות, מאחורי הכל: z שלילי) --- */

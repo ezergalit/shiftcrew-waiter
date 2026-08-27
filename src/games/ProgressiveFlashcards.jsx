@@ -18,7 +18,7 @@ import { gz } from "../lib/shiftChoice";
 // exam?" instead. Declining the exam buys ten more refresh cards, then it asks again.
 const CHECKPOINT_EVERY = 10;
 
-export default function ProgressiveFlashcards({ items, label, firstId, initialProgress, onRate, onDone, onExam, examReady }) {
+export default function ProgressiveFlashcards({ items, label, firstId, initialProgress, onRate, onDone, onExam, examReady, slim = false }) {
   // Live local copy of the progress map: the parent's state update is async, and the very
   // next pick must already see the rating that was just given.
   const progRef = useRef({ ...(initialProgress || {}) });
@@ -160,12 +160,13 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
                 {dishLabel(it)}
               </p>
               {starBadge}
-              {(it.ingredients?.length > 0 || it.allergens?.length > 0 || mokshim(it).length > 0) && (
+              {(it.ingredients?.length > 0 || it.allergens?.length > 0 || mokshim(it).length > 0 || it.pregnancy?.length > 0 || it.pitfalls?.length > 0) && (
                 <p className="text-xs font-bold text-[#8a8aa0]">
                   {[
                     countLabel(it.ingredients, "מרכיב", "מרכיבים"),
                     countLabel(it.allergens, "אלרגיה", "אלרגיות"),
-                    countLabel(mokshim(it), "מוקש", "מוקשים"),
+                    ...(slim ? [countLabel(mokshim(it), "מוקש", "מוקשים")]
+                             : [countLabel(it.pregnancy, "רגישות בהריון", "רגישויות בהריון"), countLabel(it.pitfalls, "מוקש", "מוקשים")]),
                   ].filter(Boolean).join(" · ")}
                 </p>
               )}
@@ -175,16 +176,24 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
             {/* back */}
             <div className="flip-face flip-back bg-[#16181c] border border-[#6d5efc]/40 rounded-2xl p-5 w-full text-center space-y-2.5 min-h-[260px] flex flex-col justify-center">
               <p className="text-lg font-black text-[#eef0f6]">{dishLabel(it)}</p>
-              {/* The card back teaches exactly three things (user, 2026-08-27): ingredients,
-                  allergies, mokshim. The description stays in the menu tab — a study card
-                  drowning in prose teaches nothing. Knowledge cards are the exception:
-                  their text IS the content. Empty sections simply don't render. */}
-              {it.knowledge && it.desc && <p className="text-sm text-[#c4c4d4] leading-relaxed text-right">{it.desc}</p>}
-              {it.ingredients?.length > 0 && (
-                <div className="bg-[#1c1f25] p-2 rounded-lg"><p className="text-xs font-bold text-[#c4c4d4]">{it.knowledge ? "נקודות מפתח" : "מרכיבים"}: {it.ingredients.join(", ")}</p></div>
-              )}
-              {it.allergens?.length > 0 && <div className="bg-[#3a1d22] p-2 rounded-lg"><p className="text-xs font-bold text-[#e0315a]">אלרגיות: {it.allergens.join(", ")}</p></div>}
-              {mokshim(it).length > 0 && <div className="bg-[#3a2f1d] p-2 rounded-lg"><p className="text-xs font-bold text-[#f3c14b]">מוקשים: {mokshim(it).join(", ")}</p></div>}
+              {/* Slim back — three things only: ingredients, allergies, mokshim (user,
+                  2026-08-27). Scoped to the skinned restaurant so every other restaurant
+                  keeps the card it already had. Knowledge cards keep their text: it IS
+                  their content. Empty sections simply don't render. */}
+              {slim ? <>
+                {it.knowledge && it.desc && <p className="text-sm text-[#c4c4d4] leading-relaxed text-right">{it.desc}</p>}
+                {it.ingredients?.length > 0 && (
+                  <div className="bg-[#1c1f25] p-2 rounded-lg"><p className="text-xs font-bold text-[#c4c4d4]">{it.knowledge ? "נקודות מפתח" : "מרכיבים"}: {it.ingredients.join(", ")}</p></div>
+                )}
+                {it.allergens?.length > 0 && <div className="bg-[#3a1d22] p-2 rounded-lg"><p className="text-xs font-bold text-[#e0315a]">אלרגיות: {it.allergens.join(", ")}</p></div>}
+                {mokshim(it).length > 0 && <div className="bg-[#3a2f1d] p-2 rounded-lg"><p className="text-xs font-bold text-[#f3c14b]">מוקשים: {mokshim(it).join(", ")}</p></div>}
+              </> : <>
+                {it.desc && <p className="text-sm text-[#c4c4d4] leading-relaxed">{it.desc}</p>}
+                {it.ingredients?.length > 0 && <p className="text-xs text-[#8a8aa0]">מרכיבים: {it.ingredients.join(", ")}</p>}
+                {it.allergens?.length > 0 && <div className="bg-[#3a1d22] p-2 rounded-lg"><p className="text-xs font-bold text-[#e0315a]">אלרגיות: {it.allergens.join(", ")}</p></div>}
+                {it.pregnancy?.length > 0 && <div className="bg-[#2a1d3a] p-2 rounded-lg"><p className="text-xs font-bold text-[#b48cff]">רגישות בהריון: {it.pregnancy.join(", ")}</p></div>}
+                {it.pitfalls?.length > 0 && <div className="bg-[#3a2f1d] p-2 rounded-lg"><p className="text-xs font-bold text-[#f3c14b]">מוקשים: {it.pitfalls.join(", ")}</p></div>}
+              </>}
               <div className="pt-1">
                 <p className="text-xs font-bold text-[#8a8aa0] mb-1.5">כמה טוב ידעת?</p>
                 <p className="text-[11px] text-[#5a5a6e] mb-1.5">הדירוג העצמי קובע מה חוזרים עליו — נקודות נצברות רק בבחנים ובמבחן</p>

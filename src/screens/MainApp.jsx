@@ -670,7 +670,7 @@ export default function MainApp({ session, onSignOut }) {
     // ⚠️ Recomputed here, not captured when the session started: the waiter is rating
     // dishes right now, so the category can cross the exam threshold mid-session — and
     // that is exactly the moment worth offering the exam (user, 2026-08-23).
-    return <ProgressiveFlashcards items={prog.items} label={prog.label} firstId={prog.firstId} initialProgress={prog.progress}
+    return <ProgressiveFlashcards slim={aurora} items={prog.items} label={prog.label} firstId={prog.firstId} initialProgress={prog.progress}
       examReady={!!prog.catKey && scorePct(prog.items) >= (examConfig?.pass_threshold ?? 50)}
       onExam={prog.catKey ? () => {
         setExamCategory({ key: prog.catKey, label: catLabel(prog.catKey) });
@@ -679,8 +679,8 @@ export default function MainApp({ session, onSignOut }) {
       } : null}
       onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={() => { setMode(null); setProg(null); }} />;
 
-  if (mode === "flashcards") return <Flashcards items={studySession.deck} session={studySession} onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
-  if (mode === "quick") return <Flashcards items={quickSession.deck} session={quickSession} quick onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
+  if (mode === "flashcards") return <Flashcards slim={aurora} items={studySession.deck} session={studySession} onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
+  if (mode === "quick") return <Flashcards slim={aurora} items={quickSession.deck} session={quickSession} quick onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
   // Thin-category study: group cards (front = "שתייה קלה מוגזת", back = the carry list
   // with prices). A per-item flashcard there flips קולה into קולה — teaches nothing.
   if (mode === "groupcards") return <GroupFlashcards items={gameItems} onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
@@ -1403,10 +1403,11 @@ function BottomNav({ tab, setTab, hasDailyUpdate, hideTasks, aurora }) {
     // Tasks · Menu · Learning (user, 2026-08-20). "בית" was never a place — it was a
     // pile of cards; the shift checklist is what a waiter actually opens the app for.
     // A trainee has no shift yet — the tasks tab is hidden and the app is menu + learning.
-    // Emoji icons — the user's final pick from the Aurora concept rounds ("האימוגי אחלה").
-    ...(hideTasks ? [] : [["home", "📋", "משימות", hasDailyUpdate]]),
-    ["categories", "📖", "תפריט", false],
-    ["learn", "🎓", "תרגול ובחינה", false],
+    // Emoji icons are the Aurora concept's pick ("האימוגי אחלה"); every other
+    // restaurant keeps the lucide set it already had.
+    ...(hideTasks ? [] : [["home", aurora ? "📋" : ListChecks, "משימות", hasDailyUpdate]]),
+    ["categories", aurora ? "📖" : BookOpen, "תפריט", false],
+    ["learn", aurora ? "🎓" : GraduationCap, "תרגול ובחינה", false],
   ];
   return (
     <div className={`${aurora ? "au-nav" : ""} flex-shrink-0 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]`}
@@ -1419,7 +1420,9 @@ function BottomNav({ tab, setTab, hasDailyUpdate, hideTasks, aurora }) {
               className={aurora ? `flex-1 ${active ? "on" : ""}` : "flex-1 flex flex-col items-center gap-1 py-1 relative transition-colors"}>
               {!aurora && active && <div className="absolute inset-x-2 top-0 h-9 bg-white/[0.07] rounded-2xl" />}
               <span className="relative">
-                <span className={aurora ? "ic" : `text-[19px] leading-none ${active ? "" : "grayscale opacity-70"}`} aria-hidden>{icon}</span>
+                {aurora
+                  ? <span className="ic" aria-hidden>{icon}</span>
+                  : (() => { const Icon = icon; return <Icon size={20} strokeWidth={active ? 2.3 : 1.6} className={active ? "text-white" : "text-[#8a8aa0]"} />; })()}
                 {badge && <span className="absolute -top-1 -left-1.5 w-2 h-2 rounded-full bg-[#e0315a]" />}
               </span>
               {aurora ? label : <span className={`text-[11px] font-semibold ${active ? "text-white" : "text-[#8a8aa0]"}`}>{label}</span>}
