@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Trophy, Star } from "lucide-react";
 import { dishLabel } from "../lib/questionEngine";
-import { countLabel, nLabel } from "./shared";
+import { countLabel, nLabel, mokshim} from "./shared";
 import { categoryVisual } from "../lib/categoryVisual";
 import { gz } from "../lib/shiftChoice";
 
@@ -79,13 +79,12 @@ export default function Flashcards({ items, session, quick, onRate, onDone }) {
                 {dishLabel(it)}
               </p>
               {starBadge}
-              {(it.ingredients?.length > 0 || it.allergens?.length > 0 || it.pregnancy?.length > 0 || it.pitfalls?.length > 0) && (
+              {(it.ingredients?.length > 0 || it.allergens?.length > 0 || mokshim(it).length > 0) && (
                 <p className="text-xs font-bold text-[#8a8aa0]">
                   {[
                     countLabel(it.ingredients, "מרכיב", "מרכיבים"),
                     countLabel(it.allergens, "אלרגיה", "אלרגיות"),
-                    countLabel(it.pregnancy, "רגישות בהריון", "רגישויות בהריון"),
-                    countLabel(it.pitfalls, "מוקש", "מוקשים"),
+                    countLabel(mokshim(it), "מוקש", "מוקשים"),
                   ].filter(Boolean).join(" · ")}
                 </p>
               )}
@@ -95,11 +94,16 @@ export default function Flashcards({ items, session, quick, onRate, onDone }) {
             {/* back */}
             <div className="flip-face flip-back bg-[#16181c] border border-[#6d5efc]/40 rounded-2xl p-5 w-full text-center space-y-2.5 min-h-[260px] flex flex-col justify-center">
               <p className="text-lg font-black text-[#eef0f6]">{dishLabel(it)}</p>
-              {it.desc && <p className="text-sm text-[#c4c4d4] leading-relaxed">{it.desc}</p>}
-              {it.ingredients?.length > 0 && <p className="text-xs text-[#8a8aa0]">מרכיבים: {it.ingredients.join(", ")}</p>}
+              {/* The card back teaches exactly three things (user, 2026-08-27): ingredients,
+                  allergies, mokshim. The description stays in the menu tab — a study card
+                  drowning in prose teaches nothing. Knowledge cards are the exception:
+                  their text IS the content. Empty sections simply don't render. */}
+              {it.knowledge && it.desc && <p className="text-sm text-[#c4c4d4] leading-relaxed text-right">{it.desc}</p>}
+              {it.ingredients?.length > 0 && (
+                <div className="bg-[#1c1f25] p-2 rounded-lg"><p className="text-xs font-bold text-[#c4c4d4]">{it.knowledge ? "נקודות מפתח" : "מרכיבים"}: {it.ingredients.join(", ")}</p></div>
+              )}
               {it.allergens?.length > 0 && <div className="bg-[#3a1d22] p-2 rounded-lg"><p className="text-xs font-bold text-[#e0315a]">אלרגיות: {it.allergens.join(", ")}</p></div>}
-              {it.pregnancy?.length > 0 && <div className="bg-[#2a1d3a] p-2 rounded-lg"><p className="text-xs font-bold text-[#b48cff]">רגישות בהריון: {it.pregnancy.join(", ")}</p></div>}
-              {it.pitfalls?.length > 0 && <div className="bg-[#3a2f1d] p-2 rounded-lg"><p className="text-xs font-bold text-[#f3c14b]">מוקשים: {it.pitfalls.join(", ")}</p></div>}
+              {mokshim(it).length > 0 && <div className="bg-[#3a2f1d] p-2 rounded-lg"><p className="text-xs font-bold text-[#f3c14b]">מוקשים: {mokshim(it).join(", ")}</p></div>}
               <div className="pt-1">
                 <p className="text-xs font-bold text-[#8a8aa0] mb-1.5">כמה טוב ידעת?</p>
                 {/* Says plainly that this is practice, not scoring — otherwise a waiter

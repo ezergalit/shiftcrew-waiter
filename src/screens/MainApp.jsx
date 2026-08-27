@@ -75,7 +75,7 @@ function pubToCard(p) {
   imageUrl: p.image_url || null,
   // Knowledge cards (categories named הדרכת·) are learnable like dishes but are not dishes:
   // the whole-menu exam and its scenario builders must never treat them as orderable food.
-  knowledge: (p.category || "").startsWith("הדרכת") };
+  knowledge: (p.category || "").startsWith("הדרכת") || (p.name || "").startsWith("מה חשוב לדעת") };
 }
 
 // Where the waiter was when they last closed the app. Stored per member and stamped, so a

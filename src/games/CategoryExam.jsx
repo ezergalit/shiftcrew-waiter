@@ -21,11 +21,16 @@ import { shortCat, shuffle, ALLERGENS } from "./shared";
 // (correct / correct+missed+wrong) means selecting everything collapses to near zero.
 // Recognition, but the discriminating kind: which four of these eighteen are in THIS dish.
 export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, onFinish }) {
+  const allKnowledge = (items || []).length > 0 && (items || []).every((it) => it.knowledge);
+  const base = useMemo(
+    () => (items || []).filter((it) => allKnowledge || !it.knowledge),
+    [items, allKnowledge],
+  );
   const deck = useMemo(() => {
-    const pool = (items || []).filter((it) => askableIngredients(it).length > 0);
+    const pool = base.filter((it) => askableIngredients(it).length > 0);
     // 2026-08-20 (user request): exams are long now — up to 12 dishes instead of 4.
     return shuffle(pool).slice(0, 12).map((it) => ({ it }));
-  }, [items]);
+  }, [base]);
 
   // ⚠️ The options are the dish's real ingredients plus DECOYS taken from the other dishes
   // in the same category — never generic food words. That is what makes it hard to cheat:
@@ -39,7 +44,7 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
   const POOL_SIZE = 14;
   const pools = useMemo(() => {
     const all = new Set();
-    for (const it of items || []) for (const g of askableIngredients(it)) {
+    for (const it of base) for (const g of askableIngredients(it)) {
       const k = String(g).trim(); if (k) all.add(k);
     }
     return deck.map(({ it }) => {
@@ -48,7 +53,7 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
       const decoys = shuffle([...all].filter((x) => !mineSet.has(x)));
       return shuffle([...mineSet, ...decoys.slice(0, Math.max(4, POOL_SIZE - mineSet.size))]);
     });
-  }, [items, deck]);
+  }, [base, deck]);
 
   const [i, setI] = useState(0);
   const [pickedIng, setPickedIng] = useState(new Set());
