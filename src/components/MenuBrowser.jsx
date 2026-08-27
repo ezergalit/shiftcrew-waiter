@@ -27,7 +27,7 @@ const FLAG_GROUPS = [
     note: "לא מסוכן — פשוט טעם שאורחים רבים מבקשים בלעדיו (כוסברה, חריף, שום)." },
 ];
 
-export default function MenuBrowser({ cards, onPractice }) {
+export default function MenuBrowser({ cards, onPractice, topSlot = null }) {
   const [menu, setMenu] = useState(null);
   const [cat, setCat] = useState(null);
   const [idx, setIdx] = useState(null);
@@ -325,6 +325,7 @@ export default function MenuBrowser({ cards, onPractice }) {
     const list = [...new Set(pool.map((c) => c.category).filter(Boolean))];
     return (
       <div className="space-y-2.5">
+        {flat && topSlot}
         {!flat && <Crumb over="התפריטים" title={menu} onBack={() => setMenu(null)} />}
         {list.map((c) => {
           const vis = categoryVisual(c);
@@ -367,6 +368,7 @@ export default function MenuBrowser({ cards, onPractice }) {
   // ---- level 1: the restaurant's menus ----
   return (
     <div className="space-y-2.5">
+      {topSlot}
       <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">התפריט של המסעדה — אפשר לפתוח כל תפריט ולעיין בו.</p>
       {menus.map((m) => {
         const inG = (cards || []).filter((c) => c.menuGroup === m);
@@ -377,7 +379,8 @@ export default function MenuBrowser({ cards, onPractice }) {
             key={m}
             onClick={() => setMenu(m)}
             data-tour="browse-menu"
-            className="w-full text-right bg-white/[0.04] border border-white/[0.07] rounded-3xl p-4 flex items-center gap-3.5 active:scale-[0.99] transition-transform"
+            className="w-full text-right rounded-3xl p-4 flex items-center gap-3.5 border active:scale-[0.99] transition-transform"
+            style={{ background: "linear-gradient(160deg, rgba(34,192,140,0.06), rgba(255,255,255,0.03))", borderColor: "rgba(34,192,140,0.14)" }}
           >
             {photo && <img src={photo} alt="" loading="lazy" className="w-12 h-12 rounded-2xl object-cover flex-shrink-0 border border-white/[0.08]" />}
             <span className="flex-1 min-w-0">

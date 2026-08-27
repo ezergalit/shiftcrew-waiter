@@ -876,7 +876,7 @@ export default function MainApp({ session, onSignOut }) {
 
   return (
     <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl"
-         style={{ backgroundImage: "radial-gradient(55% 38% at 85% -5%, rgba(34,192,140,0.10), transparent 62%), radial-gradient(45% 32% at 8% 104%, rgba(34,192,140,0.05), transparent 60%)" }}>
+         style={{ background: "#0b100e radial-gradient(70% 48% at 80% -8%, rgba(34,192,140,0.18), transparent 64%) no-repeat, #0b100e radial-gradient(55% 40% at 5% 108%, rgba(34,192,140,0.10), transparent 62%) no-repeat" }}>
       {/* First-run interactive tour: walks the real screens, one step per tab. Shown once
           per member — the flag is device-scoped, same as the welcome slides. */}
       {tourNode}
@@ -1100,7 +1100,7 @@ export default function MainApp({ session, onSignOut }) {
             {/* Aurora hero: the one thing to do next, above the full list */}
             {path.recommended && (
               <div className="rounded-3xl p-4 bg-[#123528]/70 border border-[#22c08c]/25"
-                   style={{ boxShadow: "0 0 40px rgba(34,192,140,0.08) inset" }}>
+                   style={{ boxShadow: "0 0 46px rgba(34,192,140,0.12) inset, 0 0 26px rgba(34,192,140,0.10)" }}>
                 <div className="flex items-center gap-3.5">
                   <Ring pct={path.recommended.pct ?? 0} size={54} />
                   <div className="min-w-0 flex-1">
@@ -1119,7 +1119,8 @@ export default function MainApp({ session, onSignOut }) {
               const pct = scorePct(items);
               return (
                 <button key={g} data-tour="learn-menu" onClick={() => setGroupView(g)}
-                  className="w-full text-right bg-white/[0.04] rounded-3xl p-4 border border-white/[0.07] active:scale-[0.99] transition-transform flex items-center gap-3.5">
+                  className="w-full text-right rounded-3xl p-4 border active:scale-[0.99] transition-transform flex items-center gap-3.5"
+                  style={{ background: "linear-gradient(160deg, rgba(34,192,140,0.06), rgba(255,255,255,0.03))", borderColor: "rgba(34,192,140,0.14)" }}>
                   <Ring pct={pct} />
                   <span className="flex-1 min-w-0">
                     <span className="block text-sm font-black text-[#eef0f6] line-clamp-1">{g}</span>
@@ -1236,16 +1237,18 @@ export default function MainApp({ session, onSignOut }) {
         {/* The menu tab is the menu: menu → category → dishes with descriptions. Read
             only, so checking a dish mid-shift never touches the waiter's score. */}
         {tab === "categories" && (
-          <>
+          <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)}
+            topSlot={<>
             {tasksOff && !trainee && (() => {
               const h = new Date().getHours();
               const hello = h < 5 ? "לילה טוב" : h < 12 ? "בוקר טוב" : h < 17 ? "צהריים טובים" : "ערב טוב";
               const first = (session?.firstName || session?.name || "").split(" ")[0];
               return (
-                <div className="rounded-3xl p-4 mb-2.5 bg-white/[0.04] border border-white/[0.07]">
+                <div className="rounded-3xl p-4 mb-2.5 border"
+                     style={{ background: "linear-gradient(160deg, rgba(34,192,140,0.10), rgba(34,192,140,0.03) 55%, rgba(255,255,255,0.03))", borderColor: "rgba(34,192,140,0.18)", boxShadow: "0 0 34px rgba(34,192,140,0.07)" }}>
                   <div className="flex items-center gap-3">
                     <span className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-black text-[#06231a] flex-shrink-0"
-                          style={{ background: "linear-gradient(135deg,#22c08c,#17805d)" }}>
+                          style={{ background: "linear-gradient(135deg,#22c08c,#17805d)", boxShadow: "0 0 18px rgba(34,192,140,0.45)" }}>
                       {(first || "🙂").slice(0, 2)}
                     </span>
                     <div className="min-w-0">
@@ -1266,9 +1269,8 @@ export default function MainApp({ session, onSignOut }) {
                 </div>
               );
             })()}
-            <AboutCard session={session} onOpen={() => setShowAbout(true)} />
-            <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} />
-          </>
+              <AboutCard session={session} onOpen={() => setShowAbout(true)} />
+            </>} />
         )}
 
         {tab === "daily" && (
@@ -1367,7 +1369,7 @@ function BottomNav({ tab, setTab, hasDailyUpdate, hideTasks }) {
   return (
     <div
       className="flex-shrink-0 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
-      style={{ background: "rgba(22,24,28,0.92)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(255,255,255,0.06)" }}
+      style={{ background: "rgba(18,26,22,0.92)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(34,192,140,0.10)" }}
     >
       <div className="flex">
         {items.map(([t, icon, label, badge]) => {
