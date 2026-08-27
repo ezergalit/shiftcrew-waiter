@@ -65,8 +65,11 @@ export const PITFALLS = ["כוסברה", "חריף", "דג נא", "שום", "ב�
 // problematic-kashrut facts live here; the plain kashrut classification (בשרי/חלבי/פרווה)
 // is menu-reference detail, not a card fact. The full four-group split stays in the menu.
 const KASHRUT_WARN = new Set(["לא כשר", "בשר וחלב יחד", "פירות ים", "חזיר"]);
+// "דגים עתירי כספית" is a real pregnancy fact but reads as noise on a study card
+// (user, 2026-08-27) — the menu's full detail view still shows it.
+const MOKSHIM_SKIP = new Set(["דגים עתירי כספית"]);
 export const mokshim = (it) => [...new Set([
   ...(it?.pitfalls || []),
   ...(it?.pregnancy || []),
   ...(it?.kashrut || []).filter((k) => KASHRUT_WARN.has(k)),
-])];
+])].filter((m) => !MOKSHIM_SKIP.has(m));
