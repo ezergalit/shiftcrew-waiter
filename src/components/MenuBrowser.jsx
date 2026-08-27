@@ -225,7 +225,7 @@ export default function MenuBrowser({ cards, onPractice }) {
 
             {d.ingredients?.length > 0 && (
               <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
-                <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide mb-2.5">מרכיבים</p>
+                <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide mb-2.5">{d.knowledge ? "נקודות מפתח" : "מרכיבים"}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {d.ingredients.map((i) => (
                     <span key={i} className="text-[13px] font-bold px-3 py-1.5 rounded-lg bg-[#20232b] text-[#c4c4d4]">{i}</span>
@@ -293,7 +293,7 @@ export default function MenuBrowser({ cards, onPractice }) {
     return (
       <div className="space-y-3.5">
         <Crumb over={flat ? null : menu} title={`${categoryVisual(cat).emoji} ${shortCat(cat)}`} onBack={() => setCat(null)} />
-        <p className="text-[11.5px] text-[#5a5a6e] px-1">{nLabel(dishes.length, "מנה", "מנות")} · הקשה על מנה פותחת אותה במלואה</p>
+        <p className="text-[11.5px] text-[#5a5a6e] px-1">{cat.startsWith("הדרכת") ? `${nLabel(dishes.length, "נושא", "נושאים")} · הקשה על נושא פותחת אותו במלואו` : `${nLabel(dishes.length, "מנה", "מנות")} · הקשה על מנה פותחת אותה במלואה`}</p>
         {dishes.map((d, i) => (
           <button
             key={d.id}
@@ -328,7 +328,11 @@ export default function MenuBrowser({ cards, onPractice }) {
         {!flat && <Crumb over="התפריטים" title={menu} onBack={() => setMenu(null)} />}
         {list.map((c) => {
           const vis = categoryVisual(c);
-          const n = pool.filter((x) => x.category === c).length;
+          const inCat = pool.filter((x) => x.category === c);
+          const n = inCat.length;
+          // A real dish photo from the category beats the generic emoji tile (user,
+          // 2026-08-27) — the emoji stays only for categories with no photos at all.
+          const photo = inCat.find((x) => x.imageUrl)?.imageUrl;
           return (
             <button
               key={c}
@@ -336,6 +340,10 @@ export default function MenuBrowser({ cards, onPractice }) {
               data-tour="browse-category"
               className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-5 flex items-center gap-4 active:scale-[0.99] transition-transform"
             >
+              {photo ? (
+                <img src={photo} alt="" loading="lazy"
+                  className="w-11 h-11 rounded-2xl object-cover flex-shrink-0 border border-[#22252b]" />
+              ) : (
               <span
                 className="w-11 h-11 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
                 style={{ background: `linear-gradient(135deg, ${vis.from}, ${vis.to}44)` }}
@@ -343,9 +351,10 @@ export default function MenuBrowser({ cards, onPractice }) {
               >
                 {vis.emoji}
               </span>
+              )}
               <span className="flex-1 min-w-0">
                 <span className="block text-[18px] font-black text-[#eef0f6] line-clamp-1">{shortCat(c)}</span>
-                <span className="block text-[12px] text-[#8a8aa0] mt-1.5">{nLabel(n, "מנה", "מנות")}</span>
+                <span className="block text-[12px] text-[#8a8aa0] mt-1.5">{c.startsWith("הדרכת") ? nLabel(n, "נושא", "נושאים") : nLabel(n, "מנה", "מנות")}</span>
               </span>
               <ChevronLeft size={18} className="text-[#5a5a6e] flex-shrink-0" />
             </button>

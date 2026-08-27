@@ -59,6 +59,7 @@ export default function App() {
                 restaurantCuisineTypes: data.restaurant.cuisine_types,
                 restaurantServiceStyle: data.restaurant.service_style,
                 restaurantServiceNotes: data.restaurant.service_notes,
+                features: data.restaurant.features || {},
               });
               setPhase("app");
             }
