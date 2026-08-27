@@ -1,15 +1,15 @@
-// Aurora progress ring (design concept 2026-08): a ring reads as "how much of this is
-// mine" at a glance, where a bar reads as a loading state. Shared by the learn tab's
-// main page and the menu's front door.
-export default function Ring({ pct, size = 46 }) {
-  const r = (size - 7) / 2, c = 2 * Math.PI * r;
+// The concept's progress ring, one spec for every use (crewmenu-menu-page.html §8):
+// r=18 ⇒ circumference 113, stroke 4, rotated -90° so the fill starts at the top.
+// Kept at a single size on purpose — scaling the SVG box stretched the stroke off-spec
+// while the label stayed put (caught in the 27.8 design audit).
+export default function Ring({ pct }) {
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="flex-shrink-0" aria-hidden>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#20302a" strokeWidth="5.5" />
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#22C08C"
-        strokeWidth="5.5" strokeLinecap="round" strokeDasharray={`${Math.max(0.001, (pct / 100) * c)} ${c}`}
-        transform={`rotate(-90 ${size / 2} ${size / 2})`} />
-      <text x="50%" y="52%" textAnchor="middle" dominantBaseline="central" fill="#eef0f6" fontSize="11.5" fontWeight="800">{pct}%</text>
-    </svg>
+    <span className="miniring">
+      <svg width="46" height="46">
+        <circle className="track" cx="23" cy="23" r="18" />
+        <circle className="fill" cx="23" cy="23" r="18" strokeDasharray="113" strokeDashoffset={113 * (1 - (pct || 0) / 100)} />
+      </svg>
+      <b className="num tabular-nums">{pct || 0}%</b>
+    </span>
   );
 }

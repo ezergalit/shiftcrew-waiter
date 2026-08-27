@@ -423,11 +423,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
       <button key={c} className="glass cat" data-tour="browse-category" onClick={() => setCat(c)}>
         <span className="icon" aria-hidden>{photo ? <img src={photo} alt="" loading="lazy" /> : vis.emoji}</span>
         <span className="flex-1 min-w-0"><h3 className="line-clamp-1">{shortCat(c)}</h3><p>{sub}</p></span>
-        {/* r=18 ⇒ circumference 113; dashoffset = 113 * (1 - pct/100) */}
-        <span className="miniring">
-          <svg width="46" height="46"><circle className="track" cx="23" cy="23" r="18" /><circle className="fill" cx="23" cy="23" r="18" strokeDasharray="113" strokeDashoffset={113 * (1 - pct / 100)} /></svg>
-          <b className="num tabular-nums">{pct}%</b>
-        </span>
+        <Ring pct={pct} />
       </button>
     );
   };

@@ -23,6 +23,12 @@
    (`restaurants.features.design = "aurora"`). מסעדה בלי הדגל מקבלת
    בדיוק את האפליקציה הישנה, כולל CREWDEMO שנמצא בביקורת אפל. */
 
+/* --- 3. פריסת המסך --- */
+/* ⚠️ `isolation:isolate` הוא מה שמחזיק את סעיף 2. בלעדיו שכבות ה-z השלילי
+   מצוירות מתחת לרקע של השורש עצמו — הן רצות ולא נראות (נתפס בביקורת 27.8). */
+.aurora-skin{isolation:isolate; max-width:430px; margin:0 auto}
+.aurora-skin .au-screen{padding:26px 20px 12px}
+
 /* --- 2. רקע האורורה (שכבות קבועות, מאחורי הכל: z שלילי) --- */
 .aurora-skin .aurora {position:fixed; inset:0; z-index:-2; pointer-events:none; overflow:hidden}
 .aurora-skin .aurora i {position:absolute; border-radius:50%; filter:blur(90px); opacity:.55}
@@ -104,7 +110,8 @@
   font-size:10.5px; font-weight:700}
 
 /* --- 9. סרגל תחתון (בר מלא-רוחב, אייקוני אימוג'י) --- */
-.aurora-skin .au-nav {background:rgba(12,13,16,.85); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+.aurora-skin .au-nav {padding:10px 14px calc(24px + env(safe-area-inset-bottom));
+  background:rgba(12,13,16,.85); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
   border-top:1px solid rgba(238,240,246,.08)}
 .aurora-skin .au-nav button {border:0; background:transparent; cursor:pointer; font:inherit;
   font-size:11px; font-weight:600; color:var(--faint);
@@ -115,7 +122,8 @@
 .aurora-skin .au-nav button.on {color:var(--em); background:rgba(34,192,140,.1)}
 
 @media (prefers-reduced-motion:reduce){
-.aurora-skin .aurora i {animation:none!important}
+  .aurora-skin, .aurora-skin *, .aurora-skin *::before, .aurora-skin *::after{
+    animation:none!important; transition:none!important}
 }
 
 /* צר במיוחד (iPhone SE וכדומה): מקטינים את אריח האייקון כדי שהשם יישאר קריא */
@@ -125,3 +133,6 @@
   .aurora-skin .miniring{width:40px;height:40px}
   .aurora-skin .miniring svg{width:40px;height:40px}
 }
+
+/* גוון משני אחד תחת העור: מרכזים את ה-#8A8AA0 הישן אל --dim */
+.aurora-skin .text-\[\#8a8aa0\]{color:var(--dim)}

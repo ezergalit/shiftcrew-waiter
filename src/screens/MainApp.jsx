@@ -880,10 +880,7 @@ export default function MainApp({ session, onSignOut }) {
     return (
       <div className="glass" style={{ borderColor: "rgba(34,192,140,.28)", background: "linear-gradient(160deg,rgba(20,72,58,.55),rgba(14,42,34,.6))" }}>
         <div className="flex items-center gap-3.5">
-          <span className="miniring" style={{ width: 54, height: 54 }}>
-            <svg width="54" height="54" viewBox="0 0 46 46"><circle className="track" cx="23" cy="23" r="18" /><circle className="fill" cx="23" cy="23" r="18" strokeDasharray="113" strokeDashoffset={113 * (1 - (rec.pct ?? 0) / 100)} /></svg>
-            <b className="num tabular-nums">{rec.pct ?? 0}%</b>
-          </span>
+          <Ring pct={rec.pct ?? 0} />
           <span className="flex-1 min-w-0">
             <span className="block text-[10.5px] font-black text-[#22C08C] tracking-wide">מומלץ עכשיו</span>
             <h3 className="text-[19px] font-extrabold leading-tight line-clamp-1">{shortCat(rec.key)}</h3>
@@ -904,7 +901,7 @@ export default function MainApp({ session, onSignOut }) {
       <button
         onClick={() => { setExamCategory({ key: "general", label: "התפריט המלא" }); setMode("general_exam"); }}
         className="w-full rounded-2xl p-3.5 text-right text-white active:scale-[0.99] transition-transform flex items-center gap-3"
-        style={{ background: "linear-gradient(135deg,#14b8a6,#0d7f74)" }}
+        style={{ background: aurora ? "linear-gradient(135deg,#22C08C,#17805d)" : "linear-gradient(135deg,#14b8a6,#0d7f74)" }}
       >
         <GraduationCap size={20} className="flex-shrink-0" />
         <span className="flex-1">
@@ -917,7 +914,7 @@ export default function MainApp({ session, onSignOut }) {
     ) : null;
 
   return (
-    <div className={`h-screen max-w-md mx-auto flex flex-col text-[#eef0f6] ${aurora ? "aurora-skin bg-[#0C0D10]" : "bg-[#0c0d10]"}`} dir="rtl">
+    <div className={`h-screen mx-auto flex flex-col text-[#eef0f6] ${aurora ? "aurora-skin" : "max-w-md bg-[#0c0d10]"}`} dir="rtl">
       {aurora && <><div className="aurora" aria-hidden><i></i><i></i><i></i></div><div className="grain" aria-hidden></div></>}
       {/* First-run interactive tour: walks the real screens, one step per tab. Shown once
           per member — the flag is device-scoped, same as the welcome slides. */}
@@ -928,12 +925,16 @@ export default function MainApp({ session, onSignOut }) {
              ? { background: "rgba(12,13,16,0.75)", backdropFilter: "blur(18px)", borderBottom: "1px solid rgba(238,240,246,0.08)" }
              : { background: "#16181c", borderBottom: "1px solid #22252b" }}>
         <SignOutButton onSignOut={onSignOut} />
+        {/* Skinned: the .hdr greeting right below IS the identity — repeating the name
+            and the restaurant here is the same fact twice on one screen. */}
         <div className="text-center">
-          <p className="text-sm font-black">{session?.name}</p>
-          {session?.restaurantName && <p className="text-[11px] text-[#8a8aa0] font-semibold">{session.restaurantName}</p>}
+          {!aurora && <>
+            <p className="text-sm font-black">{session?.name}</p>
+            {session?.restaurantName && <p className="text-[11px] text-[#8a8aa0] font-semibold">{session.restaurantName}</p>}
+          </>}
         </div>
         <div className="flex items-center gap-1.5">
-          {myRank > 0 && <span className="text-[11px] font-bold text-[#f3c14b] bg-[#33290f] px-2 py-1 rounded-md">מקום {myRank}</span>}
+          {!aurora && myRank > 0 && <span className="text-[11px] font-bold text-[#f3c14b] bg-[#33290f] px-2 py-1 rounded-md">מקום {myRank}</span>}
           <button
             onClick={() => setShowMetrics(true)}
             data-tour="metrics"
@@ -958,7 +959,7 @@ export default function MainApp({ session, onSignOut }) {
       )}
 
       {/* Content */}
-      <div key={tab} className="flex-1 overflow-y-auto px-4 py-3 animate-fadeIn">
+      <div key={tab} className={`flex-1 overflow-y-auto animate-fadeIn ${aurora ? "au-screen" : "px-4 py-3"}`}>
         {tab === "home" && !tasksOff && (
           <TasksTab tasks={dayTasks} onDone={toggleTask}>
             {/* A personal note from the manager outranks everything on this screen —
@@ -1152,10 +1153,7 @@ export default function MainApp({ session, onSignOut }) {
                     <h3 className="line-clamp-1">{g}</h3>
                     <p>{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nLabel(items.length, "מנה", "מנות")}</p>
                   </span>
-                  <span className="miniring">
-                    <svg width="46" height="46"><circle className="track" cx="23" cy="23" r="18" /><circle className="fill" cx="23" cy="23" r="18" strokeDasharray="113" strokeDashoffset={113 * (1 - pct / 100)} /></svg>
-                    <b className="num tabular-nums">{pct}%</b>
-                  </span>
+                  <Ring pct={pct} />
                 </button>
                 ) : (
                 <button key={g} data-tour="learn-menu" onClick={() => setGroupView(g)}
@@ -1249,10 +1247,7 @@ export default function MainApp({ session, onSignOut }) {
                         {cat.passed ? "עברת את הבוחן ✓" : examReady ? "הבוחן זמין" : `בוחן ב-${examConfig?.pass_threshold ?? 50}%`}
                       </span>
                     </span>}
-                    {aurora && <span className="miniring">
-                      <svg width="46" height="46"><circle className="track" cx="23" cy="23" r="18" /><circle className="fill" cx="23" cy="23" r="18" strokeDasharray="113" strokeDashoffset={113 * (1 - cat.pct / 100)} /></svg>
-                      <b className="num tabular-nums">{cat.pct}%</b>
-                    </span>}
+                    {aurora && <Ring pct={cat.pct} />}
                   </button>
                   {/* ⚠️ Not ready ⇒ no exam row at all (user, 2026-08-20). The old
                       "reach 50% to take the exam" line named a number the waiter has no
@@ -1416,7 +1411,7 @@ function BottomNav({ tab, setTab, hasDailyUpdate, hideTasks, aurora }) {
   return (
     <div className={`${aurora ? "au-nav" : ""} flex-shrink-0 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]`}
       style={aurora ? undefined : { background: "rgba(22,24,28,0.92)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-      <div className="flex">
+      <div className={aurora ? "flex gap-1.5" : "flex"}>
         {items.map(([t, icon, label, badge]) => {
           const active = tab === t;
           return (
