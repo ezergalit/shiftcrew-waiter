@@ -15,7 +15,7 @@ html, body, #root {
 
 body {
   direction: rtl;
-  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Heebo', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   background: #0c0d10;
   color: #eef0f6;
   overscroll-behavior: none;

@@ -6,7 +6,7 @@ export default function Ring({ pct, size = 46 }) {
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="flex-shrink-0" aria-hidden>
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#20302a" strokeWidth="5.5" />
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={pct >= 50 ? "#22c08c" : pct > 0 ? "#f3a712" : "#2c3a34"}
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#22C08C"
         strokeWidth="5.5" strokeLinecap="round" strokeDasharray={`${Math.max(0.001, (pct / 100) * c)} ${c}`}
         transform={`rotate(-90 ${size / 2} ${size / 2})`} />
       <text x="50%" y="52%" textAnchor="middle" dominantBaseline="central" fill="#eef0f6" fontSize="11.5" fontWeight="800">{pct}%</text>

@@ -16,6 +16,7 @@ import {
 import MenuBrowser from "../components/MenuBrowser";
 import { AboutScreen } from "../components/AboutRestaurant";
 import Ring from "../components/Ring";
+import "../aurora.css";
 import { isUnderstood } from "../lib/progressiveSession";
 import ProgressiveFlashcards from "../games/ProgressiveFlashcards";
 import { buildStudySession, nextConsecutiveFives, isRetired, QUICK_SESSION_SIZE } from "../lib/studySession";
@@ -124,6 +125,9 @@ export default function MainApp({ session, onSignOut }) {
   // Success percentage = how much of the *available* score you've actually earned, not how
   // many dishes crossed the pass mark. 4/5 on every dish reads as 80%, which is what the
   // score actually means — a threshold count would round that up to a misleading 100%.
+  // "נשארו X לשליטה" on the menu door — understood = two consecutive 5s, the same
+  // definition the progressive session retires dishes by.
+  const leftFor = (list) => (list || []).filter((it) => (fivesById?.[it.id] || 0) < 2).length;
   const scorePct = (list) => {
     if (!list?.length) return 0;
     const earned = list.reduce((sum, x) => sum + (masteryById[x.id] || 0), 0);
@@ -876,14 +880,15 @@ export default function MainApp({ session, onSignOut }) {
     ) : null;
 
   return (
-    <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl"
-         style={{ background: "#0c1310 radial-gradient(75% 52% at 78% -10%, rgba(34,192,140,0.22), transparent 66%) no-repeat, #0c1310 radial-gradient(60% 42% at 2% 110%, rgba(34,192,140,0.12), transparent 64%) no-repeat" }}>
+    <div className="h-screen max-w-md mx-auto flex flex-col bg-transparent text-[#eef0f6]" dir="rtl">
+      <div className="aurora" aria-hidden><i></i><i></i><i></i></div>
+      <div className="grain" aria-hidden></div>
       {/* First-run interactive tour: walks the real screens, one step per tab. Shown once
           per member — the flag is device-scoped, same as the welcome slides. */}
       {tourNode}
       {/* Header */}
       <div className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 flex items-center justify-between flex-shrink-0"
-           style={{ background: "rgba(19,26,22,0.9)", borderBottom: "1px solid rgba(34,192,140,0.10)" }}>
+           style={{ background: "rgba(12,13,16,0.75)", backdropFilter: "blur(18px)", borderBottom: "1px solid rgba(238,240,246,0.08)" }}>
         <SignOutButton onSignOut={onSignOut} />
         <div className="text-center">
           <p className="text-sm font-black">{session?.name}</p>
@@ -1239,50 +1244,32 @@ export default function MainApp({ session, onSignOut }) {
         {/* The menu tab is the menu: menu → category → dishes with descriptions. Read
             only, so checking a dish mid-shift never touches the waiter's score. */}
         {tab === "categories" && (
-          <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} pctFor={scorePct}
+          <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} pctFor={scorePct} leftFor={leftFor}
             bottomSlot={
-              <button onClick={() => setShowAbout(true)}
-                className="w-full text-right rounded-3xl p-4 flex items-center gap-3.5 border active:scale-[0.99] transition-transform"
-                style={{ background: "linear-gradient(160deg, rgba(34,192,140,0.06), rgba(255,255,255,0.03))", borderColor: "rgba(34,192,140,0.14)" }}>
-                <span className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 border border-white/[0.08] bg-white/[0.04]" aria-hidden>🏛️</span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-[18px] font-black text-[#eef0f6]">אודות המסעדה</span>
-                  <span className="block text-[11px] text-[#8a8aa0] mt-1">מי אנחנו ואיך אנחנו מארחים</span>
-                </span>
-                <ChevronLeft size={18} className="text-[#5a5a6e] flex-shrink-0" />
+              <button onClick={() => setShowAbout(true)} className="glass cat" data-name="אודות המסעדה">
+                <span className="icon" aria-hidden>🏛️</span>
+                <span className="flex-1 min-w-0"><h3>אודות המסעדה</h3><p>מי אנחנו ואיך אנחנו מארחים</p></span>
+                <ChevronLeft size={16} className="chev" />
               </button>
             }
             topSlot={<>
-            {tasksOff && !trainee && (() => {
-              const h = new Date().getHours();
-              const hello = h < 5 ? "לילה טוב" : h < 12 ? "בוקר טוב" : h < 17 ? "צהריים טובים" : "ערב טוב";
-              const first = (session?.firstName || session?.name || "").split(" ")[0];
-              return (
-                <div className="rounded-3xl p-4 mb-2.5 border"
-                     style={{ background: "linear-gradient(160deg, rgba(34,192,140,0.10), rgba(34,192,140,0.03) 55%, rgba(255,255,255,0.03))", borderColor: "rgba(34,192,140,0.18)", boxShadow: "0 0 34px rgba(34,192,140,0.07)" }}>
-                  <div className="flex items-center gap-3">
-                    <span className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-black text-[#06231a] flex-shrink-0"
-                          style={{ background: "linear-gradient(135deg,#22c08c,#17805d)", boxShadow: "0 0 18px rgba(34,192,140,0.45)" }}>
-                      {(first || "🙂").slice(0, 2)}
+              {tasksOff && !trainee && (() => {
+                const h = new Date().getHours();
+                const hello = h < 5 ? "לילה טוב" : h < 12 ? "בוקר טוב" : h < 17 ? "צהריים טובים" : "ערב טוב";
+                const first = (session?.firstName || session?.name || "").split(" ")[0];
+                return (
+                  <button className="hdr" aria-label="פתיחת המדדים שלי" onClick={() => setShowMetrics(true)}>
+                    <span className="avatar">{(first || "🙂").slice(0, 2)}</span>
+                    <span className="flex-1 min-w-0 text-right">
+                      <h2>{hello}, {first || "לך"}
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 10 6 6 6-6" /></svg>
+                      </h2>
+                      <span className="au-label">{session?.restaurantName}{pct > 0 ? ` · ${pct}% מהתפריט אצלך` : " · מתחילים מהתפריט"}</span>
                     </span>
-                    <div className="min-w-0">
-                      <p className="text-base font-black leading-tight">{hello}, {first || "לך"}</p>
-                      <p className="text-[11.5px] font-bold text-[#8a8aa0] mt-0.5">
-                        {session?.restaurantName}{pct > 0 ? ` · ${pct}% מהתפריט אצלך` : " · מתחילים מהתפריט 🍽️"}
-                      </p>
-                    </div>
-                  </div>
-                  {/* The colors legend, distilled from the removed explainer page to one glance */}
-                  <div className="flex gap-1.5 mt-3">
-                    {[["אלרגיות", "#e0315a"], ["הריון", "#b48cff"], ["מוקשים", "#f3c14b"]].map(([l, c]) => (
-                      <span key={l} className="flex items-center gap-1.5 text-[10.5px] font-bold text-[#c4c4d4] bg-white/[0.04] border border-white/[0.06] rounded-full px-2.5 py-1">
-                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: c }} />{l}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
+                  </button>
+                );
+              })()}
+              <h2 className="text-[23px] font-extrabold mt-0.5">התפריט</h2>
             </>} />
         )}
 
@@ -1365,23 +1352,17 @@ function BottomNav({ tab, setTab, hasDailyUpdate, hideTasks }) {
     ["learn", "🎓", "תרגול ובחינה", false],
   ];
   return (
-    <div
-      className="flex-shrink-0 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
-      style={{ background: "rgba(18,26,22,0.92)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(34,192,140,0.10)" }}
-    >
+    <div className="au-nav flex-shrink-0 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
       <div className="flex">
         {items.map(([t, icon, label, badge]) => {
           const active = tab === t;
           return (
-            <button key={t} data-tour={`nav-${t}`} onClick={() => setTab(t)} className="flex-1 flex flex-col items-center relative transition-colors">
-              <div className={`flex flex-col items-center gap-1 px-4 py-1.5 rounded-2xl transition-colors ${active ? "border" : "border border-transparent"}`}
-                   style={active ? { background: "linear-gradient(180deg, rgba(34,192,140,0.20), rgba(34,192,140,0.08))", borderColor: "rgba(34,192,140,0.35)", boxShadow: "0 0 18px rgba(34,192,140,0.15)" } : undefined}>
-                <div className="relative">
-                  <span className={`text-[19px] leading-none ${active ? "" : "grayscale opacity-70"}`} aria-hidden>{icon}</span>
-                  {badge && <span className="absolute -top-1 -left-1.5 w-2 h-2 rounded-full bg-[#e0315a]" />}
-                </div>
-                <span className={`text-[11px] font-bold transition-colors ${active ? "text-[#9ef0cf]" : "text-[#8a8aa0]"}`}>{label}</span>
-              </div>
+            <button key={t} data-tour={`nav-${t}`} onClick={() => setTab(t)} className={`flex-1 ${active ? "on" : ""}`}>
+              <span className="relative">
+                <span className="ic" aria-hidden>{icon}</span>
+                {badge && <span className="absolute -top-1 -left-1.5 w-2 h-2 rounded-full bg-[#e0315a]" />}
+              </span>
+              {label}
             </button>
           );
         })}

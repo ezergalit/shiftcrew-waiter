@@ -28,7 +28,11 @@ const FLAG_GROUPS = [
     note: "לא מסוכן — פשוט טעם שאורחים רבים מבקשים בלעדיו (כוסברה, חריף, שום)." },
 ];
 
-export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, pctFor = null }) {
+export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, pctFor = null, leftFor = null }) {
+  // Search on the menu door (the handoff page's dynamic): a query matches a category by
+  // its name, or by any dish name / ingredient inside it — a waiter looking for "כמהין"
+  // should land on the categories that serve it.
+  const [q, setQ] = useState("");
   const [menu, setMenu] = useState(null);
   const [cat, setCat] = useState(null);
   const [idx, setIdx] = useState(null);
@@ -38,7 +42,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   const firstPos = (g) => Math.min(...(cards || []).filter((c) => c.menuGroup === g).map((c) => c.menuPosition ?? 1e9));
   const menus = groups.sort((a, b) => firstPos(a) - firstPos(b));
   const flat = menus.length <= 1;
-  const inMenu = (c) => (flat ? true : c.menuGroup === menu);
+  const inMenu = (c) => (menu ? c.menuGroup === menu : true);
 
   const dishes = cat
     ? (cards || []).filter((c) => c.category === cat && inMenu(c))
@@ -366,33 +370,51 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
     );
   }
 
-  // ---- level 1: the restaurant's menus ----
+  // ---- level 1: the menu door (source of truth: crewmenu-menu-page.html) ----
+  // One flat page: greeting (topSlot) · search · color legend · every category as a
+  // glass row with a progress miniring · About (bottomSlot). No menu-group level —
+  // search replaces drilling, and the categories keep the printed menu's order.
+  const allCats = [...new Set((cards || []).map((c) => c.category).filter(Boolean))];
+  const nq = q.trim();
+  const catMatches = (c, inCat) => !nq || c.includes(nq) ||
+    inCat.some((d) => (d.name || "").includes(nq) || (d.ingredients || []).some((i) => String(i).includes(nq)));
   return (
-    <div className="space-y-2.5">
+    <div className="flex flex-col gap-3.5">
       {topSlot}
-      <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">התפריט של המסעדה — אפשר לפתוח כל תפריט ולעיין בו.</p>
-      {menus.map((m) => {
-        const inG = (cards || []).filter((c) => c.menuGroup === m);
-        const catCount = new Set(inG.map((c) => c.category)).size;
-        const photo = inG.find((c) => c.imageUrl && !c.knowledge)?.imageUrl;
-        return (
-          <button
-            key={m}
-            onClick={() => setMenu(m)}
-            data-tour="browse-menu"
-            className="w-full text-right rounded-3xl p-4 flex items-center gap-3.5 border active:scale-[0.99] transition-transform"
-            style={{ background: "linear-gradient(160deg, rgba(34,192,140,0.06), rgba(255,255,255,0.03))", borderColor: "rgba(34,192,140,0.14)" }}
-          >
-            {photo && <img src={photo} alt="" loading="lazy" className="w-12 h-12 rounded-2xl object-cover flex-shrink-0 border border-white/[0.08]" />}
-            <span className="flex-1 min-w-0">
-              <span className="block text-[18px] font-black text-[#eef0f6]">{m}</span>
-              <span className="block text-[11px] text-[#8a8aa0] mt-1">{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nLabel(inG.length, "פריט", "פריטים")}</span>
-            </span>
-            {pctFor ? <Ring pct={pctFor(inG)} /> : <ChevronLeft size={18} className="text-[#5a5a6e] flex-shrink-0" />}
-          </button>
-        );
-      })}
-      {bottomSlot}
+      <label className="search">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="חיפוש מנה או מרכיב..." />
+      </label>
+      <div className="flex flex-wrap gap-[7px]">
+        <span className="chip red"><i className="dot" />אלרגיות</span>
+        <span className="chip purple"><i className="dot" />הריון</span>
+        <span className="chip amber"><i className="dot" />מוקשים</span>
+      </div>
+      <div className="flex flex-col gap-3">
+        {allCats.map((c) => {
+          const inCat = (cards || []).filter((x) => x.category === c);
+          if (!catMatches(c, inCat)) return null;
+          const vis = categoryVisual(c);
+          const photo = inCat.find((x) => x.imageUrl)?.imageUrl;
+          const knowledge = inCat.every((x) => x.knowledge);
+          const pct = pctFor ? pctFor(inCat) : 0;
+          const left = leftFor ? leftFor(inCat) : inCat.length;
+          const nWord = knowledge ? nLabel(inCat.length, "נושא", "נושאים") : nLabel(inCat.length, "מנה", "מנות");
+          const sub = pct > 0 ? `${nWord} · ${left > 0 ? `נשארו ${left} לשליטה` : "הכל בשליטה"}` : nWord;
+          return (
+            <button key={c} className="glass cat" data-tour="browse-category" onClick={() => setCat(c)}>
+              <span className="icon" aria-hidden>{photo ? <img src={photo} alt="" loading="lazy" /> : vis.emoji}</span>
+              <span className="flex-1 min-w-0"><h3 className="line-clamp-1">{shortCat(c)}</h3><p>{sub}</p></span>
+              {/* r=18 ⇒ circumference 113; dashoffset = 113 * (1 - pct/100) */}
+              <span className="miniring">
+                <svg width="46" height="46"><circle className="track" cx="23" cy="23" r="18" /><circle className="fill" cx="23" cy="23" r="18" strokeDasharray="113" strokeDashoffset={113 * (1 - pct / 100)} /></svg>
+                <b className="num tabular-nums">{pct}%</b>
+              </span>
+            </button>
+          );
+        })}
+        {(!nq || "אודות המסעדה".includes(nq)) && bottomSlot}
+      </div>
     </div>
   );
 }

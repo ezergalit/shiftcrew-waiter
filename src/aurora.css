@@ -1,0 +1,115 @@
+/* ============================================================
+   CrewMenu · «אורורה» — הסגנון של עמוד התפריט (מלצר)
+   מקור האמת: Desktop/crewmenu-redesign-2026-08/crewmenu-menu-page.html
+   הועתק סקציה-סקציה; בלי ה-reset הגלובלי (Tailwind כבר כאן).
+   ============================================================ */
+
+/* --- 1. טוקנים --- */
+:root{
+  --bg:#0C0D10;            /* רקע האפליקציה */
+  --hair:rgba(238,240,246,.09);
+  --ink:#EEF0F6;           /* טקסט ראשי (קרם) */
+  --dim:#8A919E;           /* טקסט משני */
+  --faint:#6B7280;         /* טקסט שלישוני / אייקונים כבויים */
+  --em:#22C08C;            /* אמרלד — צבע המותג היחיד */
+  --red:#E5484D;           /* אלרגיות */
+  --purple:#B085F5;        /* רגישות בהריון */
+  --amber:#E8B93E;         /* מוקשים והעדפות */
+  --ease:cubic-bezier(.22,1,.32,1);
+}
+body{ background:var(--bg); }
+
+/* --- 2. רקע האורורה (שכבות קבועות, מאחורי הכל: z שלילי) --- */
+.aurora{position:fixed; inset:0; z-index:-2; pointer-events:none; overflow:hidden}
+.aurora i{position:absolute; border-radius:50%; filter:blur(90px); opacity:.55}
+.aurora i:nth-child(1){width:60vmax;height:34vmax;right:-18vmax;top:-12vmax;
+  background:radial-gradient(ellipse at center,#1E6B52 0%,transparent 65%);
+  animation:drift1 26s var(--ease) infinite alternate}
+.aurora i:nth-child(2){width:50vmax;height:30vmax;left:-16vmax;top:32vh;
+  background:radial-gradient(ellipse at center,#123B30 0%,transparent 65%);
+  animation:drift2 32s var(--ease) infinite alternate}
+.aurora i:nth-child(3){width:44vmax;height:26vmax;right:6vmax;bottom:-14vmax;
+  background:radial-gradient(ellipse at center,#0F5C46 0%,transparent 70%); opacity:.32;
+  animation:drift1 38s var(--ease) infinite alternate-reverse}
+@keyframes drift1{to{transform:translate(-6vmax,4vmax) rotate(8deg)}}
+@keyframes drift2{to{transform:translate(5vmax,-5vmax) rotate(-6deg)}}
+.grain{position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.05;
+  mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+/* --- 4. אטומים --- */
+.glass{position:relative; border-radius:22px; padding:16px;
+  background:linear-gradient(160deg,rgba(37,41,48,.72),rgba(23,25,30,.5));
+  border:1px solid var(--hair); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+  box-shadow:0 16px 34px rgba(0,0,0,.4), inset 0 1px 0 rgba(238,240,246,.07)}
+.au-label{font-size:12.5px; color:var(--dim); letter-spacing:.02em}
+.chev{color:var(--faint); flex:none}
+
+/* --- 5. הדר: ברכה (לחיץ → מסך המדדים) --- */
+.hdr{display:flex; align-items:center; gap:12px; width:100%; text-align:right;
+  background:none; border:0; font:inherit; color:inherit; cursor:pointer;
+  border-radius:16px}
+.hdr h2{font-size:21px; font-weight:800; display:flex; align-items:center; gap:7px}
+.hdr h2 svg{color:var(--faint)}
+.avatar{width:44px;height:44px;border-radius:50%; display:grid; place-items:center;
+  font-weight:700; font-size:15px; color:var(--em); flex:none;
+  background:linear-gradient(150deg,rgba(20,72,58,.9),rgba(14,42,34,.9));
+  border:1px solid rgba(34,192,140,.3)}
+
+/* --- 6. חיפוש --- */
+.search{display:flex; align-items:center; gap:10px; padding:12px 16px;
+  border-radius:18px; background:rgba(238,240,246,.05);
+  border:1px solid var(--hair); color:var(--dim)}
+.search input{border:0; outline:0; background:transparent; color:var(--ink);
+  font:inherit; width:100%}
+.search input::placeholder{color:var(--dim)}
+
+/* --- 7. מקרא הצבעים --- */
+.chip{display:inline-flex; align-items:center; gap:6px; font-size:12.5px;
+  padding:5px 12px; border-radius:999px; background:rgba(238,240,246,.07);
+  border:1px solid var(--hair); color:var(--ink)}
+.chip .dot{width:7px;height:7px;border-radius:50%}
+.chip.red{background:rgba(229,72,77,.12); border-color:rgba(229,72,77,.35)}
+.chip.red .dot{background:var(--red)}
+.chip.purple{background:rgba(176,133,245,.12); border-color:rgba(176,133,245,.35)}
+.chip.purple .dot{background:var(--purple)}
+.chip.amber{background:rgba(232,185,62,.12); border-color:rgba(232,185,62,.4)}
+.chip.amber .dot{background:var(--amber)}
+
+/* --- 8. כרטיס קטגוריה --- */
+.cat{display:flex; align-items:center; gap:14px; cursor:pointer; width:100%;
+  text-align:right; font:inherit; color:var(--ink);
+  transition:transform .3s var(--ease)}
+.cat:active{transform:scale(.98)}
+.cat .icon{width:56px;height:56px; flex:none; border-radius:18px;
+  display:grid; place-items:center; font-size:24px; overflow:hidden;
+  background:linear-gradient(150deg,rgba(20,72,58,.55),rgba(14,42,34,.7));
+  border:1px solid rgba(34,192,140,.28)}
+.cat .icon img{width:100%;height:100%;object-fit:cover}
+.cat h3{font-size:17px; font-weight:700}
+.cat p{font-size:12.5px; color:var(--dim); margin-top:1px}
+
+/* טבעת ההתקדמות: r=18 ⇒ היקף 113. dashoffset = 113 * (1 - pct/100) */
+.miniring{position:relative; width:46px; height:46px; flex:none}
+.miniring svg{transform:rotate(-90deg)}
+.miniring circle{fill:none; stroke-width:4}
+.miniring .track{stroke:rgba(238,240,246,.1)}
+.miniring .fill{stroke:var(--em); stroke-linecap:round;
+  filter:drop-shadow(0 0 4px rgba(34,192,140,.5))}
+.miniring b{position:absolute; inset:0; display:grid; place-items:center;
+  font-size:10.5px; font-weight:700}
+
+/* --- 9. סרגל תחתון (בר מלא-רוחב, אייקוני אימוג'י) --- */
+.au-nav{background:rgba(12,13,16,.85); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+  border-top:1px solid rgba(238,240,246,.08)}
+.au-nav button{border:0; background:transparent; cursor:pointer; font:inherit;
+  font-size:11px; font-weight:600; color:var(--faint);
+  display:flex; flex-direction:column; align-items:center; gap:4px;
+  padding:8px 4px; border-radius:16px;
+  transition:color .25s var(--ease), background .25s var(--ease)}
+.au-nav button .ic{font-size:20px; line-height:21px}
+.au-nav button.on{color:var(--em); background:rgba(34,192,140,.1)}
+
+@media (prefers-reduced-motion:reduce){
+  .aurora i{animation:none!important}
+}
