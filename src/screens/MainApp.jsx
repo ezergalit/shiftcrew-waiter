@@ -875,7 +875,8 @@ export default function MainApp({ session, onSignOut }) {
     ) : null;
 
   return (
-    <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
+    <div className="h-screen max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl"
+         style={{ backgroundImage: "radial-gradient(55% 38% at 85% -5%, rgba(34,192,140,0.10), transparent 62%), radial-gradient(45% 32% at 8% 104%, rgba(34,192,140,0.05), transparent 60%)" }}>
       {/* First-run interactive tour: walks the real screens, one step per tab. Shown once
           per member — the flag is device-scoped, same as the welcome slides. */}
       {tourNode}
@@ -1096,22 +1097,37 @@ export default function MainApp({ session, onSignOut }) {
             <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">
               קודם עוברים על המנות בתפריט, אחר כך נבחנים בכל קטגוריה.
             </p>
+            {/* Aurora hero: the one thing to do next, above the full list */}
+            {path.recommended && (
+              <div className="rounded-3xl p-4 bg-[#123528]/70 border border-[#22c08c]/25"
+                   style={{ boxShadow: "0 0 40px rgba(34,192,140,0.08) inset" }}>
+                <div className="flex items-center gap-3.5">
+                  <Ring pct={path.recommended.pct ?? 0} size={54} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10.5px] font-black text-[#22c08c] tracking-wide">מומלץ עכשיו</p>
+                    <p className="text-base font-black text-[#eef0f6] leading-tight line-clamp-1">{shortCat(path.recommended.key)}</p>
+                  </div>
+                </div>
+                <button onClick={() => startProgressive(path.recommended.key)}
+                  className="w-full mt-3 py-3 min-h-[46px] rounded-2xl font-black text-sm text-[#06231a] active:scale-[0.99] transition-transform"
+                  style={{ background: "linear-gradient(135deg,#22c08c,#17805d)" }}>
+                  המשך תרגול ←
+                </button>
+              </div>
+            )}
             {menuGroups.map(({ g, items, catCount }) => {
               const pct = scorePct(items);
               return (
                 <button key={g} data-tour="learn-menu" onClick={() => setGroupView(g)}
-                  className="w-full text-right bg-[#16181c] rounded-2xl p-3.5 border border-[#22252b] active:scale-[0.99] transition-transform">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-black text-[#eef0f6]">{g}</span>
-                    <span className="text-xs font-black" style={{ color: pct >= 50 ? "#22c08c" : pct > 0 ? "#f3a712" : "#5a5a6e" }}>{pct}%</span>
-                  </div>
-                  <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mt-2">
-                    <div className="h-full transition-all" style={{ width: `${pct}%`, background: pct >= 50 ? "#22c08c" : "#6d5efc" }} />
-                  </div>
-                  <p className="text-[11px] text-[#8a8aa0] mt-1.5">{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nLabel(items.length, "מנה", "מנות")}</p>
-                  {/* Say what the tap does, in the words the waiter would use for it
-                      (user, 2026-08-20) — "לתרגול תפריט סושי", not a bare menu name. */}
-                  <p className="text-[11px] font-black text-[#22c08c] mt-1.5">לתרגול {g} ←</p>
+                  className="w-full text-right bg-white/[0.04] rounded-3xl p-4 border border-white/[0.07] active:scale-[0.99] transition-transform flex items-center gap-3.5">
+                  <Ring pct={pct} />
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm font-black text-[#eef0f6] line-clamp-1">{g}</span>
+                    <span className="block text-[11px] text-[#8a8aa0] mt-1">{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nLabel(items.length, "מנה", "מנות")}</span>
+                    {/* Say what the tap does, in the words the waiter would use for it
+                        (user, 2026-08-20) — "לתרגול תפריט סושי", not a bare menu name. */}
+                    <span className="block text-[11px] font-black text-[#22c08c] mt-1">לתרגול {g} ←</span>
+                  </span>
                 </button>
               );
             })}
@@ -1221,15 +1237,35 @@ export default function MainApp({ session, onSignOut }) {
             only, so checking a dish mid-shift never touches the waiter's score. */}
         {tab === "categories" && (
           <>
-            {tasksOff && !trainee && (
-              <div className="rounded-2xl p-4 mb-2.5 text-[#EEF0F6]"
-                   style={{ background: "linear-gradient(135deg,#0F5C46,#0a3d2f)" }}>
-                <p className="text-base font-black">שלום {session?.name || "לך"} 👋</p>
-                <p className="text-xs font-bold text-[#EEF0F6]/80 mt-1">
-                  {pct === 0 ? "מתחילים מהתפריט — נעים להכיר 🍽️" : `כבר ${pct}% מהתפריט אצלך — ממשיכים 💪`}
-                </p>
-              </div>
-            )}
+            {tasksOff && !trainee && (() => {
+              const h = new Date().getHours();
+              const hello = h < 5 ? "לילה טוב" : h < 12 ? "בוקר טוב" : h < 17 ? "צהריים טובים" : "ערב טוב";
+              const first = (session?.firstName || session?.name || "").split(" ")[0];
+              return (
+                <div className="rounded-3xl p-4 mb-2.5 bg-white/[0.04] border border-white/[0.07]">
+                  <div className="flex items-center gap-3">
+                    <span className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-black text-[#06231a] flex-shrink-0"
+                          style={{ background: "linear-gradient(135deg,#22c08c,#17805d)" }}>
+                      {(first || "🙂").slice(0, 2)}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-base font-black leading-tight">{hello}, {first || "לך"}</p>
+                      <p className="text-[11.5px] font-bold text-[#8a8aa0] mt-0.5">
+                        {session?.restaurantName}{pct > 0 ? ` · ${pct}% מהתפריט אצלך` : " · מתחילים מהתפריט 🍽️"}
+                      </p>
+                    </div>
+                  </div>
+                  {/* The colors legend, distilled from the removed explainer page to one glance */}
+                  <div className="flex gap-1.5 mt-3">
+                    {[["אלרגיות", "#e0315a"], ["הריון", "#b48cff"], ["מוקשים", "#f3c14b"]].map(([l, c]) => (
+                      <span key={l} className="flex items-center gap-1.5 text-[10.5px] font-bold text-[#c4c4d4] bg-white/[0.04] border border-white/[0.06] rounded-full px-2.5 py-1">
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ background: c }} />{l}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
             <AboutCard session={session} onOpen={() => setShowAbout(true)} />
             <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} />
           </>
@@ -1303,14 +1339,30 @@ export default function MainApp({ session, onSignOut }) {
   );
 }
 
+// Aurora progress ring (design concept 2026-08, approved for the main pages): a ring
+// reads as "how much of this is mine" at a glance, where a bar reads as a loading state.
+function Ring({ pct, size = 46 }) {
+  const r = (size - 7) / 2, c = 2 * Math.PI * r;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="flex-shrink-0" aria-hidden>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#22252b" strokeWidth="5.5" />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={pct >= 50 ? "#22c08c" : pct > 0 ? "#f3a712" : "#2c3038"}
+        strokeWidth="5.5" strokeLinecap="round" strokeDasharray={`${Math.max(0.001, (pct / 100) * c)} ${c}`}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+      <text x="50%" y="52%" textAnchor="middle" dominantBaseline="central" fill="#eef0f6" fontSize="11.5" fontWeight="800">{pct}%</text>
+    </svg>
+  );
+}
+
 function BottomNav({ tab, setTab, hasDailyUpdate, hideTasks }) {
   const items = [
     // Tasks · Menu · Learning (user, 2026-08-20). "בית" was never a place — it was a
     // pile of cards; the shift checklist is what a waiter actually opens the app for.
     // A trainee has no shift yet — the tasks tab is hidden and the app is menu + learning.
-    ...(hideTasks ? [] : [["home", ListChecks, "משימות", hasDailyUpdate]]),
-    ["categories", BookOpen, "תפריט", false],
-    ["learn", GraduationCap, "תרגול ובחינה", false],
+    // Emoji icons — the user's final pick from the Aurora concept rounds ("האימוגי אחלה").
+    ...(hideTasks ? [] : [["home", "📋", "משימות", hasDailyUpdate]]),
+    ["categories", "📖", "תפריט", false],
+    ["learn", "🎓", "תרגול ובחינה", false],
   ];
   return (
     <div
@@ -1318,16 +1370,16 @@ function BottomNav({ tab, setTab, hasDailyUpdate, hideTasks }) {
       style={{ background: "rgba(22,24,28,0.92)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(255,255,255,0.06)" }}
     >
       <div className="flex">
-        {items.map(([t, Icon, label, badge]) => {
+        {items.map(([t, icon, label, badge]) => {
           const active = tab === t;
           return (
             <button key={t} data-tour={`nav-${t}`} onClick={() => setTab(t)} className="flex-1 flex flex-col items-center gap-1 py-1 relative transition-colors">
-              {active && <div className="absolute inset-x-2 top-0 h-9 bg-white/[0.07] rounded-2xl" />}
+              {active && <div className="absolute inset-x-2 top-0 h-10 bg-[#22c08c]/10 border border-[#22c08c]/20 rounded-2xl" />}
               <div className="relative">
-                <Icon size={20} strokeWidth={active ? 2.3 : 1.6} className={active ? "text-white" : "text-[#8a8aa0]"} />
+                <span className={`text-[19px] leading-none ${active ? "" : "grayscale opacity-70"}`} aria-hidden>{icon}</span>
                 {badge && <span className="absolute -top-1 -left-1.5 w-2 h-2 rounded-full bg-[#e0315a]" />}
               </div>
-              <span className={`text-[11px] font-semibold transition-colors ${active ? "text-white" : "text-[#8a8aa0]"}`}>{label}</span>
+              <span className={`text-[11px] font-semibold transition-colors ${active ? "text-[#22c08c]" : "text-[#8a8aa0]"}`}>{label}</span>
             </button>
           );
         })}

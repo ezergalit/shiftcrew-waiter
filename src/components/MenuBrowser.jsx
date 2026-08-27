@@ -371,13 +371,15 @@ export default function MenuBrowser({ cards, onPractice }) {
       {menus.map((m) => {
         const inG = (cards || []).filter((c) => c.menuGroup === m);
         const catCount = new Set(inG.map((c) => c.category)).size;
+        const photo = inG.find((c) => c.imageUrl && !c.knowledge)?.imageUrl;
         return (
           <button
             key={m}
             onClick={() => setMenu(m)}
             data-tour="browse-menu"
-            className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-5 flex items-center gap-3 active:scale-[0.99] transition-transform"
+            className="w-full text-right bg-white/[0.04] border border-white/[0.07] rounded-3xl p-4 flex items-center gap-3.5 active:scale-[0.99] transition-transform"
           >
+            {photo && <img src={photo} alt="" loading="lazy" className="w-12 h-12 rounded-2xl object-cover flex-shrink-0 border border-white/[0.08]" />}
             <span className="flex-1 min-w-0">
               <span className="block text-[18px] font-black text-[#eef0f6]">{m}</span>
               <span className="block text-[11px] text-[#8a8aa0] mt-1">{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nLabel(inG.length, "פריט", "פריטים")}</span>
