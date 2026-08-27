@@ -195,6 +195,10 @@ export default function MenuBrowser({ cards, onPractice }) {
         <div className="flex-1 overflow-y-auto px-5 py-6">
           <div className="max-w-md mx-auto space-y-5">
             <div className="text-center space-y-3">
+              {d.imageUrl ? (
+                <img src={d.imageUrl} alt={d.name}
+                  className="w-full max-h-56 rounded-3xl object-cover border border-[#22252b]" />
+              ) : (
               <span
                 className="w-20 h-20 rounded-3xl inline-flex items-center justify-center text-5xl"
                 style={{ background: `linear-gradient(135deg, ${vis.from}, ${vis.to}44)` }}
@@ -202,6 +206,7 @@ export default function MenuBrowser({ cards, onPractice }) {
               >
                 {vis.emoji}
               </span>
+              )}
               <h2 className="text-[28px] font-black text-[#eef0f6] leading-tight text-balance">{d.name}</h2>
               {Number(d.price) > 0 && (
                 <p className="text-[22px] font-black text-[#22c08c] tabular-nums">{Number(d.price)} ₪</p>
@@ -283,7 +288,11 @@ export default function MenuBrowser({ cards, onPractice }) {
             onClick={() => setIdx(i)}
             className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-5 space-y-2.5 active:scale-[0.99] transition-transform"
           >
-            <div className="flex items-baseline gap-3">
+            <div className="flex items-center gap-3">
+              {d.imageUrl && (
+                <img src={d.imageUrl} alt="" loading="lazy"
+                  className="w-14 h-14 rounded-xl object-cover flex-shrink-0 border border-[#22252b]" />
+              )}
               <p className="flex-1 text-[22px] font-black text-[#eef0f6] leading-snug">{d.name}</p>
               {Number(d.price) > 0 && (
                 <p className="text-[19px] font-black text-[#22c08c] tabular-nums flex-shrink-0">{Number(d.price)} ₪</p>

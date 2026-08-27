@@ -70,7 +70,9 @@ function pubToCard(p) {
   return { id: p.source_item_id, name: p.name, price: Number(p.price), category: p.category, menuGroup: p.menu_group || null, desc: p.description || "", ingredients: ing, allergens: (p.allergens || []).filter(Boolean), pregnancy: (p.pregnancy || []).filter(Boolean), pitfalls: (p.pitfalls || []).filter(Boolean), kashrut: (p.kashrut || []).filter(Boolean), menuPosition: p.menu_position, createdAt: p.created_at, // `starred` is the manager's emphasis toggle (owner app, 2026-08-13); `is_special` is
   // the older flag some seeded dishes still carry. Either one lights the star — reading
   // only the old column silently disconnected the manager's button from the waiter side.
-  isSpecial: !!(p.starred || p.is_special) };
+  isSpecial: !!(p.starred || p.is_special),
+  // Real dish photo, shown in the menu browser only — learning cards stay photo-free on purpose.
+  imageUrl: p.image_url || null };
 }
 
 // Where the waiter was when they last closed the app. Stored per member and stamped, so a
