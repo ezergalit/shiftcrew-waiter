@@ -325,7 +325,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   }
 
   // ---- level 2: categories inside a menu ----
-  if (menu || flat) {
+  if (menu || (flat && !aurora)) {
     const pool = (cards || []).filter((c) => (flat ? true : c.menuGroup === menu));
     const list = [...new Set(pool.map((c) => c.category).filter(Boolean))];
     return (
