@@ -18,13 +18,28 @@ import { shortCat, nLabel } from "../games/shared";
 // service never affects their progress.
 // The three warning groups, each with a sentence saying what it actually means. The
 // colours match the chips everywhere else in the app (see ColorKey.jsx).
+const ALLERGEN_GROUP = { key: "allergens", title: "אלרגיות", cls: "bg-[#3a1d22] text-[#ff8098]",
+  note: "מרכיב שעלול לסכן אורח עם אלרגיה — תמיד לוודא במטבח לפני שמאשרים." };
 const FLAG_GROUPS = [
-  { key: "allergens", title: "אלרגיות", cls: "bg-[#3a1d22] text-[#ff8098]",
-    note: "מרכיב שעלול לסכן אורח עם אלרגיה — תמיד לוודא במטבח לפני שמאשרים." },
+  ALLERGEN_GROUP,
   { key: "pregnancy", title: "רגישות בהריון", cls: "bg-[#2a2140] text-[#c4b5fd]",
     note: "לא אלרגיה, אבל לא מתאים לאורחת בהריון — כדאי להזכיר." },
   { key: "pitfalls", title: "מוקשים והעדפות", cls: "bg-[#33290f] text-[#f3c14b]",
     note: "לא מסוכן — פשוט טעם שאורחים רבים מבקשים בלעדיו (כוסברה, חריף, שום)." },
+];
+// Skinned restaurants merge pregnancy into the amber list, marked 🤰 (user, 2026-08-28).
+const FLAG_GROUPS_MERGED = [
+  ALLERGEN_GROUP,
+  { key: "mokshim", title: "מוקשים", cls: "bg-[#33290f] text-[#f3c14b]",
+    note: "דברים שאורחים מבקשים בלעדיהם (כוסברה, חריף, שום), ומה שלא מתאים לאורחת בהריון — מסומן ב-🤰." },
+];
+
+// Pregnancy warnings live in the same amber list as the preferences, marked with 🤰 —
+// two colours read faster at a table than three, and the emoji keeps the pregnancy
+// ones identifiable. The DB keeps the groups separate; this is presentation only.
+export const mokshimOf = (d) => [
+  ...(d?.pregnancy || []).map((t) => `🤰 ${t}`),
+  ...(d?.pitfalls || []),
 ];
 
 export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, aurora = false }) {
@@ -105,16 +120,17 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
 
   const Tags = ({ d, size = "sm" }) => {
     const cls = size === "lg" ? "text-[13px] px-3 py-1.5" : "text-[11px] px-2 py-1";
-    if (!(d.allergens?.length || d.pregnancy?.length || d.pitfalls?.length)) return null;
+    const mok = aurora ? mokshimOf(d) : (d.pitfalls || []);
+    if (!(d.allergens?.length || mok.length || (!aurora && d.pregnancy?.length))) return null;
     return (
       <div className="flex flex-wrap gap-1.5">
         {d.allergens?.map((t) => (
           <span key={`a${t}`} className={`${cls} font-black rounded-md bg-[#3a1d22] text-[#ff8098]`}>{t}</span>
         ))}
-        {d.pregnancy?.map((t) => (
+        {!aurora && d.pregnancy?.map((t) => (
           <span key={`g${t}`} className={`${cls} font-black rounded-md bg-[#2a2140] text-[#c4b5fd]`}>{t}</span>
         ))}
-        {d.pitfalls?.map((t) => (
+        {mok.map((t) => (
           <span key={`p${t}`} className={`${cls} font-black rounded-md bg-[#33290f] text-[#f3c14b]`}>{t}</span>
         ))}
       </div>
@@ -243,19 +259,20 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
                 side in identical chips — three warnings of equal weight, which they are
                 not. "מוקש" also needs saying out loud: it is not a danger, it is the
                 thing guests ask to leave out. */}
-            {FLAG_GROUPS.map(({ key, title, note, cls }) =>
-              d[key]?.length ? (
+            {(aurora ? FLAG_GROUPS_MERGED : FLAG_GROUPS).map(({ key, title, note, cls }) => {
+              const vals = key === "mokshim" ? mokshimOf(d) : d[key];
+              return vals?.length ? (
                 <div key={key} className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
                   <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide">{title}</p>
                   <p className="text-[10.5px] text-[#5a5a6e] mt-0.5 mb-2.5 leading-snug">{note}</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {d[key].map((t) => (
+                    {vals.map((t) => (
                       <span key={t} className={`text-[13px] px-3 py-1.5 font-black rounded-md ${cls}`}>{t}</span>
                     ))}
                   </div>
                 </div>
-              ) : null
-            )}
+              ) : null;
+            })}
           </div>
         </div>
 
@@ -436,8 +453,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
       </label>
       <div className="flex flex-wrap gap-[7px]">
         <span className="chip red"><i className="dot" />אלרגיות</span>
-        <span className="chip purple"><i className="dot" />הריון</span>
-        <span className="chip amber"><i className="dot" />מוקשים</span>
+        <span className="chip amber"><i className="dot" />מוקשים 🤰</span>
       </div>
       {!nq ? (
         <div className="flex flex-col gap-3">

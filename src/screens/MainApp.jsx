@@ -1394,7 +1394,15 @@ export default function MainApp({ session, onSignOut }) {
               </div>
 
       {showAbout && <AboutScreen session={session} onClose={() => setShowAbout(false)} />}
-      <BottomNav tab={tab} setTab={setTab} aurora={aurora} hideTasks={tasksOff}
+      <BottomNav tab={tab} aurora={aurora} hideTasks={tasksOff}
+        setTab={(t) => {
+          if (t === tab) {
+            // already here: reset this tab to its root instead of doing nothing
+            if (t === "categories") setBrowseKey((k) => k + 1);
+            if (t === "learn") { setCatView(null); setGroupView(null); }
+          }
+          setTab(t);
+        }}
         hasDailyUpdate={!!(brief?.missing_items?.length || brief?.new_items?.length || brief?.oven_items?.length)} />
     </div>
   );

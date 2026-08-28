@@ -70,6 +70,8 @@ const KASHRUT_WARN = new Set(["לא כשר", "בשר וחלב יחד", "פירו
 const MOKSHIM_SKIP = new Set(["דגים עתירי כספית"]);
 export const mokshim = (it) => [...new Set([
   ...(it?.pitfalls || []),
-  ...(it?.pregnancy || []),
+  // Pregnancy warnings carry 🤰 so they stay identifiable inside the merged list
+  // (user, 2026-08-28) — two colours at a table beat three.
+  ...(it?.pregnancy || []).filter((m) => !MOKSHIM_SKIP.has(m)).map((m) => `🤰 ${m}`),
   ...(it?.kashrut || []).filter((k) => KASHRUT_WARN.has(k)),
 ])].filter((m) => !MOKSHIM_SKIP.has(m));
