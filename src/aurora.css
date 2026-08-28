@@ -32,15 +32,15 @@
 
 /* --- 2. רקע האורורה (שכבות קבועות, מאחורי הכל: z שלילי) --- */
 .aurora-skin .aurora {position:absolute; inset:0; z-index:-2; pointer-events:none; overflow:hidden}
-.aurora-skin .aurora i {position:absolute; border-radius:50%; filter:blur(90px); opacity:.6}
-.aurora-skin .aurora i:nth-child(1) {width:115%;height:26%;right:-35%;top:-7%;
-  background:radial-gradient(ellipse at center,#1E6B52 0%,transparent 65%);
+.aurora-skin .aurora i {position:absolute; border-radius:50%; filter:blur(80px)}
+.aurora-skin .aurora i:nth-child(1) {width:95%;height:22%;right:-22%;top:-5%; opacity:.85;
+  background:radial-gradient(ellipse at center,#2A8467 0%,transparent 68%);
   animation:drift1 26s var(--ease) infinite alternate}
-.aurora-skin .aurora i:nth-child(2) {width:85%;height:22%;right:-30%;top:16%; opacity:.3;
-  background:radial-gradient(ellipse at center,#123B30 0%,transparent 70%);
+.aurora-skin .aurora i:nth-child(2) {width:80%;height:20%;right:-20%;top:16%; opacity:.6;
+  background:radial-gradient(ellipse at center,#1E6B52 0%,transparent 70%);
   animation:drift2 32s var(--ease) infinite alternate}
-.aurora-skin .aurora i:nth-child(3) {width:90%;height:20%;right:-25%;bottom:-6%;
-  background:radial-gradient(ellipse at center,#0F5C46 0%,transparent 72%); opacity:.22;
+.aurora-skin .aurora i:nth-child(3) {width:70%;height:18%;right:-22%;top:34%; opacity:.3;
+  background:radial-gradient(ellipse at center,#123B30 0%,transparent 72%);
   animation:drift1 38s var(--ease) infinite alternate-reverse}
 @keyframes drift1{to{transform:translate(-14%,10%) rotate(8deg)}}
 @keyframes drift2{to{transform:translate(12%,-12%) rotate(-6deg)}}
