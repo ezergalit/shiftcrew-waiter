@@ -238,7 +238,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
           className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-3"
           aria-label="סגירת התמונה"
         >
-          <img src={zoom} alt="" className="max-w-full max-h-full rounded-2xl object-contain" />
+          <img src={zoom} alt="" className="max-w-[78%] max-h-[52vh] rounded-2xl object-contain shadow-2xl" />
         </button>
       )}
     </div>
