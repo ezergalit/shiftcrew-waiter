@@ -26,21 +26,21 @@
 /* --- 3. פריסת המסך --- */
 /* ⚠️ `isolation:isolate` הוא מה שמחזיק את סעיף 2. בלעדיו שכבות ה-z השלילי
    מצוירות מתחת לרקע של השורש עצמו — הן רצות ולא נראות (נתפס בביקורת 27.8). */
-.aurora-skin{isolation:isolate; position:relative; overflow:hidden; background:#0B1210; max-width:430px; margin:0 auto;
+.aurora-skin{isolation:isolate; position:relative; overflow:hidden; background:var(--bg); max-width:430px; margin:0 auto;
   font-family:'Heebo',system-ui,sans-serif}
 .aurora-skin .au-screen{padding:26px 20px 12px}
 
 /* --- 2. רקע האורורה (שכבות קבועות, מאחורי הכל: z שלילי) --- */
 .aurora-skin .aurora {position:absolute; inset:0; z-index:-2; pointer-events:none; overflow:hidden}
-.aurora-skin .aurora i {position:absolute; border-radius:50%; filter:blur(90px); opacity:.72}
-.aurora-skin .aurora i:nth-child(1) {width:150%;height:30%;right:-45%;top:-8%;
+.aurora-skin .aurora i {position:absolute; border-radius:50%; filter:blur(90px); opacity:.6}
+.aurora-skin .aurora i:nth-child(1) {width:115%;height:26%;right:-35%;top:-7%;
   background:radial-gradient(ellipse at center,#1E6B52 0%,transparent 65%);
   animation:drift1 26s var(--ease) infinite alternate}
-.aurora-skin .aurora i:nth-child(2) {width:150%;height:42%;left:-45%;top:28%;
-  background:radial-gradient(ellipse at center,#175140 0%,transparent 68%);
+.aurora-skin .aurora i:nth-child(2) {width:85%;height:22%;right:-30%;top:16%; opacity:.3;
+  background:radial-gradient(ellipse at center,#123B30 0%,transparent 70%);
   animation:drift2 32s var(--ease) infinite alternate}
-.aurora-skin .aurora i:nth-child(3) {width:115%;height:26%;right:-8%;bottom:-8%;
-  background:radial-gradient(ellipse at center,#0F5C46 0%,transparent 70%); opacity:.45;
+.aurora-skin .aurora i:nth-child(3) {width:90%;height:20%;right:-25%;bottom:-6%;
+  background:radial-gradient(ellipse at center,#0F5C46 0%,transparent 72%); opacity:.22;
   animation:drift1 38s var(--ease) infinite alternate-reverse}
 @keyframes drift1{to{transform:translate(-14%,10%) rotate(8deg)}}
 @keyframes drift2{to{transform:translate(12%,-12%) rotate(-6deg)}}
