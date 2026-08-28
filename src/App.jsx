@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import BrandMark from "./components/BrandMark";
 import { supabase } from "./lib/supabase";
 import TeamLogin from "./auth/TeamLogin";
 import MainApp from "./screens/MainApp";
@@ -144,9 +143,8 @@ export default function App() {
 function Splash() {
   return (
     <div className="h-full max-w-md mx-auto flex flex-col items-center justify-center gap-4 bg-[#0c0d10]" dir="rtl">
-      <div className="w-16 h-16 rounded-3xl bg-[#0F5C46] flex items-center justify-center shadow-[0_10px_30px_rgba(15,92,70,0.35)]">
-        <BrandMark size={40} />
-      </div>
+      <img src="/icon-512.png" alt="CrewMenu" width="64" height="64"
+           className="w-16 h-16 rounded-3xl shadow-[0_10px_30px_rgba(15,92,70,0.35)]" />
       <Loader2 size={22} className="animate-spin text-[#b4b4c4]" />
     </div>
   );

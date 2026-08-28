@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Loader2, AlertTriangle, UserCheck } from "lucide-react";
-import BrandMark from "../components/BrandMark";
 import { supabase } from "../lib/supabase";
 import { setSessionToken } from "../lib/appSession";
 
@@ -157,9 +156,8 @@ export default function TeamLogin({ onGranted }) {
   return (
     <div className="h-full max-w-md mx-auto flex flex-col bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <div className="px-7 pt-[max(3.5rem,env(safe-area-inset-top))] pb-2 text-center">
-        <div className="w-16 h-16 rounded-3xl bg-[#0F5C46] flex items-center justify-center mx-auto mb-4 shadow-[0_10px_30px_rgba(15,92,70,0.35)]">
-          <BrandMark size={40} />
-        </div>
+        <img src="/icon-512.png" alt="CrewMenu" width="64" height="64"
+             className="w-16 h-16 rounded-3xl mx-auto mb-4 shadow-[0_10px_30px_rgba(15,92,70,0.35)]" />
         <h1 className="text-3xl font-black leading-tight">CrewMenu</h1>
         <p className="text-sm text-[#8a8aa0] font-semibold mt-2 leading-relaxed">
           צוות · לומדים את התפריט
