@@ -27,6 +27,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
     return first || pickNext(items, progRef.current).item;
   });
   const [revealed, setRevealed] = useState(false);
+  const [zoom, setZoom] = useState(null); // full-screen dish photo, or null
   const [toast, setToast] = useState(null);
   const [sinceBreak, setSinceBreak] = useState(0);
   const [checkpoint, setCheckpoint] = useState(null); // null | "break" | "exam"
@@ -174,14 +175,16 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
             </button>
 
             {/* back */}
-            {/* Tapping the back returns to the question (user, 2026-08-28); the rating
-                block below stops propagation so scoring still advances instead. */}
-            <div onClick={slim ? () => setRevealed(false) : undefined}
-                 className={`flip-face flip-back bg-[#16181c] border border-[#6d5efc]/40 rounded-2xl p-5 w-full text-center space-y-2.5 min-h-[260px] flex flex-col justify-center ${slim ? "cursor-pointer" : ""}`}>
+            <div className="flip-face flip-back bg-[#16181c] border border-[#6d5efc]/40 rounded-2xl p-5 w-full text-center space-y-2.5 min-h-[260px] flex flex-col justify-center">
               <div className="flex items-center gap-2.5 w-full text-right">
+                {/* 52px is enough to recognise the plate, not to study it — tapping it
+                    opens the photo full screen (user, 2026-08-28). */}
                 {slim && it.imageUrl && (
-                  <img src={it.imageUrl} alt="" loading="lazy"
-                    className="w-[52px] h-[52px] rounded-xl object-cover flex-shrink-0 border border-[#22252b]" />
+                  <button type="button" onClick={() => setZoom(it.imageUrl)} title="הגדלת התמונה"
+                    className="flex-shrink-0 rounded-xl active:scale-95 transition-transform">
+                    <img src={it.imageUrl} alt="" loading="lazy"
+                      className="w-[52px] h-[52px] rounded-xl object-cover border border-[#22252b]" />
+                  </button>
                 )}
                 <span className="flex-1 min-w-0 text-lg font-black text-[#eef0f6] leading-tight">{dishLabel(it)}</span>
               </div>
@@ -203,19 +206,18 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
                 {it.pregnancy?.length > 0 && <div className="bg-[#2a1d3a] p-2 rounded-lg"><p className="text-xs font-bold text-[#b48cff]">רגישות בהריון: {it.pregnancy.join(", ")}</p></div>}
                 {it.pitfalls?.length > 0 && <div className="bg-[#3a2f1d] p-2 rounded-lg"><p className="text-xs font-bold text-[#f3c14b]">מוקשים: {it.pitfalls.join(", ")}</p></div>}
               </>}
-              <div className="pt-1" onClick={(e) => e.stopPropagation()}>
+              <div className="pt-1">
                 <p className="text-xs font-bold text-[#8a8aa0] mb-1.5">כמה טוב ידעת?</p>
                 <p className="text-[11px] text-[#5a5a6e] mb-1.5">הדירוג העצמי קובע מה חוזרים עליו — נקודות נצברות רק בבחנים ובמבחן</p>
                 <div className="grid grid-cols-5 gap-1.5">
                   {[1, 2, 3, 4, 5].map(v => (
-                    <button key={v} onClick={(e) => { e.stopPropagation(); rate(v); }} className={`py-3 min-h-[44px] rounded-lg font-black text-base ${RATING_STYLE[v]}`}>{v}</button>
+                    <button key={v} onClick={() => rate(v)} className={`py-3 min-h-[44px] rounded-lg font-black text-base ${RATING_STYLE[v]}`}>{v}</button>
                   ))}
                 </div>
                 <div className="flex justify-between mt-1 px-0.5">
                   <span className="text-[11px] text-[#8a8aa0]">לא ידעתי</span>
                   <span className="text-[11px] text-[#8a8aa0]">ידעתי מצוין</span>
                 </div>
-                {slim && <p className="text-[11px] font-bold text-[#5a5a6e] text-center mt-2">↩ הקשה על הכרטיס מחזירה לשאלה</p>}
               </div>
             </div>
 
@@ -228,6 +230,17 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
           שני 5 ברצף = המנה מוכרת לך והיא פורשת מהסבב
         </p>
       </div>
+      {/* Full-screen dish photo. Tap anywhere to dismiss — the same overlay the menu
+          tab uses. `fixed`, so it sits fine as the last child of the root. */}
+      {zoom && (
+        <button
+          onClick={() => setZoom(null)}
+          className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-3"
+          aria-label="סגירת התמונה"
+        >
+          <img src={zoom} alt="" className="max-w-full max-h-full rounded-2xl object-contain" />
+        </button>
+      )}
     </div>
   );
 }
