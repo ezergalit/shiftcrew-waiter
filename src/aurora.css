@@ -26,25 +26,25 @@
 /* --- 3. פריסת המסך --- */
 /* ⚠️ `isolation:isolate` הוא מה שמחזיק את סעיף 2. בלעדיו שכבות ה-z השלילי
    מצוירות מתחת לרקע של השורש עצמו — הן רצות ולא נראות (נתפס בביקורת 27.8). */
-.aurora-skin{isolation:isolate; max-width:430px; margin:0 auto;
+.aurora-skin{isolation:isolate; position:relative; overflow:hidden; background:#0B1210; max-width:430px; margin:0 auto;
   font-family:'Heebo',system-ui,sans-serif}
 .aurora-skin .au-screen{padding:26px 20px 12px}
 
 /* --- 2. רקע האורורה (שכבות קבועות, מאחורי הכל: z שלילי) --- */
-.aurora-skin .aurora {position:fixed; inset:0; z-index:-2; pointer-events:none; overflow:hidden}
-.aurora-skin .aurora i {position:absolute; border-radius:50%; filter:blur(90px); opacity:.55}
-.aurora-skin .aurora i:nth-child(1) {width:60vmax;height:34vmax;right:-18vmax;top:-12vmax;
+.aurora-skin .aurora {position:absolute; inset:0; z-index:-2; pointer-events:none; overflow:hidden}
+.aurora-skin .aurora i {position:absolute; border-radius:50%; filter:blur(90px); opacity:.72}
+.aurora-skin .aurora i:nth-child(1) {width:150%;height:30%;right:-45%;top:-8%;
   background:radial-gradient(ellipse at center,#1E6B52 0%,transparent 65%);
   animation:drift1 26s var(--ease) infinite alternate}
-.aurora-skin .aurora i:nth-child(2) {width:50vmax;height:30vmax;left:-16vmax;top:32vh;
-  background:radial-gradient(ellipse at center,#123B30 0%,transparent 65%);
+.aurora-skin .aurora i:nth-child(2) {width:150%;height:42%;left:-45%;top:28%;
+  background:radial-gradient(ellipse at center,#175140 0%,transparent 68%);
   animation:drift2 32s var(--ease) infinite alternate}
-.aurora-skin .aurora i:nth-child(3) {width:44vmax;height:26vmax;right:6vmax;bottom:-14vmax;
-  background:radial-gradient(ellipse at center,#0F5C46 0%,transparent 70%); opacity:.32;
+.aurora-skin .aurora i:nth-child(3) {width:115%;height:26%;right:-8%;bottom:-8%;
+  background:radial-gradient(ellipse at center,#0F5C46 0%,transparent 70%); opacity:.45;
   animation:drift1 38s var(--ease) infinite alternate-reverse}
-@keyframes drift1{to{transform:translate(-6vmax,4vmax) rotate(8deg)}}
-@keyframes drift2{to{transform:translate(5vmax,-5vmax) rotate(-6deg)}}
-.aurora-skin .grain {position:fixed; inset:0; z-index:-1; pointer-events:none; opacity:.05;
+@keyframes drift1{to{transform:translate(-14%,10%) rotate(8deg)}}
+@keyframes drift2{to{transform:translate(12%,-12%) rotate(-6deg)}}
+.aurora-skin .grain {position:absolute; inset:0; z-index:-1; pointer-events:none; opacity:.05;
   mix-blend-mode:overlay;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E")}
 

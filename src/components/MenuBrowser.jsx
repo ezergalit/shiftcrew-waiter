@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { ChevronRight, ChevronLeft, X } from "lucide-react";
 import { categoryVisual } from "../lib/categoryVisual";
-import Ring from "./Ring";
 import { shortCat, nLabel } from "../games/shared";
 
 // The menu, as a menu (user, 2026-08-20). Not progress, not exams — the thing a waiter
@@ -28,7 +27,7 @@ const FLAG_GROUPS = [
     note: "לא מסוכן — פשוט טעם שאורחים רבים מבקשים בלעדיו (כוסברה, חריף, שום)." },
 ];
 
-export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, pctFor = null, leftFor = null, aurora = false }) {
+export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, aurora = false }) {
   // Search on the menu door (the handoff page's dynamic): a query matches a category by
   // its name, or by any dish name / ingredient inside it — a waiter looking for "כמהין"
   // should land on the categories that serve it.
@@ -415,15 +414,12 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
     const vis = categoryVisual(c);
     const photo = inCat.find((x) => x.imageUrl)?.imageUrl;
     const knowledge = inCat.every((x) => x.knowledge);
-    const pct = pctFor ? pctFor(inCat) : 0;
-    const left = leftFor ? leftFor(inCat) : inCat.length;
     const nWord = knowledge ? nLabel(inCat.length, "נושא", "נושאים") : nLabel(inCat.length, "מנה", "מנות");
-    const sub = pct > 0 ? `${nWord} · ${left > 0 ? `נשארו ${left} לשליטה` : "הכל בשליטה"}` : nWord;
     return (
       <button key={c} className="glass cat" data-tour="browse-category" onClick={() => setCat(c)}>
         <span className="icon" aria-hidden>{photo ? <img src={photo} alt="" loading="lazy" /> : vis.emoji}</span>
-        <span className="flex-1 min-w-0"><h3 className="line-clamp-1">{shortCat(c)}</h3><p>{sub}</p></span>
-        <Ring pct={pct} />
+        <span className="flex-1 min-w-0"><h3 className="line-clamp-1">{shortCat(c)}</h3><p>{nWord}</p></span>
+        <ChevronLeft size={16} className="chev" />
       </button>
     );
   };

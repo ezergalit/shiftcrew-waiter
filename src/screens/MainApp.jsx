@@ -125,9 +125,6 @@ export default function MainApp({ session, onSignOut }) {
   // Success percentage = how much of the *available* score you've actually earned, not how
   // many dishes crossed the pass mark. 4/5 on every dish reads as 80%, which is what the
   // score actually means — a threshold count would round that up to a misleading 100%.
-  // "נשארו X לשליטה" on the menu door — understood = two consecutive 5s, the same
-  // definition the progressive session retires dishes by.
-  const leftFor = (list) => (list || []).filter((it) => (fivesById?.[it.id] || 0) < 2).length;
   const scorePct = (list) => {
     if (!list?.length) return 0;
     const earned = list.reduce((sum, x) => sum + (masteryById[x.id] || 0), 0);
@@ -1297,7 +1294,7 @@ export default function MainApp({ session, onSignOut }) {
         {/* The menu tab is the menu: menu → category → dishes with descriptions. Read
             only, so checking a dish mid-shift never touches the waiter's score. */}
         {tab === "categories" && (
-          <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} pctFor={scorePct} leftFor={leftFor} aurora={aurora}
+          <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} aurora={aurora}
             bottomSlot={
               aurora ? (
                 <button onClick={() => setShowAbout(true)} className="glass cat" data-name="אודות המסעדה">
