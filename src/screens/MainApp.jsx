@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import {ChevronLeft, BookOpen, BarChart3, Home, LogOut, WifiOff, Check, ChevronRight, ListChecks, GraduationCap, Repeat, Layers, HelpCircle, Puzzle, Zap, ShieldAlert, FileText, Lock, Eye} from "lucide-react";
 import { supabase } from "../lib/supabase";
 import MetricsScreen, { DeleteProfile } from "../components/MetricsScreen";
@@ -925,7 +926,7 @@ export default function MainApp({ session, onSignOut }) {
            style={aurora
              ? { background: "rgba(12,13,16,0.75)", backdropFilter: "blur(18px)", borderBottom: "1px solid rgba(238,240,246,0.08)" }
              : { background: "#16181c", borderBottom: "1px solid #22252b" }}>
-        <SignOutButton onSignOut={onSignOut} withDelete={metricsOff && !preview && !session?.offline} />
+        <SignOutButton onSignOut={onSignOut} preview={preview} withDelete={metricsOff && !preview && !session?.offline} />
         {/* Skinned: the .hdr greeting right below IS the identity — repeating the name
             and the restaurant here is the same fact twice on one screen. */}
         <div className="text-center">
@@ -1448,7 +1449,7 @@ function BottomNav({ tab, setTab, hasDailyUpdate, hideTasks, aurora }) {
 // tapping the header icon opens a confirmation whose "התנתקות" button stays LOCKED for
 // five counted-down seconds — only after the timer runs out can it be pressed. Nothing
 // disconnects on its own; cancel is available the whole time.
-function SignOutButton({ onSignOut, withDelete = false }) {
+function SignOutButton({ onSignOut, withDelete = false, preview = false }) {
   const [open, setOpen] = useState(false);
   const [secs, setSecs] = useState(5);
 
@@ -1461,13 +1462,24 @@ function SignOutButton({ onSignOut, withDelete = false }) {
   return (
     <>
       <button
-        onClick={() => { setSecs(5); setOpen(true); }}
-        title="התנתקות"
+        /* ⚠️ In the manager's preview there is no account and no progress to lose — the
+           button just closes the window. The confirmation and its five-second delay exist
+           to stop a waiter signing out by accident mid-shift; making a manager sit through
+           them to leave a preview is a countdown protecting nothing (user, 29.8). */
+        onClick={() => { if (preview) { onSignOut(); return; } setSecs(5); setOpen(true); }}
+        title={preview ? "יציאה מהתצוגה" : "התנתקות"}
         className="w-8 h-8 rounded-lg bg-[#191b1f] flex items-center justify-center text-[#8a8aa0]"
       >
         <LogOut size={16} />
       </button>
-      {open && (
+      {/* 🔴 Portalled to <body>. Under the skin the header carries `backdropFilter`, and any
+          value other than `none` makes an element the containing block for its
+          `position:fixed` descendants — this dialog is a direct child of that header, so it
+          rendered 375×56, jammed into the top strip, with the scrim covering only the
+          header and the rest of the app still tappable behind the "modal". Measured, not
+          guessed. Third time this exact trap has bitten; see the manager app's bottom nav
+          and its dish-photo zoom. */}
+      {open && createPortal(
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center px-6" dir="rtl">
           <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-5 w-full max-w-xs text-center space-y-3">
             <p className="text-sm font-black text-[#eef0f6]">להתנתק מהחשבון?</p>
@@ -1496,7 +1508,8 @@ function SignOutButton({ onSignOut, withDelete = false }) {
                 is switched off for a restaurant, this dialog is its new home. */}
             {withDelete && <DeleteProfile />}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

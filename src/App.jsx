@@ -137,7 +137,22 @@ export default function App() {
     );
   }
 
-  return <MainApp session={session} onSignOut={() => { localStorage.removeItem(SESSION_KEY); setSessionToken(null); cancelDailyReminder(); setPhase("login"); }} />;
+  // ⚠️ In the manager's preview, "exit" means leave the preview — not sign out of an
+  // account that does not exist here. The preview runs in a cross-origin iframe inside the
+  // owner app, so it asks the parent to close it. Falling through to the normal sign-out
+  // would have dropped the manager on the waiter LOGIN screen inside the frame, which is
+  // the opposite of getting out.
+  const signOut = () => {
+    if (session?.preview) {
+      try { window.parent?.postMessage({ type: "crewmenu:close-preview" }, "*"); } catch { /* not framed */ }
+      return;
+    }
+    localStorage.removeItem(SESSION_KEY);
+    setSessionToken(null);
+    cancelDailyReminder();
+    setPhase("login");
+  };
+  return <MainApp session={session} onSignOut={signOut} />;
 }
 
 function Splash() {
