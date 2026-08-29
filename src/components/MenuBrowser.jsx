@@ -27,16 +27,34 @@ const FLAG_GROUPS = [
   { key: "pitfalls", title: "מוקשים והעדפות", cls: "bg-[#33290f] text-[#f3c14b]",
     note: "לא מסוכן — פשוט טעם שאורחים רבים מבקשים בלעדיו (כוסברה, חריף, שום)." },
 ];
-// 🔴 Pregnancy was briefly merged into the amber list with a 🤰 prefix (28.8). Undone
-// (user, 29.8): Studio's dishes carry both groups, so the two-chip legend described
-// something the dish screens did not do — a waiter saw purple chips the key never
-// mentioned. Three groups, three colours, and the 🤰 rides on the purple one.
-//
-// ℹ️ The FLASHCARD back still merges them into one "מוקשים" box — that was its own
-// explicit request (28.8), and a card being revealed is a different surface from a menu
-// being browsed. See `mokshim` in games/shared.js.
+// ⚠️ Whether pregnancy is its own group is a PER-RESTAURANT decision, not a global one.
+// `features.warnings === "merged"` folds it into the amber list with a 🤰 marker.
+//   · Studio keeps three groups: its dishes carry both, and a two-chip key would be
+//     describing something the dish screens do not do.
+//   · Salon merges: there, raw fish is understood as a pregnancy PITFALL rather than a
+//     separate sensitivity, so two colours match how that kitchen actually talks
+//     (user, 29.8: "דג נא במסעדה הזאת נחשב מוקש להריון ולא רגישות").
+// Getting this wrong in either direction shows a waiter a colour the key never explains.
+const MERGED_GROUPS = [
+  ALLERGEN_GROUP,
+  { key: "mokshim", title: "מוקשים", cls: "bg-[#33290f] text-[#f3c14b]",
+    note: "מה שאורחים מבקשים בלעדיו (כוסברה, חריף, שום), ומה שלא מתאים לאורחת בהריון — מסומן ב-🤰." },
+];
 
-export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, aurora = false }) {
+// Pregnancy items keep the 🤰 inside the merged list, so they stay identifiable even
+// though they no longer have a colour of their own.
+export const mokshimOf = (d) => [
+  ...(d?.pregnancy || []).map((t) => `🤰 ${t}`),
+  ...(d?.pitfalls || []),
+];
+
+// ℹ️ The FLASHCARD back merges them everywhere — that was its own explicit request
+// (28.8), and a card being revealed is a different surface from a menu being browsed.
+// See `mokshim` in games/shared.js.
+
+export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, aurora = false, merged = false }) {
+  // ⚠️ Not `groups` — that name already means the restaurant's MENU groups in this file.
+  const warnGroups = merged ? MERGED_GROUPS : FLAG_GROUPS;
   // Search on the menu door (the handoff page's dynamic): a query matches a category by
   // its name, or by any dish name / ingredient inside it — a waiter looking for "כמהין"
   // should land on the categories that serve it.
@@ -117,8 +135,8 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   // chips, so Studio's waiters saw a colour the key never explained (user, 29.8).
   const Tags = ({ d, size = "sm" }) => {
     const cls = size === "lg" ? "text-[13px] px-3 py-1.5" : "text-[11px] px-2 py-1";
-    const pitfalls = d.pitfalls || [];
-    const pregnancy = d.pregnancy || [];
+    const pitfalls = merged ? mokshimOf(d) : (d.pitfalls || []);
+    const pregnancy = merged ? [] : (d.pregnancy || []);
     if (!(d.allergens?.length || pitfalls.length || pregnancy.length)) return null;
     return (
       <div className="flex flex-wrap gap-1.5">
@@ -257,8 +275,8 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
                 side in identical chips — three warnings of equal weight, which they are
                 not. "מוקש" also needs saying out loud: it is not a danger, it is the
                 thing guests ask to leave out. */}
-            {FLAG_GROUPS.map(({ key, title, note, cls }) => {
-              const vals = d[key];
+            {warnGroups.map(({ key, title, note, cls }) => {
+              const vals = key === "mokshim" ? mokshimOf(d) : d[key];
               return vals?.length ? (
                 <div key={key} className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
                   <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide">{title}</p>
@@ -452,8 +470,8 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
       {/* One chip per group, in the same colours the dish screens use. */}
       <div className="flex flex-wrap gap-[7px]">
         <span className="chip red"><i className="dot" />אלרגיות</span>
-        <span className="chip purple"><i className="dot" />🤰 רגישות</span>
-        <span className="chip amber"><i className="dot" />מוקשים</span>
+        {!merged && <span className="chip purple"><i className="dot" />🤰 רגישות</span>}
+        <span className="chip amber"><i className="dot" />{merged ? "מוקשים 🤰" : "מוקשים"}</span>
       </div>
       {!nq ? (
         <div className="flex flex-col gap-3">

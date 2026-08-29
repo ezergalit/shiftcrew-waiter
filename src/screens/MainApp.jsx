@@ -143,6 +143,8 @@ export default function MainApp({ session, onSignOut }) {
   // shift picker, brief gate) and the app becomes menu + learning — Studio's request.
   const tasksOff = trainee || session?.features?.tasks === false;
   const openExam = session?.features?.exam === "open";
+  // Whether pregnancy is its own warning group or folded into "מוקשים" — per restaurant.
+  const mergedWarnings = session?.features?.warnings === "merged";
   // features.metrics === false removes the whole metrics screen for this restaurant
   // (user, 2026-08-28). The account-deletion path it used to host moves into the
   // sign-out dialog — Apple requires it to stay reachable in-app.
@@ -1305,7 +1307,7 @@ export default function MainApp({ session, onSignOut }) {
         {/* The menu tab is the menu: menu → category → dishes with descriptions. Read
             only, so checking a dish mid-shift never touches the waiter's score. */}
         {tab === "categories" && (
-          <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} aurora={aurora}
+          <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} aurora={aurora} merged={mergedWarnings}
             bottomSlot={
               aurora ? (
                 <button onClick={() => setShowAbout(true)} className="glass cat" data-name="אודות המסעדה">
