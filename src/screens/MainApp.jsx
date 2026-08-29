@@ -33,6 +33,7 @@ import {
 import Flashcards from "../games/Flashcards";
 import GroupFlashcards from "../games/GroupFlashcards";
 import CategoryExam from "../games/CategoryExam";
+import OpenQuiz from "../games/OpenQuiz";
 import QuizExam from "../games/QuizExam";
 import MenuExam from "../games/MenuExam";
 
@@ -141,6 +142,7 @@ export default function MainApp({ session, onSignOut }) {
   // Per-restaurant wallpaper: features.tasks === false strips the shift layer (tasks tab,
   // shift picker, brief gate) and the app becomes menu + learning — Studio's request.
   const tasksOff = trainee || session?.features?.tasks === false;
+  const openExam = session?.features?.exam === "open";
   // features.metrics === false removes the whole metrics screen for this restaurant
   // (user, 2026-08-28). The account-deletion path it used to host moves into the
   // sign-out dialog — Apple requires it to stay reachable in-app.
@@ -718,7 +720,15 @@ export default function MainApp({ session, onSignOut }) {
       (examItems || []).filter((x) => x.ingredients?.length > 0).length >= 2 &&
       (!examConfig?.facets?.length || examConfig.facets.includes("ingredients") || examConfig.facets.includes("allergens"));
     return chipExamPossible
-      ? <CategoryExam items={examItems} categoryLabel={label} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />
+      /* ⚠️ `features.exam === "open"` picks the written quiz. Behind a flag on purpose: this
+         changes how every waiter advances, so it goes to the two restaurants we watch
+         first and leaves CREWDEMO and the store-review accounts on the tried format.
+         OpenQuiz needs the WHOLE menu, not just the category — the grader distinguishes a
+         foreign word from a menu word, and the autocomplete pool must not narrow to the
+         dishes being asked about, or it would print the answer on screen. */
+      ? (openExam
+          ? <OpenQuiz items={examItems} allItems={cards} restaurantId={session?.restaurantId} categoryLabel={label} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />
+          : <CategoryExam items={examItems} categoryLabel={label} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />)
       : <QuizExam items={examItems} facets={gameFacets} categoryLabel={label} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />;
   }
 
