@@ -46,6 +46,16 @@
 .aurora-skin .aurora i:nth-child(3) {width:70%;height:18%;right:-22%;top:34%; opacity:.3;
   background:radial-gradient(ellipse at center,#123B30 0%,transparent 72%);
   animation:drift1 38s var(--ease) infinite alternate-reverse}
+/* ⚠️ A fourth bloom, anchored to the BOTTOM. The three above all sit in the top ~55% of
+   the screen, so on a short page (the manager's home is one card tall since the health
+   and struggling-dish cards came out) everything below them was flat #0B0C0F — and a
+   240px slab of pure black under the content reads as a broken layout rather than as a
+   dark background (user, 30.8: "there is a massive space gap in the bottom").
+   Very low opacity: this has to close the page, not compete with the header. */
+.aurora-skin .aurora i:nth-child(4) {width:120%;height:26%;left:-30%;bottom:-8%; opacity:.34;
+  background:radial-gradient(ellipse at center,#14503E 0%,transparent 72%);
+  animation:drift2 44s var(--ease) infinite alternate}
+
 @keyframes drift1{to{transform:translate(-14%,10%) rotate(8deg)}}
 @keyframes drift2{to{transform:translate(12%,-12%) rotate(-6deg)}}
 .aurora-skin .grain {position:absolute; inset:0; z-index:-1; pointer-events:none; opacity:.05;
@@ -156,3 +166,17 @@
   background:rgba(238,240,246,.05); border:1px solid var(--hair); color:var(--dim);
   transition:background .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease)}
 .aurora-skin .au-fchip.on{background:var(--em); border-color:var(--em); color:#06231A}
+
+/* --- the floating exit / metrics buttons ------------------------------------
+   They used to live in a translucent bar with its own bottom border, which read as
+   chrome bolted above the app (user, 30.8). Now they float over the page itself.
+   ⚠️ `.au-screen` needs `position:relative` for this to anchor — without it these
+   position against the nearest positioned ancestor, which is the app root. */
+.aurora-skin .au-screen{position:relative}
+.aurora-skin .au-float{position:absolute; top:calc(20px + env(safe-area-inset-top, 0px));
+  left:20px; display:flex; gap:8px; z-index:5}
+.aurora-skin .au-float > button, .aurora-skin .au-iconbtn{
+  width:36px; height:36px; border-radius:12px; display:flex; align-items:center;
+  justify-content:center; cursor:pointer; color:var(--dim);
+  background:rgba(238,240,246,.05); border:1px solid var(--hair);
+  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px)}

@@ -929,26 +929,26 @@ export default function MainApp({ session, onSignOut }) {
 
   return (
     <div className={`h-screen mx-auto flex flex-col text-[#eef0f6] ${aurora ? "aurora-skin" : "max-w-md bg-[#0c0d10]"}`} dir="rtl">
-      {aurora && <><div className="aurora" aria-hidden><i></i><i></i><i></i></div><div className="grain" aria-hidden></div></>}
+      {aurora && <><div className="aurora" aria-hidden><i></i><i></i><i></i><i></i></div><div className="grain" aria-hidden></div></>}
       {/* First-run interactive tour: walks the real screens, one step per tab. Shown once
           per member — the flag is device-scoped, same as the welcome slides. */}
       {tourNode}
-      {/* Header */}
+      {/* Header.
+          ⚠️ Under the skin there is NO header bar. It held one button, and a translucent
+          strip with its own bottom border above the aurora read as a piece of chrome
+          bolted on top of the app rather than part of it (user, 30.8: "combine the exit
+          button with the app itself not seperate"). The buttons float over the page
+          instead — exit top-left, where he asked for it. */}
+      {!aurora && (
       <div className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 flex items-center justify-between flex-shrink-0"
-           style={aurora
-             ? { background: "rgba(12,13,16,0.75)", backdropFilter: "blur(18px)", borderBottom: "1px solid rgba(238,240,246,0.08)" }
-             : { background: "#16181c", borderBottom: "1px solid #22252b" }}>
+           style={{ background: "#16181c", borderBottom: "1px solid #22252b" }}>
         <SignOutButton onSignOut={onSignOut} preview={preview} withDelete={metricsOff && !preview && !session?.offline} />
-        {/* Skinned: the .hdr greeting right below IS the identity — repeating the name
-            and the restaurant here is the same fact twice on one screen. */}
         <div className="text-center">
-          {!aurora && <>
-            <p className="text-sm font-black">{session?.name}</p>
-            {session?.restaurantName && <p className="text-[11px] text-[#8a8aa0] font-semibold">{session.restaurantName}</p>}
-          </>}
+          <p className="text-sm font-black">{session?.name}</p>
+          {session?.restaurantName && <p className="text-[11px] text-[#8a8aa0] font-semibold">{session.restaurantName}</p>}
         </div>
         <div className="flex items-center gap-1.5">
-          {!aurora && myRank > 0 && <span className="text-[11px] font-bold text-[#f3c14b] bg-[#33290f] px-2 py-1 rounded-md">מקום {myRank}</span>}
+          {myRank > 0 && <span className="text-[11px] font-bold text-[#f3c14b] bg-[#33290f] px-2 py-1 rounded-md">מקום {myRank}</span>}
           {!metricsOff && <button
             onClick={() => setShowMetrics(true)}
             data-tour="metrics"
@@ -959,6 +959,7 @@ export default function MainApp({ session, onSignOut }) {
           </button>}
         </div>
       </div>
+      )}
       {preview && (
         <div className="bg-[#15302b] border-b border-[#22c08c]/40 px-4 py-1.5 flex items-center gap-1.5 flex-shrink-0">
           <Eye size={12} className="text-[#22c08c]" />
@@ -974,6 +975,19 @@ export default function MainApp({ session, onSignOut }) {
 
       {/* Content */}
       <div key={tab} className={`flex-1 overflow-y-auto animate-fadeIn ${aurora ? "au-screen" : "px-4 py-3"}`}>
+        {/* Floating over the page, not sitting in a bar above it. Absolute inside the
+            scroller so it belongs to the content and scrolls with it, and so adding it
+            costs the layout nothing. */}
+        {aurora && (
+          <div className="au-float">
+            <SignOutButton onSignOut={onSignOut} preview={preview} withDelete={metricsOff && !preview && !session?.offline} />
+            {!metricsOff && (
+              <button onClick={() => setShowMetrics(true)} data-tour="metrics" title="המדדים שלי" className="au-iconbtn">
+                <BarChart3 size={16} />
+              </button>
+            )}
+          </div>
+        )}
         {tab === "home" && !tasksOff && (
           <TasksTab tasks={dayTasks} onDone={toggleTask}>
             {/* A personal note from the manager outranks everything on this screen —
