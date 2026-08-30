@@ -1004,9 +1004,12 @@ export default function MainApp({ session, onSignOut }) {
         {/* Root pages only (user, 30.8): the moment you step into a menu, a
             category or a dish, the way out is the back arrow — a second exit
             control there just competes with it. */}
-        {aurora && !browseDeep && !(tab === "learn" && (catView || groupView)) && (
+        {/* In the manager's preview there is no session to leave — the preview window
+            has its own close X, so a sign-out button inside the frame is a second exit
+            that does nothing meaningful (user, 30.8: "תמחק בו את כפתור היציאה… מיותר"). */}
+        {aurora && !browseDeep && !(tab === "learn" && (catView || groupView)) && !(preview && metricsOff) && (
           <div className="au-float">
-            <SignOutButton onSignOut={onSignOut} preview={preview} withDelete={metricsOff && !preview && !session?.offline} />
+            {!preview && <SignOutButton onSignOut={onSignOut} withDelete={metricsOff && !session?.offline} />}
             {!metricsOff && (
               <button onClick={() => setShowMetrics(true)} data-tour="metrics" title="המדדים שלי" className="au-iconbtn">
                 <BarChart3 size={16} />
