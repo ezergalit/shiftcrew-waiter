@@ -73,6 +73,21 @@ function guideCategories(cards) {
   return [...byCat.entries()].filter(([, v]) => v.every((x) => x.knowledge)).map(([k]) => k);
 }
 
+// The service box holds only the guide categories whose menu_group serves no food —
+// the standalone "הדרכות שירות" group. A guide that lives inside a dish menu (הדרכת
+// סושי in תפריט סושי, הדרכת בר in the bar menu) belongs to that menu, not here (user,
+// 30.8: "ההדרכת סושי ואלכוהול צריך להיות בתוך התפריט סושי ואלכוהול"). Driven by the
+// data: move a guide's menu_group and it moves box, no code change.
+function serviceGuideCategories(cards) {
+  const gCats = guideCategories(cards);
+  const dishGroups = new Set((cards || []).filter((c) => !gCats.includes(c.category))
+    .map((c) => c.menuGroup).filter(Boolean));
+  return gCats.filter((g) => {
+    const grp = (cards || []).find((c) => c.category === g)?.menuGroup;
+    return !grp || !dishGroups.has(grp);
+  });
+}
+
 function catRowFor(cards, c, onOpen) {
   const inCat = (cards || []).filter((x) => x.category === c);
   const vis = categoryVisual(c);
@@ -282,6 +297,14 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   if (idx !== null && dishes[idx]) {
     const d = dishes[idx];
     const vis = categoryVisual(d.category);
+    // The photos the waiter is ABOUT to see, fetched while they read this one. Two in
+    // the walking direction, one behind — a 900px webp lands well inside one dish's
+    // reading time, so the next screen paints with its photo already in cache instead
+    // of flashing empty (user, 30.8: "התמונות של המנות יתעדכנו מהר יותר").
+    [idx + 1, idx + 2, idx - 1].forEach((n) => {
+      const u = dishes[n]?.imageUrl;
+      if (u) { const im = new Image(); im.src = u; }
+    });
     return (
       <Overlay>
         <div className="w-full max-w-md h-full flex flex-col border-x border-[#1a1d23]">
@@ -297,7 +320,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
             <div className="text-center space-y-3">
               {d.imageUrl ? (
                 <button onClick={() => setZoom(d.imageUrl)} className="block w-full" aria-label="הגדלת התמונה">
-                  <img src={d.imageUrl} alt={d.name}
+                  <img src={d.imageUrl} alt={d.name} fetchPriority="high" decoding="async"
                     className="w-full max-h-64 rounded-3xl object-contain bg-[#16181c] border border-[#22252b]" />
                 </button>
               ) : (
@@ -421,13 +444,15 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
 
   // ---- level 2: categories inside a menu ----
   if (menu || (flat && !aurora)) {
-    // The service box holds every knowledge category, whatever menu_group they carry;
-    // a real menu holds only its own dishes.
-    const gCats = guideCategories(cards);
+    // A real menu holds everything in its group — dishes AND its own guide categories
+    // (הדרכת סושי opens inside תפריט סושי, first, by menu_position). The service box
+    // holds only the guides whose group serves no food.
+    const svcCats = serviceGuideCategories(cards);
     const pool = menu === SERVICE
-      ? (cards || []).filter((c) => gCats.includes(c.category))
-      : (cards || []).filter((c) => (flat && !aurora ? true : c.menuGroup === menu && !gCats.includes(c.category)));
-    const list = [...new Set(pool.map((c) => c.category).filter(Boolean))];
+      ? (cards || []).filter((c) => svcCats.includes(c.category))
+      : (cards || []).filter((c) => (flat && !aurora ? true : c.menuGroup === menu && !svcCats.includes(c.category)));
+    const byFirstPos = pool.slice().sort((a, b) => (a.menuPosition ?? 0) - (b.menuPosition ?? 0));
+    const list = [...new Set(byFirstPos.map((c) => c.category).filter(Boolean))];
     const title = menu === SERVICE ? "הדרכות שירות" : menu;
 
     // Under the skin the categories are the same glass rows the door uses, so stepping
@@ -514,7 +539,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   // above a list of every category meant a Studio waiter read 19 categories from five
   // different menus at once. Now: pick a menu, then its categories, then a dish — and
   // service training is its own box, because it is not a menu.
-  const gCats = guideCategories(cards);
+  const gCats = serviceGuideCategories(cards);
   const dishCards = (cards || []).filter((c) => !gCats.includes(c.category));
   const guideCards = (cards || []).filter((c) => gCats.includes(c.category));
   const menuTiles = [...new Set(dishCards.map((c) => c.menuGroup).filter(Boolean))]
