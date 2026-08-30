@@ -74,14 +74,16 @@ export default function BaselineIntake({ session, onDone }) {
     return () => { alive = false; };
   }, [session.restaurantId]);
 
-  const minutes = config?.baseline_minutes ?? 7;
-  // The owner's setting sizes the exam; the clock is derived from the question count so
-  // it matches the work actually being asked. These are multiple choice — read four short
-  // options and pick — which measured out at roughly a quarter of the old 20s allowance.
-  const targetCount = Math.max(10, Math.min(30, Math.round(minutes * 3)));
+  // 8 questions, fixed (user, 29.8: "תקצר את מבחן ההיכרות ל-8 שאלות").
+  //
+  // ⚠️ This is the very first thing a new waiter is asked to do, before they have been
+  // taught anything — its job is to place them, not to grade them. Thirty questions on a
+  // menu you have never read is a wall, and the number it produces is no better than the
+  // one eight questions produce. The clock still follows the count, so the exam is
+  // honestly short rather than short with a long timer.
+  const targetCount = 8;
   const SECONDS_PER_QUESTION = 12;
   const examSeconds = targetCount * SECONDS_PER_QUESTION;
-  const examMinutes = Math.max(1, Math.round(examSeconds / 60));
 
   const startExam = () => {
     const facets = config?.facets?.length ? config.facets : availableFacets(pool);
@@ -190,7 +192,7 @@ export default function BaselineIntake({ session, onDone }) {
           <h1 className="text-xl font-black text-[#eef0f6]">{"בואו נראה מאיפה מתחילים"}</h1>
           <p className="text-sm text-[#b4b4c4] leading-relaxed">
             {enough
-              ? <>כמה שאלות קצרות, ואז בוחן היכרות של כ-{examMinutes} דקות על התפריט.
+              ? <>כמה שאלות קצרות, ואז בוחן היכרות קצר — {targetCount} שאלות על התפריט.
                   אין פה ציון עובר — זו רק נקודת ההתחלה למדידת ההתקדמות.</>
               : <>התפריט של המסעדה עדיין לא מוכן לבוחן. אפשר להתחיל ללמוד ולחזור לזה אחר כך.</>}
           </p>

@@ -435,6 +435,16 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   // category whose own name matches above them; tapping a dish opens it in its
   // category context, so the prev/next walk still works.
   const allCats = [...new Set((cards || []).map((c) => c.category).filter(Boolean))];
+  // ⚠️ Service training is not menu (user, 29.8: "הדרכת שירות צריך להיות בsection שונה
+  // מתפריט המסעדה מכיוון שזה לא תפריט"). A category whose every item is a knowledge card
+  // is a guide, and guides get their own headed block below the menu — mixed into the
+  // category list they read as a course you could order.
+  const isGuideCat = (c) => {
+    const inCat = (cards || []).filter((x) => x.category === c);
+    return inCat.length > 0 && inCat.every((x) => x.knowledge);
+  };
+  const menuCats = allCats.filter((c) => !isGuideCat(c));
+  const guideCats = allCats.filter(isGuideCat);
   const nq = q.trim();
   const openDish = (d) => {
     const items = (cards || []).filter((x) => x.category === d.category)
@@ -456,7 +466,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
       </button>
     );
   };
-  const nameCats = nq ? allCats.filter((c) => c.includes(nq)) : [];
+  const nameCats = nq ? [...menuCats, ...guideCats].filter((c) => c.includes(nq)) : [];
   const dishMatches = nq
     ? (cards || []).filter((d) => (d.name || "").includes(nq) || (d.ingredients || []).some((i) => String(i).includes(nq))).slice(0, 40)
     : [];
@@ -475,7 +485,15 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
       </div>
       {!nq ? (
         <div className="flex flex-col gap-3">
-          {allCats.map(catRow)}
+          {menuCats.map(catRow)}
+          {/* The guides, under their own heading and after the food. Same row shape, so
+              nothing new to learn — the divider is what says "this is not the menu". */}
+          {guideCats.length > 0 && (
+            <>
+              <p className="au-label px-1 mt-1.5">הדרכות שירות</p>
+              {guideCats.map(catRow)}
+            </>
+          )}
           {bottomSlot}
         </div>
       ) : (

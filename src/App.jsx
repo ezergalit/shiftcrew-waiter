@@ -83,6 +83,26 @@ export default function App() {
         const { data, error } = await db.from("team_members")
           .select("id, name, restaurant_id, baseline_taken_at").eq("id", sess.teamMemberId).single();
         if (error || !data) { localStorage.removeItem(SESSION_KEY); if (alive) setPhase("login"); return; }
+
+        // 🔴 Re-read the restaurant's feature flags on every restore.
+        //
+        // `features` was captured once, at team_join, and then trusted forever. So every
+        // per-restaurant setting the owner changed — the skin, the warning grouping, which
+        // tabs exist — reached only waiters who joined AFTER the change. Salon was switched
+        // to merged warnings and the team kept seeing three groups indefinitely, because
+        // their sessions predated the flag. The flags are the owner's live decision, not a
+        // property of the moment someone signed up.
+        //
+        // One extra column on a query that already runs. If it fails, the cached flags
+        // still stand — a flaky network must not silently restyle the app.
+        let features = sess.features;
+        const { data: rest } = await db.from("restaurants")
+          .select("features").eq("id", sess.restaurantId).maybeSingle();
+        if (rest) features = rest.features || {};
+        const fresh = { ...sess, features };
+        if (JSON.stringify(features) !== JSON.stringify(sess.features)) {
+          localStorage.setItem(SESSION_KEY, JSON.stringify(fresh));
+        }
         if (!data.baseline_taken_at && !baselineSkipped(sess.teamMemberId)) {
           const { data: cfg } = await db.from("exam_config")
             .select("baseline_enabled").eq("restaurant_id", sess.restaurantId).maybeSingle();
@@ -90,7 +110,7 @@ export default function App() {
           // opened the settings screen still gets the recommended flow.
           if (alive && cfg?.baseline_enabled !== false) setNeedsBaseline(true);
         }
-        if (alive) { setSession(sess); setPhase("app"); }
+        if (alive) { setSession(fresh); setPhase("app"); }
       } catch {
         localStorage.removeItem(SESSION_KEY);
         if (alive) setPhase("login");
