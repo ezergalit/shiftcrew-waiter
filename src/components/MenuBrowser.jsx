@@ -59,6 +59,13 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   // its name, or by any dish name / ingredient inside it — a waiter looking for "כמהין"
   // should land on the categories that serve it.
   const [q, setQ] = useState("");
+  // The two filter rows on the menu door (user, 29.8: "כדי שהמלצרים יוכלו לגולל
+  // בקלות יותר"). Studio has 5 menus and 19 categories, so the tile list ran well past
+  // two screens before a waiter reached the one they wanted.
+  // ⚠️ Deliberately NOT the existing `menu` state — that one switches the whole browser
+  // into its two-level mode for unskinned restaurants. This filters in place.
+  const [mFilter, setMFilter] = useState(null);
+  const [cFilter, setCFilter] = useState(null);
   const [menu, setMenu] = useState(null);
   const [cat, setCat] = useState(null);
   const [idx, setIdx] = useState(null);
@@ -434,13 +441,14 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   // A search shows the MATCHING DISHES themselves (user, 2026-08-27), with any
   // category whose own name matches above them; tapping a dish opens it in its
   // category context, so the prev/next walk still works.
-  const allCats = [...new Set((cards || []).map((c) => c.category).filter(Boolean))];
+  const doorCards = (cards || []).filter((c) => !mFilter || c.menuGroup === mFilter);
+  const allCats = [...new Set(doorCards.map((c) => c.category).filter(Boolean))];
   // ⚠️ Service training is not menu (user, 29.8: "הדרכת שירות צריך להיות בsection שונה
   // מתפריט המסעדה מכיוון שזה לא תפריט"). A category whose every item is a knowledge card
   // is a guide, and guides get their own headed block below the menu — mixed into the
   // category list they read as a course you could order.
   const isGuideCat = (c) => {
-    const inCat = (cards || []).filter((x) => x.category === c);
+    const inCat = doorCards.filter((x) => x.category === c);
     return inCat.length > 0 && inCat.every((x) => x.knowledge);
   };
   const menuCats = allCats.filter((c) => !isGuideCat(c));
@@ -451,6 +459,19 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
       .sort((a, b) => (a.menuPosition ?? 0) - (b.menuPosition ?? 0));
     setCat(d.category);
     setIdx(Math.max(0, items.findIndex((x) => x.id === d.id)));
+  };
+  const dishRow = (d) => {
+    const vis = categoryVisual(d.category);
+    return (
+      <button key={d.id} className="glass cat" onClick={() => openDish(d)}>
+        <span className="icon" aria-hidden>{d.imageUrl ? <img src={d.imageUrl} alt="" loading="lazy" /> : vis.emoji}</span>
+        <span className="flex-1 min-w-0">
+          <h3 className="line-clamp-1">{d.name}</h3>
+          <p className="line-clamp-1">{shortCat(d.category)}{Number(d.price) > 0 ? ` · ${Number(d.price)} ₪` : ""}</p>
+        </span>
+        <ChevronLeft size={16} className="chev" />
+      </button>
+    );
   };
   const catRow = (c) => {
     const inCat = (cards || []).filter((x) => x.category === c);
@@ -483,36 +504,55 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
         {!merged && <span className="chip purple"><i className="dot" />🤰 רגישות</span>}
         <span className="chip amber"><i className="dot" />{merged ? "מוקשים 🤰" : "מוקשים"}</span>
       </div>
+      {/* Two filter rows, the same shape the manager already has. Row one narrows the
+          door to one menu; row two jumps straight to a category's dishes. Without them a
+          Studio waiter scrolled past 19 tiles to reach סאקה. Each row appears only when
+          it has something to choose between — a single chip is not a choice. */}
+      {!nq && menus.length > 1 && (
+        <div className="au-filter">
+          <button type="button" className={`au-fchip ${!mFilter ? "on" : ""}`}
+            onClick={() => { setMFilter(null); setCFilter(null); }}>כל התפריטים</button>
+          {menus.map((m2) => (
+            <button key={m2} type="button" className={`au-fchip ${mFilter === m2 ? "on" : ""}`}
+              onClick={() => { setMFilter(m2); setCFilter(null); }}>{m2}</button>
+          ))}
+        </div>
+      )}
+      {!nq && allCats.length > 1 && (
+        <div className="au-filter">
+          <button type="button" className={`au-fchip ${!cFilter ? "on" : ""}`}
+            onClick={() => setCFilter(null)}>הכל</button>
+          {allCats.map((c) => (
+            <button key={c} type="button" className={`au-fchip ${cFilter === c ? "on" : ""}`}
+              onClick={() => setCFilter(c)}>{shortCat(c)}</button>
+          ))}
+        </div>
+      )}
+
       {!nq ? (
         <div className="flex flex-col gap-3">
-          {menuCats.map(catRow)}
+          {/* A chosen category shows its dishes right here, so picking one from the row
+              is a shortcut rather than a second way to do the same tap. */}
+          {cFilter
+            ? doorCards.filter((d) => d.category === cFilter)
+                .sort((a, b) => (a.menuPosition ?? 0) - (b.menuPosition ?? 0))
+                .map(dishRow)
+            : menuCats.map(catRow)}
           {/* The guides, under their own heading and after the food. Same row shape, so
               nothing new to learn — the divider is what says "this is not the menu". */}
-          {guideCats.length > 0 && (
+          {!cFilter && guideCats.length > 0 && (
             <>
               <p className="au-label px-1 mt-1.5">הדרכות שירות</p>
               {guideCats.map(catRow)}
             </>
           )}
-          {bottomSlot}
+          {!cFilter && bottomSlot}
         </div>
       ) : (
         <div className="flex flex-col gap-3">
           {nameCats.map(catRow)}
           {dishMatches.length > 0 && <p className="au-label px-1">{nLabel(dishMatches.length, "מנה", "מנות")} שנמצאו</p>}
-          {dishMatches.map((d) => {
-            const vis = categoryVisual(d.category);
-            return (
-              <button key={d.id} className="glass cat" onClick={() => openDish(d)}>
-                <span className="icon" aria-hidden>{d.imageUrl ? <img src={d.imageUrl} alt="" loading="lazy" /> : vis.emoji}</span>
-                <span className="flex-1 min-w-0">
-                  <h3 className="line-clamp-1">{d.name}</h3>
-                  <p className="line-clamp-1">{shortCat(d.category)}{Number(d.price) > 0 ? ` · ${Number(d.price)} ₪` : ""}</p>
-                </span>
-                <ChevronLeft size={16} className="chev" />
-              </button>
-            );
-          })}
+          {dishMatches.map(dishRow)}
           {nameCats.length === 0 && dishMatches.length === 0 && (
             <p className="au-label px-1">לא נמצא כלום עבור ״{nq}״ — נסו שם מנה, מרכיב או קטגוריה.</p>
           )}

@@ -137,3 +137,18 @@
 
 /* גוון משני אחד תחת העור: מרכזים את ה-#8A8AA0 הישן אל --dim */
 .aurora-skin .text-\[\#8a8aa0\]{color:var(--dim)}
+
+/* --- filter rows on the menu door -------------------------------------------
+   Ported verbatim from the manager's skin so the two apps' chips are the same
+   control, not two that merely look alike. Row one picks a menu, row two a
+   category (user, 29.8: waiters were scrolling past 19 tiles to reach one).
+   Horizontal scroll with the bar hidden — the row is wider than a phone by
+   design, and a visible scrollbar under a chip row reads as a broken layout. */
+.aurora-skin .au-filter{display:flex; gap:7px; overflow-x:auto; padding:2px 0 8px;
+  scrollbar-width:none; -ms-overflow-style:none}
+.aurora-skin .au-filter::-webkit-scrollbar{display:none}
+.aurora-skin .au-fchip{flex:none; white-space:nowrap; cursor:pointer; font:inherit;
+  font-size:12.5px; font-weight:700; padding:9px 15px; min-height:40px; border-radius:999px;
+  background:rgba(238,240,246,.05); border:1px solid var(--hair); color:var(--dim);
+  transition:background .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease)}
+.aurora-skin .au-fchip.on{background:var(--em); border-color:var(--em); color:#06231A}
