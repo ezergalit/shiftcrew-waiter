@@ -73,5 +73,22 @@ export function suggest(vocab, query, { limit = 6, exclude = [] } = {}) {
     if (rank >= 0) out.push({ ...v, rank });
   }
   out.sort((a, b) => a.rank - b.rank || a.label.length - b.label.length || a.label.localeCompare(b.label, "he"));
-  return out.slice(0, limit);
+
+  // ⚠️ Collapse spellings of the same thing. A menu that writes "עגבניות" on one dish and
+  // "עגבנייה" on another produced two suggestions side by side, and the waiter has to
+  // decide which of two identical answers is the right one (user, 30.8: "מה ההבדל בין
+  // עגבניה לעגבניות"). `wMatch` already folds plurals and one-letter slips — the same
+  // rule the grader uses, so anything shown as distinct here is genuinely distinct there.
+  // Compared token-by-token, so "עגבניות שרי" and "חמאת עגבניות" stay separate.
+  const sameThing = (a, b) => {
+    const A = toks(a.label), B = toks(b.label);
+    return A.length > 0 && A.length === B.length && A.every((w, i) => wMatch(w, B[i]));
+  };
+  const uniq = [];
+  for (const v of out) {
+    if (uniq.some((u) => sameThing(u, v))) continue;   // keep the better-ranked spelling
+    uniq.push(v);
+    if (uniq.length >= limit) break;
+  }
+  return uniq;
 }

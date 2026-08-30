@@ -276,7 +276,7 @@ const inMenuVocab = w => MENU_VOCAB && [...MENU_VOCAB].some(v => wMatch(w, v));
 
 export function grade(q, answer) {
   // answer: string for fact/brief, string[] chips for recall
-  let lvl = 0, unknown = 0, total = 0, foreignW = 0;
+  let lvl = 0, unknown = 0, total = 0, foreignW = 0, wrongFar = 0;
   const vocab = [];
   const addVocab = (...ws) => vocab.push(...ws.flatMap(w => toks(String(w))));
 
@@ -295,12 +295,30 @@ export function grade(q, answer) {
       }
       if (bs >= 0) matched.add(best);
       else if (cw.length && cw.every(w => (q.free || []).some(f => wMatch(w, norm(f))))) { /* neutral */ }
-      else { inv++; const u = cw.filter(w => !vocab.some(v => wMatch(w, v))); unknown += u.length; foreignW += u.filter(w => !inMenuVocab(w)).length; }
+      else {
+        inv++;
+        const u = cw.filter(w => !vocab.some(v => wMatch(w, v)));
+        unknown += u.length;
+        const foreignInChip = u.filter(w => !inMenuVocab(w)).length;
+        foreignW += foreignInChip;
+        // ⚠️ CONFIDENTLY WRONG vs merely unrecognised. Every word of this chip is one the
+        // menu uses somewhere, and none of them matched a target — so the waiter named a
+        // real ingredient that is not in this dish (user, 30.8: "אם המלצר אומר מרכיב שאין
+        // במנה זה צריך להוריד נקודות"). A typo never lands here: wMatch folds plurals,
+        // prefixes and a Levenshtein slip, so a misspelling matches its target first. A
+        // word the menu has never seen is not counted either — that is a possible synonym,
+        // and it is what the judge tier exists to settle.
+        if (cw.length && foreignInChip === 0) wrongFar++;
+      }
     }
     const got = matched.size;
-    lvl = (got >= q.minOk && inv <= (q.maxInv ?? 1)) ? 2 : got > 0 ? 1 : 0;
-    // near-full blocked by unrecognised chips → likely synonyms → judge worth paying for
-    if (lvl < 2 && inv > 0 && got >= q.minOk - 1) foreignW = Math.max(foreignW, 2, Math.ceil(total * 0.4));
+    // Naming something that is not in the dish costs the full mark, however much else
+    // was right — on a plate, a confident wrong ingredient is the answer that sends an
+    // allergic guest the wrong dish.
+    lvl = (got >= q.minOk && inv <= (q.maxInv ?? 1) && wrongFar === 0) ? 2 : got > 0 ? 1 : 0;
+    // near-full blocked by UNRECOGNISED chips → likely synonyms → judge worth paying for.
+    // ⚠️ `inv > wrongFar`: don't buy a judgment on a chip we already know is wrong.
+    if (lvl < 2 && inv > wrongFar && got >= q.minOk - 1) foreignW = Math.max(foreignW, 2, Math.ceil(total * 0.4));
   } else if (q.k === "fact") {
     const tokens = toks(String(answer)); total = tokens.length;
     for (const g of q.req) addVocab(...g);
@@ -329,5 +347,5 @@ export function grade(q, answer) {
   // ── the tier-2 gate: FOREIGN substance only. A menu word used wrongly is confidently
   //    wrong; a word the menu has never seen (synonym, transliteration) needs a judge. ──
   const escalate = lvl < 2 && foreignW >= 2 && total > 0 && foreignW / total >= 0.34;
-  return { lvl, escalate, unknown, foreign: foreignW, total };
+  return { lvl, escalate, unknown, foreign: foreignW, total, wrong: wrongFar };
 }

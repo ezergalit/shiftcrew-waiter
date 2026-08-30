@@ -23,6 +23,12 @@ export default function AnswerInput({
 }) {
   const [text, setText] = useState("");
   const inputRef = useRef(null);
+  // 🔴 Guards the saved chips from the backspace that was only meant to clear the typed
+  // text. A waiter types a misspelling, adds it, then holds backspace to correct it —
+  // and the moment the box empties the key-repeat keeps going and eats the chip they
+  // already saved (user, 30.8). Set whenever the box becomes empty, so the press that
+  // emptied it, and every repeat of it, is spent on the text and not on a chip.
+  const justEmptied = useRef(false);
 
   const hits = useMemo(
     () => (disabled ? [] : suggest(vocab, text, { limit: 6, exclude: values })),
@@ -68,7 +74,10 @@ export default function AnswerInput({
           ref={inputRef}
           value={text}
           disabled={disabled}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            if (e.target.value === "") justEmptied.current = true;
+            setText(e.target.value);
+          }}
           onKeyDown={(e) => {
             // ⚠️ Adds WHAT WAS TYPED, never the top suggestion. Substituting looks helpful
             // and quietly changes the answer: a waiter typing "מיונז" for a dish holding
@@ -77,7 +86,14 @@ export default function AnswerInput({
             if (e.key === "Enter") { e.preventDefault(); add(text); }
             // Backspace on an empty box removes the last chip — the usual chip-input idiom,
             // and the only way to correct a mistake without aiming at a 12px ✕ under a clock.
-            if (e.key === "Backspace" && !text && values.length) onChange(values.slice(0, -1));
+            // ⚠️ But only as a DELIBERATE, separate press: not while the key is auto-
+            // repeating, and not on the press that just emptied the box. Holding backspace
+            // to fix a typo used to run straight on into the chips already saved.
+            if (e.key === "Backspace" && !text && values.length) {
+              if (e.repeat || justEmptied.current) { justEmptied.current = false; return; }
+              onChange(values.slice(0, -1));
+            }
+            if (e.key !== "Backspace") justEmptied.current = false;
           }}
           placeholder={placeholder}
           dir="rtl"
