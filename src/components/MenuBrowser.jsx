@@ -52,6 +52,41 @@ export const mokshimOf = (d) => [
 // (28.8), and a card being revealed is a different surface from a menu being browsed.
 // See `mokshim` in games/shared.js.
 
+// The service tile is a menu-level destination, not a menu group — a sentinel keeps it
+// in the same `menu` state as the real menus so back/forward behave identically.
+const SERVICE = "\u0000service";
+
+// One category row, used by both the door and the inside-a-menu list. Module scope so
+// level 2 (an early return) can reach it — a helper defined further down the component
+// body is not in scope up here, which is the same class of bug as a hook after a return.
+// A category is a GUIDE only when every item in it is a knowledge card. Categories like
+// סלטים carry one "מה חשוב לדעת" card at the top and are still food — matching on "has a
+// knowledge card" put סלטים, מרקים and ווק inside the service box.
+function guideCategories(cards) {
+  const byCat = new Map();
+  for (const c of cards || []) {
+    if (!c.category) continue;
+    if (!byCat.has(c.category)) byCat.set(c.category, []);
+    byCat.get(c.category).push(c);
+  }
+  return [...byCat.entries()].filter(([, v]) => v.every((x) => x.knowledge)).map(([k]) => k);
+}
+
+function catRowFor(cards, c, onOpen) {
+  const inCat = (cards || []).filter((x) => x.category === c);
+  const vis = categoryVisual(c);
+  const photo = inCat.find((x) => x.imageUrl)?.imageUrl;
+  const knowledge = inCat.length > 0 && inCat.every((x) => x.knowledge);
+  const nWord = knowledge ? nLabel(inCat.length, "נושא", "נושאים") : nLabel(inCat.length, "מנה", "מנות");
+  return (
+    <button key={c} className="glass cat" data-tour="browse-category" onClick={() => onOpen(c)}>
+      <span className="icon" aria-hidden>{photo ? <img src={photo} alt="" loading="lazy" /> : vis.emoji}</span>
+      <span className="flex-1 min-w-0"><h3 className="line-clamp-1">{shortCat(c)}</h3><p>{nWord}</p></span>
+      <ChevronLeft size={16} className="chev" />
+    </button>
+  );
+}
+
 export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, aurora = false, merged = false }) {
   // ⚠️ Not `groups` — that name already means the restaurant's MENU groups in this file.
   const warnGroups = merged ? MERGED_GROUPS : FLAG_GROUPS;
@@ -59,13 +94,6 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   // its name, or by any dish name / ingredient inside it — a waiter looking for "כמהין"
   // should land on the categories that serve it.
   const [q, setQ] = useState("");
-  // The two filter rows on the menu door (user, 29.8: "כדי שהמלצרים יוכלו לגולל
-  // בקלות יותר"). Studio has 5 menus and 19 categories, so the tile list ran well past
-  // two screens before a waiter reached the one they wanted.
-  // ⚠️ Deliberately NOT the existing `menu` state — that one switches the whole browser
-  // into its two-level mode for unskinned restaurants. This filters in place.
-  const [mFilter, setMFilter] = useState(null);
-  const [cFilter, setCFilter] = useState(null);
   const [menu, setMenu] = useState(null);
   const [cat, setCat] = useState(null);
   const [idx, setIdx] = useState(null);
@@ -75,7 +103,10 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   const firstPos = (g) => Math.min(...(cards || []).filter((c) => c.menuGroup === g).map((c) => c.menuPosition ?? 1e9));
   const menus = groups.sort((a, b) => firstPos(a) - firstPos(b));
   const flat = menus.length <= 1;
-  const inMenu = (c) => (menu ? c.menuGroup === menu : true);
+  // ⚠️ The service box is a destination, not a menu_group — filtering dishes by it would
+  // match nothing and every guide category would open empty.
+  const inMenu = (c) => (!menu || menu === SERVICE ? true : c.menuGroup === menu);
+  const menuLabel = menu === SERVICE ? "הדרכות שירות" : menu;
 
   const dishes = cat
     ? (cards || []).filter((c) => c.category === cat && inMenu(c))
@@ -336,7 +367,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   if (cat) {
     return (
       <div className="space-y-3.5">
-        <Crumb over={flat ? null : menu} title={`${categoryVisual(cat).emoji} ${shortCat(cat)}`} onBack={() => setCat(null)} />
+        <Crumb over={menu ? menuLabel : (flat ? null : menu)} title={`${categoryVisual(cat).emoji} ${shortCat(cat)}`} onBack={() => setCat(null)} />
         <p className="text-[11.5px] text-[#5a5a6e] px-1">{cat.startsWith("הדרכת") ? `${nLabel(dishes.length, "נושא", "נושאים")} · הקשה על נושא פותחת אותו במלואו` : `${nLabel(dishes.length, "מנה", "מנות")} · הקשה על מנה פותחת אותה במלואה`}</p>
         {dishes.map((d, i) => (
           <button
@@ -365,12 +396,29 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
 
   // ---- level 2: categories inside a menu ----
   if (menu || (flat && !aurora)) {
-    const pool = (cards || []).filter((c) => (flat ? true : c.menuGroup === menu));
+    // The service box holds every knowledge category, whatever menu_group they carry;
+    // a real menu holds only its own dishes.
+    const gCats = guideCategories(cards);
+    const pool = menu === SERVICE
+      ? (cards || []).filter((c) => gCats.includes(c.category))
+      : (cards || []).filter((c) => (flat && !aurora ? true : c.menuGroup === menu && !gCats.includes(c.category)));
     const list = [...new Set(pool.map((c) => c.category).filter(Boolean))];
+    const title = menu === SERVICE ? "הדרכות שירות" : menu;
+
+    // Under the skin the categories are the same glass rows the door uses, so stepping
+    // in feels like the same surface rather than a different screen.
+    if (aurora) {
+      return (
+        <div className="flex flex-col gap-3">
+          <Crumb over="התפריטים" title={title} onBack={() => setMenu(null)} />
+          {list.map((c) => catRowFor(cards, c, setCat))}
+        </div>
+      );
+    }
     return (
       <div className="space-y-2.5">
         {flat && topSlot}
-        {!flat && <Crumb over="התפריטים" title={menu} onBack={() => setMenu(null)} />}
+        {!flat && <Crumb over="התפריטים" title={title} onBack={() => setMenu(null)} />}
         {list.map((c) => {
           const vis = categoryVisual(c);
           const inCat = pool.filter((x) => x.category === c);
@@ -435,24 +483,18 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
       </div>
     );
   }
-  // ---- level 1: the menu door (source of truth: crewmenu-menu-page.html) ----
-  // One flat page: greeting (topSlot) · search · color legend · every category as a
-  // glass row with a progress miniring · About (bottomSlot). No menu-group level.
-  // A search shows the MATCHING DISHES themselves (user, 2026-08-27), with any
-  // category whose own name matches above them; tapping a dish opens it in its
-  // category context, so the prev/next walk still works.
-  const doorCards = (cards || []).filter((c) => !mFilter || c.menuGroup === mFilter);
-  const allCats = [...new Set(doorCards.map((c) => c.category).filter(Boolean))];
-  // ⚠️ Service training is not menu (user, 29.8: "הדרכת שירות צריך להיות בsection שונה
-  // מתפריט המסעדה מכיוון שזה לא תפריט"). A category whose every item is a knowledge card
-  // is a guide, and guides get their own headed block below the menu — mixed into the
-  // category list they read as a course you could order.
-  const isGuideCat = (c) => {
-    const inCat = doorCards.filter((x) => x.category === c);
-    return inCat.length > 0 && inCat.every((x) => x.knowledge);
-  };
-  const menuCats = allCats.filter((c) => !isGuideCat(c));
-  const guideCats = allCats.filter(isGuideCat);
+  // ---- level 1: the menus themselves ----
+  // ⚠️ Menus are BOXES, not chip rows (user, 30.8: "remove the 2 rows of menu… just put
+  // at the bottom like resturant menu / sushi menu in those boxes"). Two filter rows
+  // above a list of every category meant a Studio waiter read 19 categories from five
+  // different menus at once. Now: pick a menu, then its categories, then a dish — and
+  // service training is its own box, because it is not a menu.
+  const gCats = guideCategories(cards);
+  const dishCards = (cards || []).filter((c) => !gCats.includes(c.category));
+  const guideCards = (cards || []).filter((c) => gCats.includes(c.category));
+  const menuTiles = [...new Set(dishCards.map((c) => c.menuGroup).filter(Boolean))]
+    .sort((a, b) => Math.min(...dishCards.filter((c) => c.menuGroup === a).map((c) => c.menuPosition ?? 1e9))
+                  - Math.min(...dishCards.filter((c) => c.menuGroup === b).map((c) => c.menuPosition ?? 1e9)));
   const nq = q.trim();
   const openDish = (d) => {
     const items = (cards || []).filter((x) => x.category === d.category)
@@ -473,21 +515,26 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
       </button>
     );
   };
-  const catRow = (c) => {
-    const inCat = (cards || []).filter((x) => x.category === c);
-    const vis = categoryVisual(c);
-    const photo = inCat.find((x) => x.imageUrl)?.imageUrl;
-    const knowledge = inCat.every((x) => x.knowledge);
-    const nWord = knowledge ? nLabel(inCat.length, "נושא", "נושאים") : nLabel(inCat.length, "מנה", "מנות");
+  const catRow = (c) => catRowFor(cards, c, setCat);
+  const menuTile = (m2) => {
+    const inG = dishCards.filter((c) => c.menuGroup === m2);
+    const nCats = new Set(inG.map((c) => c.category)).size;
+    const photo = inG.find((x) => x.imageUrl)?.imageUrl;
+    const vis = categoryVisual(inG[0]?.category || m2);
     return (
-      <button key={c} className="glass cat" data-tour="browse-category" onClick={() => setCat(c)}>
+      <button key={m2} className="glass cat" data-tour="browse-menu" onClick={() => setMenu(m2)}>
         <span className="icon" aria-hidden>{photo ? <img src={photo} alt="" loading="lazy" /> : vis.emoji}</span>
-        <span className="flex-1 min-w-0"><h3 className="line-clamp-1">{shortCat(c)}</h3><p>{nWord}</p></span>
+        <span className="flex-1 min-w-0">
+          <h3 className="line-clamp-1">{m2}</h3>
+          <p>{nLabel(nCats, "קטגוריה", "קטגוריות")} · {nLabel(inG.length, "מנה", "מנות")}</p>
+        </span>
         <ChevronLeft size={16} className="chev" />
       </button>
     );
   };
-  const nameCats = nq ? [...menuCats, ...guideCats].filter((c) => c.includes(nq)) : [];
+  const nameCats = nq
+    ? [...new Set((cards || []).map((c) => c.category).filter(Boolean))].filter((c) => c.includes(nq))
+    : [];
   const dishMatches = nq
     ? (cards || []).filter((d) => (d.name || "").includes(nq) || (d.ingredients || []).some((i) => String(i).includes(nq))).slice(0, 40)
     : [];
@@ -504,49 +551,22 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
         {!merged && <span className="chip purple"><i className="dot" />🤰 רגישות</span>}
         <span className="chip amber"><i className="dot" />{merged ? "מוקשים 🤰" : "מוקשים"}</span>
       </div>
-      {/* Two filter rows, the same shape the manager already has. Row one narrows the
-          door to one menu; row two jumps straight to a category's dishes. Without them a
-          Studio waiter scrolled past 19 tiles to reach סאקה. Each row appears only when
-          it has something to choose between — a single chip is not a choice. */}
-      {!nq && menus.length > 1 && (
-        <div className="au-filter">
-          <button type="button" className={`au-fchip ${!mFilter ? "on" : ""}`}
-            onClick={() => { setMFilter(null); setCFilter(null); }}>כל התפריטים</button>
-          {menus.map((m2) => (
-            <button key={m2} type="button" className={`au-fchip ${mFilter === m2 ? "on" : ""}`}
-              onClick={() => { setMFilter(m2); setCFilter(null); }}>{m2}</button>
-          ))}
-        </div>
-      )}
-      {!nq && allCats.length > 1 && (
-        <div className="au-filter">
-          <button type="button" className={`au-fchip ${!cFilter ? "on" : ""}`}
-            onClick={() => setCFilter(null)}>הכל</button>
-          {allCats.map((c) => (
-            <button key={c} type="button" className={`au-fchip ${cFilter === c ? "on" : ""}`}
-              onClick={() => setCFilter(c)}>{shortCat(c)}</button>
-          ))}
-        </div>
-      )}
-
       {!nq ? (
         <div className="flex flex-col gap-3">
-          {/* A chosen category shows its dishes right here, so picking one from the row
-              is a shortcut rather than a second way to do the same tap. */}
-          {cFilter
-            ? doorCards.filter((d) => d.category === cFilter)
-                .sort((a, b) => (a.menuPosition ?? 0) - (b.menuPosition ?? 0))
-                .map(dishRow)
-            : menuCats.map(catRow)}
-          {/* The guides, under their own heading and after the food. Same row shape, so
-              nothing new to learn — the divider is what says "this is not the menu". */}
-          {!cFilter && guideCats.length > 0 && (
-            <>
-              <p className="au-label px-1 mt-1.5">הדרכות שירות</p>
-              {guideCats.map(catRow)}
-            </>
+          {menuTiles.map(menuTile)}
+          {/* Service training gets a box of its own, level with the menus — it is what
+              the team has to know, but it is not something a guest can order. */}
+          {guideCards.length > 0 && (
+            <button className="glass cat" onClick={() => setMenu(SERVICE)}>
+              <span className="icon" aria-hidden>🎓</span>
+              <span className="flex-1 min-w-0">
+                <h3 className="line-clamp-1">הדרכות שירות</h3>
+                <p>{nLabel(new Set(guideCards.map((c) => c.category)).size, "נושא", "נושאים")} · איך מארחים כאן</p>
+              </span>
+              <ChevronLeft size={16} className="chev" />
+            </button>
           )}
-          {!cFilter && bottomSlot}
+          {bottomSlot}
         </div>
       ) : (
         <div className="flex flex-col gap-3">
