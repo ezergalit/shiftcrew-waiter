@@ -1175,12 +1175,19 @@ export default function MainApp({ session, onSignOut }) {
             {aurora && <p className="au-label px-1 mt-1">כל התפריטים</p>}
             {menuGroups.map(({ g, items, catCount }) => {
               const pct = scorePct(items);
+              // ⚠️ Count and name what is actually in the group. A guide menu holds topics,
+              // not dishes, and a food menu's "מה חשוב לדעת" cards are not dishes either —
+              // calling 14 service cards "14 מנות" is the kind of small wrongness that makes
+              // a waiter distrust every other number on the screen.
+              const allKnowledge = items.length > 0 && items.every((i) => i.knowledge);
+              const n = allKnowledge ? items.length : items.filter((i) => !i.knowledge).length;
+              const nWord = allKnowledge ? nLabel(n, "נושא", "נושאים") : nLabel(n, "מנה", "מנות");
               return (
                 aurora ? (
                 <button key={g} data-tour="learn-menu" onClick={() => setGroupView(g)} className="glass cat">
                   <span className="flex-1 min-w-0">
                     <h3 className="line-clamp-1">{g}</h3>
-                    <p>{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nLabel(items.length, "מנה", "מנות")}</p>
+                    <p>{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nWord}</p>
                   </span>
                   <Ring pct={pct} />
                 </button>
@@ -1194,7 +1201,7 @@ export default function MainApp({ session, onSignOut }) {
                   <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mt-2">
                     <div className="h-full transition-all" style={{ width: `${pct}%`, background: pct >= 50 ? "#22c08c" : "#6d5efc" }} />
                   </div>
-                  <p className="text-[11px] text-[#8a8aa0] mt-1.5">{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nLabel(items.length, "מנה", "מנות")}</p>
+                  <p className="text-[11px] text-[#8a8aa0] mt-1.5">{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nWord}</p>
                   <p className="text-[11px] font-black text-[#22c08c] mt-1.5">לתרגול {g} ←</p>
                 </button>
                 )
