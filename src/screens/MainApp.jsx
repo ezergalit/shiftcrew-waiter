@@ -166,6 +166,7 @@ export default function MainApp({ session, onSignOut }) {
   const [catView, setCatView] = useState(null); // category key or null
   const [groupView, setGroupView] = useState(null); // menu (menu_group) key or null
   // Bumped to remount MenuBrowser at its top level (see the tour's onNavigate).
+  const [browseDeep, setBrowseDeep] = useState(false);
   const [browseKey, setBrowseKey] = useState(0);
   // One-time profile (user, 2026-08-22): gender + permanent role (waiter/bar/both) —
   // asked once at first entry, never again. The shift stays a DAILY answer (loadShift
@@ -978,7 +979,7 @@ export default function MainApp({ session, onSignOut }) {
         {/* Floating over the page, not sitting in a bar above it. Absolute inside the
             scroller so it belongs to the content and scrolls with it, and so adding it
             costs the layout nothing. */}
-        {aurora && (
+        {aurora && !browseDeep && (
           <div className="au-float">
             <SignOutButton onSignOut={onSignOut} preview={preview} withDelete={metricsOff && !preview && !session?.offline} />
             {!metricsOff && (
@@ -1322,6 +1323,7 @@ export default function MainApp({ session, onSignOut }) {
             only, so checking a dish mid-shift never touches the waiter's score. */}
         {tab === "categories" && (
           <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} aurora={aurora} merged={mergedWarnings}
+            onDepth={setBrowseDeep}
             bottomSlot={
               aurora ? (
                 <button onClick={() => setShowAbout(true)} className="glass cat" data-name="אודות המסעדה">

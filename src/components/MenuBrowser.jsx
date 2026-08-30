@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronRight, ChevronLeft, X } from "lucide-react";
 import { categoryVisual } from "../lib/categoryVisual";
 import { shortCat, nLabel } from "../games/shared";
@@ -87,7 +88,25 @@ function catRowFor(cards, c, onOpen) {
   );
 }
 
-export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, aurora = false, merged = false }) {
+
+// 🔴 Full-screen screens are PORTALLED to <body>, never rendered in place.
+//
+// `.aurora-skin` (the app root) carries `isolation:isolate` + `overflow:hidden`, so an
+// overlay rendered inside it is sealed into the root's stacking context — and the bottom
+// nav, which comes later in that same context and paints its own backdrop-filter layer,
+// covered the overlay's lower edge. On a phone that is exactly where the prev/next bar
+// lives, so the dish screen looked like it had no way forward (user, 30.8: "there is
+// still no next dish button"). It reproduced only on a device: in a desktop browser the
+// nav is ~34px shorter (no safe-area inset) and left the bar just visible, which is why
+// measuring in the browser kept saying it was fine.
+function Overlay({ children }) {
+  return createPortal(
+    <div className="fixed inset-0 z-[70] bg-[#0c0d10] flex justify-center" dir="rtl">{children}</div>,
+    document.body,
+  );
+}
+
+export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, aurora = false, merged = false, onDepth }) {
   // ⚠️ Not `groups` — that name already means the restaurant's MENU groups in this file.
   const warnGroups = merged ? MERGED_GROUPS : FLAG_GROUPS;
   // Search on the menu door (the handoff page's dynamic): a query matches a category by
@@ -102,6 +121,12 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   const groups = [...new Set((cards || []).map((c) => c.menuGroup).filter(Boolean))];
   const firstPos = (g) => Math.min(...(cards || []).filter((c) => c.menuGroup === g).map((c) => c.menuPosition ?? 1e9));
   const menus = groups.sort((a, b) => firstPos(a) - firstPos(b));
+  // The shell hides its floating exit button once the waiter is past the door — inside a
+  // menu, a category or a dish it is chrome over someone's reading (user, 30.8: "when i
+  // enter into a dish the button show disappear and reappear when im back in the
+  // mainpage").
+  useEffect(() => { onDepth?.(menu !== null || cat !== null || idx !== null); },
+            [menu, cat, idx, onDepth]);
   const flat = menus.length <= 1;
   // ⚠️ The service box is a destination, not a menu_group — filtering dishes by it would
   // match nothing and every guide category would open empty.
@@ -198,7 +223,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   // menu without ever returning to a list.
   if (idx !== null && cat && idx >= dishes.length) {
     return (
-      <div className="fixed inset-0 z-50 bg-[#0c0d10] flex justify-center" dir="rtl">
+      <Overlay>
         <div className="w-full max-w-md h-full flex flex-col border-x border-[#1a1d23]">
           <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 flex items-center justify-between flex-shrink-0">
             <button onClick={() => setIdx(null)} className="text-[#8a8aa0] flex items-center gap-1 text-xs font-bold" aria-label="סגירה">
@@ -249,7 +274,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
             </div>
           </div>
         </div>
-      </div>
+      </Overlay>
     );
   }
 
@@ -258,7 +283,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
     const d = dishes[idx];
     const vis = categoryVisual(d.category);
     return (
-      <div className="fixed inset-0 z-50 bg-[#0c0d10] flex justify-center" dir="rtl">
+      <Overlay>
         <div className="w-full max-w-md h-full flex flex-col border-x border-[#1a1d23]">
         <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 flex items-center justify-between flex-shrink-0">
           <button onClick={() => setIdx(null)} className="text-[#8a8aa0] flex items-center gap-1 text-xs font-bold" aria-label="סגירה">
@@ -359,7 +384,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
           </button>
         </div>
         </div>
-      </div>
+      </Overlay>
     );
   }
 
