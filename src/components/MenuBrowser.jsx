@@ -519,6 +519,9 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   const menuTile = (m2) => {
     const inG = dishCards.filter((c) => c.menuGroup === m2);
     const nCats = new Set(inG.map((c) => c.category)).size;
+    // ⚠️ Count dishes, not items. A food category carries a "מה חשוב לדעת" card at the
+    // top, and calling it a dish overstates every menu by the number of its guides.
+    const nDishes = inG.filter((c) => !c.knowledge).length;
     const photo = inG.find((x) => x.imageUrl)?.imageUrl;
     const vis = categoryVisual(inG[0]?.category || m2);
     return (
@@ -526,7 +529,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
         <span className="icon" aria-hidden>{photo ? <img src={photo} alt="" loading="lazy" /> : vis.emoji}</span>
         <span className="flex-1 min-w-0">
           <h3 className="line-clamp-1">{m2}</h3>
-          <p>{nLabel(nCats, "קטגוריה", "קטגוריות")} · {nLabel(inG.length, "מנה", "מנות")}</p>
+          <p>{nLabel(nCats, "קטגוריה", "קטגוריות")} · {nLabel(nDishes, "מנה", "מנות")}</p>
         </span>
         <ChevronLeft size={16} className="chev" />
       </button>
@@ -539,7 +542,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
     ? (cards || []).filter((d) => (d.name || "").includes(nq) || (d.ingredients || []).some((i) => String(i).includes(nq))).slice(0, 40)
     : [];
   return (
-    <div className="flex flex-col gap-3.5">
+    <div className="flex flex-col gap-3.5 min-h-full">
       {topSlot}
       <label className="search">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
@@ -552,7 +555,12 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
         <span className="chip amber"><i className="dot" />{merged ? "מוקשים 🤰" : "מוקשים"}</span>
       </div>
       {!nq ? (
-        <div className="flex flex-col gap-3">
+        // ⚠️ `flex-1` + `mt-auto` on About: with three menus the door left ~255px of dead
+        // background above the tab bar (user, 30.8). Rather than stretch a tile to an
+        // arbitrary height, the menus group at the top and "אודות המסעדה" sits on the
+        // bottom edge — the space between them then reads as separation, not as a page
+        // that ran out. A long menu list pushes About back down and it scrolls normally.
+        <div className="flex flex-col gap-3 flex-1">
           {menuTiles.map(menuTile)}
           {/* Service training gets a box of its own, level with the menus — it is what
               the team has to know, but it is not something a guest can order. */}
@@ -561,12 +569,12 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
               <span className="icon" aria-hidden>🎓</span>
               <span className="flex-1 min-w-0">
                 <h3 className="line-clamp-1">הדרכות שירות</h3>
-                <p>{nLabel(new Set(guideCards.map((c) => c.category)).size, "נושא", "נושאים")} · איך מארחים כאן</p>
+                <p>{nLabel(guideCards.length, "נושא", "נושאים")} · איך מארחים כאן</p>
               </span>
               <ChevronLeft size={16} className="chev" />
             </button>
           )}
-          {bottomSlot}
+          <div className="mt-auto">{bottomSlot}</div>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
