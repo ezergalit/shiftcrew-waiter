@@ -125,7 +125,13 @@
   font-size:10.5px; font-weight:700}
 
 /* --- 9. סרגל תחתון (בר מלא-רוחב, אייקוני אימוג'י) --- */
-.aurora-skin .au-nav {padding:10px 14px calc(24px + env(safe-area-inset-bottom));
+/* יושב על תחתית המסך. הריפוד מתחת לתוויות הוא רק מרווח הנשימה מעל פס הבית —
+   24px נוספים על ה-inset הותירו רצועה שחורה ריקה (יותם, ×3).
+   ⚠️ ה-max() הוא רצפה, לא תיקון: נמדד בסימולטור שה-inset אכן מגיע (34pt, תחתית
+   ה-pill ב-814 מתוך 852), ולכן באייפון היחס הוא 4+34 — נמוך ככל שאפשר בלי לשבת
+   על פס הבית. בדפדפן ובכל משטח בלי inset הערך 0, ואז 4px לבדם היו מצמידים את
+   התוויות לשפת המסך; 14 מונעת את זה. */
+.aurora-skin .au-nav {padding:6px 14px max(14px, calc(4px + env(safe-area-inset-bottom)));
   background:rgba(12,13,16,.85); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
   border-top:1px solid rgba(238,240,246,.08)}
 .aurora-skin .au-nav button {border:0; background:transparent; cursor:pointer; font:inherit;

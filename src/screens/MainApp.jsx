@@ -167,6 +167,10 @@ export default function MainApp({ session, onSignOut }) {
   const [groupView, setGroupView] = useState(null); // menu (menu_group) key or null
   // Bumped to remount MenuBrowser at its top level (see the tour's onNavigate).
   const [browseDeep, setBrowseDeep] = useState(false);
+  // Depth belongs to the tab you're in, so leaving a tab clears it — otherwise
+  // walking into a dish and then tapping another tab leaves that tab's root
+  // page without its exit button.
+  useEffect(() => { setBrowseDeep(false); }, [tab]);
   const [browseKey, setBrowseKey] = useState(0);
   // One-time profile (user, 2026-08-22): gender + permanent role (waiter/bar/both) —
   // asked once at first entry, never again. The shift stays a DAILY answer (loadShift
@@ -997,7 +1001,10 @@ export default function MainApp({ session, onSignOut }) {
         {/* Floating over the page, not sitting in a bar above it. Absolute inside the
             scroller so it belongs to the content and scrolls with it, and so adding it
             costs the layout nothing. */}
-        {aurora && !browseDeep && (
+        {/* Root pages only (user, 30.8): the moment you step into a menu, a
+            category or a dish, the way out is the back arrow — a second exit
+            control there just competes with it. */}
+        {aurora && !browseDeep && !(tab === "learn" && (catView || groupView)) && (
           <div className="au-float">
             <SignOutButton onSignOut={onSignOut} preview={preview} withDelete={metricsOff && !preview && !session?.offline} />
             {!metricsOff && (
@@ -1474,7 +1481,10 @@ function BottomNav({ tab, setTab, hasDailyUpdate, hideTasks, aurora }) {
     ["learn", aurora ? "🎓" : GraduationCap, "תרגול ובחינה", false],
   ];
   return (
-    <div className={`${aurora ? "au-nav" : ""} flex-shrink-0 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]`}
+    /* The inset is paid for once, by whoever owns the padding: `.au-nav` under Aurora,
+       these utilities otherwise. Stacking both is what left a black band under the
+       labels on the manager's bar. */
+    <div className={`flex-shrink-0 ${aurora ? "au-nav" : "px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"}`}
       style={aurora ? undefined : { background: "rgba(22,24,28,0.92)", backdropFilter: "blur(20px)", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
       <div className={aurora ? "flex gap-1.5" : "flex"}>
         {items.map(([t, icon, label, badge]) => {
