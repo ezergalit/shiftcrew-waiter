@@ -500,7 +500,7 @@ export default function MainApp({ session, onSignOut }) {
     ready: !!cards?.length,
     onSecond: () => setTodaySeconds((n) => n + 1),
     getPct: () => {
-      const list = cards || [];
+      const list = learnCards;
       if (!list.length) return 0;
       return Math.round((list.reduce((s, x) => s + (masteryById[x.id] || 0), 0) / (list.length * 5)) * 100);
     },
@@ -508,15 +508,33 @@ export default function MainApp({ session, onSignOut }) {
 
   // Every unlock in the app is derived here rather than stored, so a menu change or a
   // mastery change re-derives correctly. See lib/learningPath.js for the rules.
+  // ⚠️ Service training is READ, never drilled or tested (user, 30.8: "תוריד מאופציית
+  // הבחינה בכרטיסיות את מבחן השירות, שזה ישאר בsection של התפריט"). It stays fully
+  // browsable in the menu; it just never enters the practice pool, the exams, or the
+  // mastery percentage — so "60% שליטה בתפריט" means 60% of the FOOD, which is the number
+  // the manager is looking at too.
+  // A category counts as a guide only when every item in it is a knowledge card; the
+  // "מה חשוב לדעת" card at the top of סלטים stays with its dishes.
+  const learnCards = useMemo(() => {
+    const byCat = new Map();
+    for (const c of cards || []) {
+      if (!c.category) continue;
+      if (!byCat.has(c.category)) byCat.set(c.category, []);
+      byCat.get(c.category).push(c);
+    }
+    const guideCats = [...byCat.entries()].filter(([, v]) => v.every((x) => x.knowledge)).map(([k]) => k);
+    return (cards || []).filter((c) => !guideCats.includes(c.category));
+  }, [cards]);
+
   const path = useMemo(() => {
-    const list = cards || [];
+    const list = learnCards;
     const seen = [...new Set(list.map((x) => x.category).filter(Boolean))];
     const defaultOrder = [...CAT_ORDER.filter((c) => seen.includes(c)), ...seen.filter((c) => !CAT_ORDER.includes(c))];
     return pathState(list, masteryById, passedCats, {
       ...examConfig,
       category_order: examConfig?.category_order?.length ? examConfig.category_order : defaultOrder,
     });
-  }, [cards, masteryById, passedCats, examConfig]);
+  }, [learnCards, masteryById, passedCats, examConfig]);
 
   // A game launched from a card carries its own scope; anything else draws only from the
   // categories the waiter has actually opened — never quizzing desserts they haven't
@@ -735,7 +753,7 @@ export default function MainApp({ session, onSignOut }) {
       : <QuizExam items={examItems} facets={gameFacets} categoryLabel={label} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />;
   }
 
-  const pct = scorePct(cards);
+  const pct = scorePct(learnCards);
   // Rank follows the weekly board, since that is the competition on screen. Falls back to
   // all-time before any points have been scored this week, so a returning waiter doesn't
   // see their standing vanish every Sunday morning.
@@ -751,17 +769,17 @@ export default function MainApp({ session, onSignOut }) {
   // instead of scrolling the whole list. A menu with no group set falls back to one bucket,
   // which is exactly how every restaurant that predates the column keeps working.
   const menuGroups = (() => {
-    const seen = [...new Set((cards || []).map(x => x.menuGroup).filter(Boolean))];
+    const seen = [...new Set(learnCards.map(x => x.menuGroup).filter(Boolean))];
     if (!seen.length) return [];
-    const firstPos = (g) => Math.min(...(cards || []).filter(x => x.menuGroup === g).map(x => x.menuPosition ?? 1e9));
+    const firstPos = (g) => Math.min(...learnCards.filter(x => x.menuGroup === g).map(x => x.menuPosition ?? 1e9));
     return seen.sort((a, b) => firstPos(a) - firstPos(b)).map(g => {
-      const items = (cards || []).filter(x => x.menuGroup === g);
+      const items = learnCards.filter(x => x.menuGroup === g);
       return { g, items, catCount: new Set(items.map(x => x.category)).size };
     });
   })();
 
   const cats = (() => {
-    const pool = groupView ? (cards || []).filter(x => x.menuGroup === groupView) : (cards || []);
+    const pool = groupView ? learnCards.filter(x => x.menuGroup === groupView) : learnCards;
     const seen = [...new Set(pool.map(x => x.category).filter(Boolean))];
     const ordered = [
       ...CAT_ORDER.filter(c => seen.includes(c)),
