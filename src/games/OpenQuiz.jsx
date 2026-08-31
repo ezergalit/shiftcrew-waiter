@@ -53,11 +53,15 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       ...e,
       it: (items || []).find((i) => i.name === e.dish),
     })).filter((e) => e.it);
-    // Recommendation questions for a drink category (user, 31.8: "על איזה סאקה תמליץ
-    // ללקוח שאוהב טעם חלש?"). A pool that avoids repeating itself: traits already asked
-    // on this device sink to the back until the whole pool has been seen once.
+    // Recommendation/situation questions (user, 31.8): drinks get trait questions,
+    // food gets "אורח אלרגי ל-X / אורחת בהריון / אוהב חריף / מחפש משהו מתוק" — and the
+    // quiz composition leans on them: AT LEAST HALF of every sitting where the pool
+    // allows, and never fewer than one. A pool that avoids repeating itself: questions
+    // already asked on this device sink to the back until the whole pool has cycled.
     const catName = (items || []).find((i) => !i.knowledge)?.category;
-    const recPool = catName ? bank.filter((q) => q.sit === "drinkrec" && q.cat === catName) : [];
+    const recPool = catName
+      ? bank.filter((q) => (q.sit === "drinkrec" || q.sit === "dishrec") && q.cat === catName)
+      : [];
     let recs = [];
     if (recPool.length) {
       const seenKey = `menu-app-recasked:${restaurantId || "r"}:${catName}`;
@@ -65,7 +69,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       try { seen = JSON.parse(localStorage.getItem(seenKey)) || []; } catch { /* fresh */ }
       const fresh = shuffle(recPool.filter((q) => !seen.includes(q.dish)));
       const used = shuffle(recPool.filter((q) => seen.includes(q.dish)));
-      recs = [...fresh, ...used].slice(0, 3).map((q) => ({ rec: q, dish: q.ask }));
+      recs = [...fresh, ...used].slice(0, 4).map((q) => ({ rec: q, dish: q.ask }));
       try {
         const asked = recs.map((r) => r.rec.dish);
         const nextSeen = fresh.length >= recs.length ? [...seen, ...asked] : asked;
@@ -229,7 +233,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
           {cur.rec && (
             <AnswerInput
               vocab={[]} values={recAns} onChange={setRecAns}
-              label="ההמלצה שלך" placeholder="כתבו את שם המשקה ולחצו הוסף…"
+              label="ההמלצה שלך" placeholder="כתבו את שם המנה או המשקה ולחצו הוסף…"
             />
           )}
           {cur.describe && (

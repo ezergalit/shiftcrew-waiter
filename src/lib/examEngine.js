@@ -330,6 +330,98 @@ export function generate(menu) {
     });
   }
 
+  // ---- המלצת מנה לפי סיטואציה (יותם, 31.8: «בכל מבחן לפחות שאלה אחת של איזו
+  // מנה היית ממליץ בהתאם לסיטואציה») ----
+  // הסיטואציות נגזרות מהנתונים של הקטגוריה עצמה, ורק כשהן באמת מבחינות —
+  // התשובות הנכונות הן לכל היותר מחצית מהקטגוריה, אחרת «כל מנה» עונה:
+  //   · אלרגיה: «אורח אלרגי ל-X» ⇒ המנות שבלי X. המלצה על מנה שנושאת את
+  //     האלרגן נופלת ב-wrongFar — בדיוק הטעות שאסור למלצר לעשות.
+  //   · הריון: «אורחת בהריון» ⇒ המנות בלי דגלי הריון.
+  //   · העדפה: «אורח שאוהב חריף» ⇒ המנות שנושאות את המוקש.
+  //   · טעם מהתיאור: «אורח מחפש משהו מתוק» ⇒ מנות שהמילון מזהה בתיאורן.
+  {
+    const byCat = new Map();
+    for (const d of menu) {
+      if (d.drink || /קוקטייל/.test(d.category || "")) continue; // למשקאות יש drinkrec
+      if (!byCat.has(d.category)) byCat.set(d.category, []);
+      byCat.get(d.category).push(d);
+    }
+    for (const [cat, dishes] of byCat) {
+      if (dishes.length < 4) continue;
+      const half = dishes.length / 2;
+      // ⚠️ alt של שם מנה = רק המילים המבחינות שלו — מילה שמופיעה גם בשם מנה
+      // אחרת בקטגוריה («סינטה» בקרפצ'יו סינטה ובאינדו סינטה) הייתה מזכה את
+      // המנה הלא-נכונה. נתפס באימות, לא בניחוש.
+      const distinct = (d2) => {
+        const others = dishes.filter((o) => o !== d2).flatMap((o) => toks(o.name));
+        return toks(d2.name).filter((w) => w.length >= 3 && !others.some((ow) => wMatch(w, ow)));
+      };
+      const push = (key, ask, matching, situationWords, { lenient = false } = {}) => {
+        if (!matching.length || matching.length > half) return;
+        // שאלת טעם נשענת על התיאור, והתיאור אינו רשימה סגורה — קינוח שמתוק
+        // באמת אבל התיאור שלו לא אומר זאת אסור שיפיל את המלצר. המנות האחרות
+        // של הקטגוריה נכנסות ל-free: לא מזכות, לא מענישות. שאלות אלרגיה
+        // והריון נשארות קשוחות — שם המלצה שגויה היא בדיוק הטעות המסוכנת.
+        const free = lenient
+          ? [...situationWords, ...dishes.filter((o) => !matching.includes(o)).flatMap((o) => toks(o.name))]
+          : situationWords;
+        out.push({
+          sit: "dishrec", dish: `${cat} · ${key}`, cat, k: "recall", secs: 45,
+          ask,
+          // must = מילה מבחינה אחת: תשובה «סינטה» לבדה, כשגם קרפצ'יו סינטה
+          // וגם אינדו סינטה קיימות ורק אחת בטוחה לאלרגי — דו-משמעית, ובשאלת
+          // אלרגיה דו-משמעות היא טעות. שם בלי אף מילה ייחודית ⇒ התאמת שם רגילה.
+          targets: matching.map((d2) => {
+            const dw = distinct(d2);
+            return { t: d2.name, ...(dw.length ? { must: [dw[0]] } : {}), alt: dw };
+          }),
+          free,
+          minOk: 1, maxInv: 0,
+        });
+      };
+      // allergy-safe: most of the category carries X, the waiter must know the exceptions
+      const allAllergens = [...new Set(dishes.flatMap((d2) => d2.allergens || []))];
+      for (const a of allAllergens) {
+        push(`בלי ${a}`,
+          `אורח אלרגי ל${a} מבקש המלצה מ${cat}. על איזו מנה תמליץ?`,
+          dishes.filter((d2) => !(d2.allergens || []).includes(a)), [a]);
+      }
+      // pregnancy-safe
+      const anyPreg = dishes.some((d2) => (d2.pregnancy || []).length);
+      if (anyPreg) {
+        push("להריון",
+          `אורחת בהריון מבקשת המלצה מ${cat}. על איזו מנה תמליץ?`,
+          dishes.filter((d2) => !(d2.pregnancy || []).length), ["בהריון"]);
+      }
+      // likes a pitfall (חריף is the classic)
+      const allPitfalls = [...new Set(dishes.flatMap((d2) => d2.pitfalls || []))];
+      for (const pf of allPitfalls) {
+        push(`אוהב ${pf}`,
+          `אורח שאוהב ${pf} מבקש המלצה מ${cat}. על איזו מנה תמליץ?`,
+          dishes.filter((d2) => (d2.pitfalls || []).includes(pf)), [pf]);
+      }
+      // taste words from the descriptions
+      const tasteOf = (d2) => {
+        const set = new Set();
+        for (const w of toks(d2.desc || "")) {
+          const hit = descTok(w);
+          if (hit && !ORIGIN_WORDS.has(hit.canon)) set.add(hit.canon);
+        }
+        return set;
+      };
+      const tastes = new Map();
+      for (const d2 of dishes) for (const t of tasteOf(d2)) {
+        if (!tastes.has(t)) tastes.set(t, []);
+        tastes.get(t).push(d2);
+      }
+      for (const [t, matching] of tastes) {
+        push(`משהו ${t}`,
+          `אורח מחפש משהו ${t} מ${cat}. על איזו מנה תמליץ?`,
+          matching, [t], { lenient: true });
+      }
+    }
+  }
+
   // ---- המלצת משקה לפי אופי (יותם, 31.8: "על איזה סאקה תמליץ ללקוח שאוהב טעם
   // חלש?") ----
   // לכל קטגוריית משקאות, כל פרט תיאור שמבחין — נישא על ידי חלק מהמשקאות ולא
@@ -367,7 +459,13 @@ export function generate(menu) {
           ask: phrase
             ? `אורח אוהב ${phrase} ומבקש המלצה. על מה תמליץ לו?`
             : `אורח מחפש ${trait} ומבקש המלצה. על מה תמליץ לו?`,
-          targets: names.map((n) => ({ t: n, alt: toks(n).filter((w) => w.length >= 3) })),
+          // אותו כלל מבחין כמו ב-dishrec: מילת שם ששייכת גם למשקה אחר בקטגוריה
+          // אינה alt, אחרת היא מזכה את המשקה הלא-נכון.
+          targets: names.map((n) => {
+            const dw = toks(n).filter((w) => w.length >= 3 &&
+              !drinks.some((o) => o.name !== n && toks(o.name).some((ow) => wMatch(w, ow))));
+            return { t: n, ...(dw.length ? { must: [dw[0]] } : {}), alt: dw };
+          }),
           free: [trait, kind],
           minOk: 1, maxInv: 0,
         });
