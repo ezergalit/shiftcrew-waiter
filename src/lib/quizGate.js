@@ -12,6 +12,19 @@
 export const PRE_STUDY_S = 5 * 60;
 export const RETRY_STUDY_S = 15 * 60;
 
+// כמה תרגול הבוחן של הקטגוריה דורש — נגזר מהתוכן, לא קבוע (יותם, 31.8:
+// "בהתאם לכמות המנות והתיאור בכרטיסיות… 3 מנות דקה וחצי, עשר 3 דקות, עשרים
+// 5 דקות, והמקסימום 5"). מנה עם תיאור ארוך שווה יותר מקולה בבקבוק, אז כל מנה
+// נספרת 1–1.5 לפי אורך התיאור, והדקות: 1 + 0.2·יחידות, בין 1.5 ל-5.
+// אותו ערך משמש גם לשער הראשון וגם להמתנה אחרי כישלון — קטגוריה של 3 מנות
+// שדרשה 5 דקות לפני ו-15 אחרי הענישה על גודל שאין בה.
+export function requiredStudyS(items) {
+  if (!items?.length) return PRE_STUDY_S;
+  const units = items.reduce((a, it) => a + 1 + Math.min((it.desc || "").length / 400, 0.5), 0);
+  const min = Math.min(5, Math.max(1.5, 1 + 0.2 * units));
+  return Math.round(min * 60);
+}
+
 // In-memory fallback so the pure logic is testable under plain node.
 const mem = new Map();
 const store = {
@@ -55,17 +68,18 @@ export function noteFail(memberId, category) {
 // { open: true } | { open: false, reason: "pre" | "cooldown", needS, needMin }
 // A passed category is never gated: retaking a quiz you already passed is voluntary
 // review, and the pass is what scope and points key off.
-export function gateFor(memberId, category, { passed } = {}) {
+export function gateFor(memberId, category, { passed, items } = {}) {
   if (passed || !memberId || !category) return { open: true };
   const rec = load(memberId)[category] || { s: 0, fs: 0 };
+  const need = requiredStudyS(items);
   // The cooldown outranks the pre-study gate: after a fail the question is not
   // "have you ever studied this" but "have you studied since".
-  if (rec.f && rec.fs < RETRY_STUDY_S) {
-    const needS = RETRY_STUDY_S - rec.fs;
+  if (rec.f && rec.fs < need) {
+    const needS = need - rec.fs;
     return { open: false, reason: "cooldown", needS, needMin: Math.ceil(needS / 60) };
   }
-  if (rec.s < PRE_STUDY_S) {
-    const needS = PRE_STUDY_S - rec.s;
+  if (rec.s < need) {
+    const needS = need - rec.s;
     return { open: false, reason: "pre", needS, needMin: Math.ceil(needS / 60) };
   }
   return { open: true };

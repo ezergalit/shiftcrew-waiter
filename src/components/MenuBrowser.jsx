@@ -121,7 +121,7 @@ function Overlay({ children }) {
   );
 }
 
-export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, aurora = false, merged = false, onDepth }) {
+export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, aurora = false, merged = false, onDepth, examableFor }) {
   // ⚠️ Not `groups` — that name already means the restaurant's MENU groups in this file.
   const warnGroups = merged ? MERGED_GROUPS : FLAG_GROUPS;
   // Search on the menu door (the handoff page's dynamic): a query matches a category by
@@ -276,7 +276,11 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
 
               {onPractice && (
                 <Choice n="3" onClick={() => { const c = cat; setIdx(null); setCat(null); onPractice(c); }}>
-                  לתרגול מנות {shortCat(cat)} לקראת הבוחן
+                  {/* Never promise a quiz a category can't run (user, 31.8) — soft
+                      drinks and the like still practise, they just aren't examined. */}
+                  {!examableFor || examableFor(cat)
+                    ? `לתרגול מנות ${shortCat(cat)} לקראת הבוחן`
+                    : `לתרגול מנות ${shortCat(cat)} בכרטיסיות`}
                 </Choice>
               )}
 

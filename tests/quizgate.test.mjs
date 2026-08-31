@@ -1,18 +1,32 @@
 // The quiz's two time gates, end to end without a browser.
 // Run: node tests/quizgate.test.mjs
 //
-// The spec (user, 2026-08-30):
-//   "מראש הוא צריך ללמוד 5 דקות כרטיסיות על מנת לפתוח בוחן"
-//   "כאשר מלצר לא עבר את הבוחן הוא צריך ללמוד לפחות רבע שעה עד שיוכל לגשת שוב"
-// Both are STUDY minutes, not wall-clock — waiting opens nothing.
+// The spec (user, 2026-08-31, replacing the flat 5/15 of 30.8):
+//   "בהתאם לכמות המנות והתיאור בכרטיסיות… 3 מנות דקה וחצי, עשר 3 דקות,
+//    עשרים 5 דקות — והמקסימום 5 דקות, גם אחרי כישלון."
+// One scaled requirement serves both the first gate and the retry cooldown.
+// Study minutes, not wall-clock — waiting opens nothing.
 
-import { bumpStudy, noteFail, gateFor, PRE_STUDY_S, RETRY_STUDY_S } from "../src/lib/quizGate.js";
+import { bumpStudy, noteFail, gateFor, requiredStudyS, PRE_STUDY_S } from "../src/lib/quizGate.js";
+
+
 
 let failures = 0;
 const check = (name, cond) => {
   if (cond) { console.log(`  ✓ ${name}`); }
   else { console.error(`  ✗ ${name}`); failures++; }
 };
+
+console.log("scaling anchors:");
+const dishes = (n, len = 0) => Array.from({ length: n }, () => ({ desc: "א".repeat(len) }));
+const mins = (n, len = 0) => requiredStudyS(dishes(n, len)) / 60;
+const near = (a, b) => Math.abs(a - b) <= 0.25;
+check("3 dishes ≈ a minute and a half", near(mins(3), 1.5));
+check("10 dishes ≈ 3 minutes", near(mins(10), 3));
+check("20 dishes = 5 minutes", mins(20) === 5);
+check("40 dishes still capped at 5", mins(40) === 5);
+check("wordy cards weigh more than bare ones", requiredStudyS(dishes(6, 600)) > requiredStudyS(dishes(6, 0)));
+check("no items falls back to the classic 5 minutes", requiredStudyS(null) === PRE_STUDY_S);
 
 const M = "member-1";
 const C = "ראשונות";
@@ -39,18 +53,18 @@ noteFail(M, C);
 const afterFail = gateFor(M, C, {});
 check("a fail closes the quiz again", afterFail.open === false);
 check("with reason 'cooldown'", afterFail.reason === "cooldown");
-check("needs the full 15 minutes", afterFail.needS === RETRY_STUDY_S);
-bumpStudy(M, C, RETRY_STUDY_S - 60);
-check("14 minutes later still closed", gateFor(M, C, {}).open === false);
+check("retry needs the same scaled amount (5m fallback here)", afterFail.needS === PRE_STUDY_S);
+bumpStudy(M, C, PRE_STUDY_S - 60);
+check("a minute short is still closed", gateFor(M, C, {}).open === false);
 check("one minute left", gateFor(M, C, {}).needMin === 1);
 bumpStudy(M, C, 60);
-check("15 study-minutes reopen it", gateFor(M, C, {}).open === true);
+check("the full amount reopens it", gateFor(M, C, {}).open === true);
 
 console.log("second failure re-arms:");
 noteFail(M, C);
 check("closed again after a second fail", gateFor(M, C, {}).open === false);
-bumpStudy(M, C, RETRY_STUDY_S);
-check("and reopens after 15 fresh minutes", gateFor(M, C, {}).open === true);
+bumpStudy(M, C, PRE_STUDY_S);
+check("and reopens after fresh scaled study", gateFor(M, C, {}).open === true);
 
 console.log("cooldown outranks pre-study:");
 const M2 = "member-2";

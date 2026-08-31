@@ -26,6 +26,8 @@ import { pickDistractors, buildWeightedDeck, availableFacets, dishLabel, withDis
 import { pathState } from "../lib/learningPath";
 import { useStudyTime } from "../lib/studyTime";
 import { bumpStudy, noteFail, gateFor } from "../lib/quizGate";
+import { generate, setMenuVocab } from "../lib/examEngine";
+import { menuFromCards } from "../lib/examMenu";
 import { hapticAnswer } from "../lib/haptics";
 import {
   CAT_LABELS, CAT_ORDER, catLabel, shortCat, countLabel, nLabel, colorFor, shuffle,
@@ -645,6 +647,27 @@ export default function MainApp({ session, onSignOut }) {
   // The day starts with one question: are you on shift? (user, 2026-08-20). Asked before
   // the brief gate — someone who isn't working today gets no daily tasks and no brief,
   // just the learning path. Answered once per day; changeable any time from the chip.
+  // Which categories actually have something to be EXAMINED on (user, 31.8: soft drinks
+  // and service training offered a quiz that always dead-ends — "סתם מבלבל"). The rule
+  // is the written quiz's own deck rule: at least two dishes the engine can ask about.
+  // null = not an open-exam restaurant; the chip exams keep their own thin-data path.
+  const examableCats = useMemo(() => {
+    if (session?.features?.exam !== "open" || !cards?.length) return null;
+    const menu = menuFromCards(cards);
+    setMenuVocab(menu);
+    const catOf = new Map(cards.map((c) => [c.name, c.category]));
+    const perCat = new Map();
+    for (const q of generate(menu)) {
+      if (q.sit !== "describe" && q.sit !== "allergens") continue;
+      const cat = catOf.get(q.dish);
+      if (!cat) continue;
+      if (!perCat.has(cat)) perCat.set(cat, new Set());
+      perCat.get(cat).add(q.dish);
+    }
+    return new Set([...perCat].filter(([, d]) => d.size >= 2).map(([c]) => c));
+  }, [cards, session?.features?.exam]);
+  const examable = (key) => !examableCats || examableCats.has(key);
+
   if (!session?.offline && !preview && !tasksOff && cards?.length > 0 && !profileRole)
     return (
       <ProfileGate
@@ -726,6 +749,7 @@ export default function MainApp({ session, onSignOut }) {
     // screen and the tour overlay silently vanished under it.
     return <>{tourNode}<ColorKey onDone={() => { markColorKeySeen(session?.teamMemberId); setColorKeySeen(true); }} /></>;
 
+
   if (mode === "progressive" && prog)
     // ⚠️ Recomputed here, not captured when the session started: the waiter is rating
     // dishes right now, so the category can cross the exam threshold mid-session — and
@@ -795,8 +819,9 @@ export default function MainApp({ session, onSignOut }) {
   const quizGateFor = (cat) => {
     if (preview || session?.offline || !session?.teamMemberId) return { open: true };
     if (session?.features?.quiz_gate === false) return { open: true };
-    return gateFor(session.teamMemberId, cat.key, { passed: cat.passed });
+    return gateFor(session.teamMemberId, cat.key, { passed: cat.passed, items: cat.items });
   };
+
 
   const pct = scorePct(learnCards);
   // Rank follows the weekly board, since that is the competition on screen. Falls back to
@@ -951,17 +976,24 @@ export default function MainApp({ session, onSignOut }) {
     if (!rec || !aurora) return null;
     const left = (rec.items || []).filter((it) => (fivesById?.[it.id] || 0) < 2).length;
     const recGate = rec.examUnlocked ? quizGateFor(rec) : { open: true };
+    // A category with no exam gets a plain practice line — never an exam promise.
+    if (!examable(rec.key)) {
+      return heroCard(rec, left > 0 ? `נשארו ${left} ${left === 1 ? "מנה" : "מנות"} לשליטה` : "כל המנות בשליטה — חזרה קצרה תמיד עוזרת");
+    }
     const line = rec.examUnlocked
       // The hero must not promise a quiz the gate below will refuse — when the
       // time gate is still counting, it names the minutes instead.
       ? (recGate.open
           ? "יש לך מספיק ידע — אפשר לגשת לבוחן"
           : recGate.reason === "cooldown"
-            ? `הבוחן לא עבר — עוד ${nLabel(recGate.needMin, "דקת", "דקות")} תרגול ואפשר שוב`
-            : `עוד ${nLabel(recGate.needMin, "דקת", "דקות")} תרגול והבוחן נפתח`)
+            ? `הבוחן לא עבר — יש לתרגל מנות עוד ${nLabel(recGate.needMin, "דקה", "דקות")} כדי לגשת שוב`
+            : `יש לתרגל מנות עוד ${nLabel(recGate.needMin, "דקה", "דקות")} כדי לפתוח את הבוחן`)
       : left > 0
         ? `נשארו ${left} ${left === 1 ? "מנה" : "מנות"} ואפשר לגשת לבוחן`
         : "עוד קצת תרגול ואפשר לגשת לבוחן";
+    return heroCard(rec, line);
+  };
+  const heroCard = (rec, line) => {
     return (
       <div className="glass" style={{ borderColor: "rgba(34,192,140,.28)", background: "linear-gradient(160deg,rgba(20,72,58,.55),rgba(14,42,34,.6))" }}>
         <div className="flex items-center gap-3.5">
@@ -1200,7 +1232,7 @@ export default function MainApp({ session, onSignOut }) {
                   was confusing. Same gate and launch as the list view's button. */}
               {(() => {
                 const cat = (path.categories || []).find((c) => c.key === catView);
-                if (!cat) return null;
+                if (!cat || !examable(catView)) return null;
                 const examReady = cat.examUnlocked;
                 // Same rule as the list: until the exam is actually available there is
                 // no row for it here either.
@@ -1214,8 +1246,8 @@ export default function MainApp({ session, onSignOut }) {
                     className="w-full py-3 min-h-[48px] rounded-xl font-bold text-[12.5px] leading-snug bg-[#15302b]/60 border border-[#22c08c]/30 text-[#9adbc4] active:scale-[0.99] transition-transform px-3"
                   >
                     {gate.reason === "cooldown"
-                      ? `הבוחן לא עבר הפעם — עוד ${nLabel(gate.needMin, "דקת", "דקות")} תרגול ואפשר לגשת שוב`
-                      : `עוד ${nLabel(gate.needMin, "דקת", "דקות")} תרגול בכרטיסיות יפתחו את הבוחן`}
+                      ? `הבוחן לא עבר הפעם — יש לתרגל מנות עוד ${nLabel(gate.needMin, "דקה", "דקות")} כדי לגשת שוב`
+                      : `יש לתרגל מנות עוד ${nLabel(gate.needMin, "דקה", "דקות")} כדי לפתוח את הבוחן`}
                   </button>
                 );
                 return (
@@ -1329,7 +1361,10 @@ export default function MainApp({ session, onSignOut }) {
               // Reaching the threshold is the only condition. A category with thin data
               // gets the multiple-choice exam instead of the chip one, but it is never
               // unpassable — a locked graduation would stall every category behind it.
-              const examReady = cat.examUnlocked;
+              const examReady = cat.examUnlocked && examable(cat.key);
+              // No chip and no exam rows at all for a category with nothing to be
+              // examined on — a promise of a quiz that can never run is just noise.
+              const hasExam = examable(cat.key);
               return (
                 <div key={cat.key} className={aurora ? "glass" : "rounded-2xl p-3 bg-[#16181c]"} style={aurora ? { padding: 14 } : undefined}>
                   <button
@@ -1367,10 +1402,12 @@ export default function MainApp({ session, onSignOut }) {
                         {nLabel(cat.items.length, "מנה", "מנות")}
                         {(() => { const m = cat.items.filter((it) => (fivesById?.[it.id] || 0) >= 2).length; return m > 0 ? ` · ${m} בשליטה` : ""; })()}
                       </p>
-                      <span className={`chip mt-2 ${examReady ? "" : "opacity-60"}`}
-                            style={examReady ? { background: "rgba(34,192,140,.12)", borderColor: "rgba(34,192,140,.35)", color: "#22C08C" } : undefined}>
-                        {cat.passed ? "עברת את הבוחן ✓" : examReady ? "הבוחן זמין" : `בוחן ב-${examConfig?.pass_threshold ?? 50}%`}
-                      </span>
+                      {hasExam && (
+                        <span className={`chip mt-2 ${examReady ? "" : "opacity-60"}`}
+                              style={examReady ? { background: "rgba(34,192,140,.12)", borderColor: "rgba(34,192,140,.35)", color: "#22C08C" } : undefined}>
+                          {cat.passed ? "עברת את הבוחן ✓" : examReady ? "הבוחן זמין" : `בוחן ב-${examConfig?.pass_threshold ?? 50}%`}
+                        </span>
+                      )}
                     </span>}
                     {aurora && <Ring pct={cat.pct} />}
                   </button>
@@ -1396,8 +1433,8 @@ export default function MainApp({ session, onSignOut }) {
                         <div className="mt-2 rounded-xl bg-[#15302b]/60 border border-[#22c08c]/30 p-2.5 space-y-2">
                           <p className="text-[11px] font-bold text-[#9adbc4] leading-snug">
                             {gate.reason === "cooldown"
-                              ? `הבוחן לא עבר הפעם — עוד ${nLabel(gate.needMin, "דקת", "דקות")} תרגול ואפשר לגשת שוב`
-                              : `עוד ${nLabel(gate.needMin, "דקת", "דקות")} תרגול בכרטיסיות יפתחו את הבוחן`}
+                              ? `הבוחן לא עבר הפעם — יש לתרגל מנות עוד ${nLabel(gate.needMin, "דקה", "דקות")} כדי לגשת שוב`
+                              : `יש לתרגל מנות עוד ${nLabel(gate.needMin, "דקה", "דקות")} כדי לפתוח את הבוחן`}
                           </p>
                           <button
                             onClick={() => startProgressive(cat.key)}
@@ -1439,7 +1476,7 @@ export default function MainApp({ session, onSignOut }) {
             only, so checking a dish mid-shift never touches the waiter's score. */}
         {tab === "categories" && (
           <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} aurora={aurora} merged={mergedWarnings}
-            onDepth={setBrowseDeep}
+            onDepth={setBrowseDeep} examableFor={examable}
             bottomSlot={
               aurora ? (
                 <button onClick={() => setShowAbout(true)} className="glass cat" data-name="אודות המסעדה">
