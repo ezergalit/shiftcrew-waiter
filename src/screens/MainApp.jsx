@@ -25,6 +25,7 @@ import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
 import { pickDistractors, buildWeightedDeck, availableFacets, dishLabel, withDisplayNames } from "../lib/questionEngine";
 import { pathState } from "../lib/learningPath";
 import { useStudyTime } from "../lib/studyTime";
+import { bumpStudy, noteFail, gateFor } from "../lib/quizGate";
 import { hapticAnswer } from "../lib/haptics";
 import {
   CAT_LABELS, CAT_ORDER, catLabel, shortCat, countLabel, nLabel, colorFor, shuffle,
@@ -207,6 +208,11 @@ export default function MainApp({ session, onSignOut }) {
     if (tasksOff && (tab === "home" || tab === "daily")) setTab(trainee ? "learn" : "categories");
   }, [tasksOff, trainee, tab]);
   const [prog, setProg] = useState(null); // { items, label, progress, firstId }
+  // The category whose quiz-gate clock is running right now: a flashcard mode whose whole
+  // deck is one category. Mixed decks (the quick round over the full menu) credit no
+  // single category — the gate asks for study of THE category being tested. A ref, not
+  // state: it changes with mode, and ticking it per-second would re-render everything.
+  const studyCatRef = useRef(null);
   // Re-running the gate from the daily tab is practice — it never rewrites the ack row.
   const [gatePractice, setGatePractice] = useState(false);
   // The staged path: what the owner configured, and which category exams this member has
@@ -241,6 +247,16 @@ export default function MainApp({ session, onSignOut }) {
     setProg({ items, label: catKey ? shortCat(catKey) : "התפריט", progress, firstId, catKey });
     setMode("progressive");
   };
+
+  useEffect(() => {
+    let c = null;
+    if (mode === "progressive") c = prog?.catKey || null;
+    else if (mode === "flashcards" || mode === "groupcards" || mode === "quick") {
+      const cats = [...new Set((modeItems || []).map((i) => i.category).filter(Boolean))];
+      c = cats.length === 1 ? cats[0] : null;
+    }
+    studyCatRef.current = c;
+  }, [mode, prog, modeItems]);
 
   // Remember the current round so closing the app mid-way can be picked up later. Category
   // rounds store the category so the same scope comes back, not a fresh full-menu deck.
@@ -490,6 +506,9 @@ export default function MainApp({ session, onSignOut }) {
     // Unlock immediately and locally: the next category and its games should open on the
     // results screen, not after a reload. The DB row below is the durable record.
     if (passed) setPassedCats((prev) => prev.includes(examCategory.key) ? prev : [...prev, examCategory.key]);
+    // A fail arms the retry cooldown: 15 more minutes of study before the next attempt
+    // (user, 30.8). Local, like the study clock itself.
+    if (!passed && session?.teamMemberId && !preview) noteFail(session.teamMemberId, examCategory.key);
     if (!session?.teamMemberId || session.offline) return;
     const { error } = await db.from("exam_results").insert({
       restaurant_id: session.restaurantId,
@@ -508,7 +527,13 @@ export default function MainApp({ session, onSignOut }) {
   useStudyTime({
     session,
     ready: !!cards?.length,
-    onSecond: () => setTodaySeconds((n) => n + 1),
+    onSecond: () => {
+      setTodaySeconds((n) => n + 1);
+      // The quiz-gate clock: seconds with a single-category flashcard deck on screen.
+      if (studyCatRef.current && session?.teamMemberId && !preview) {
+        bumpStudy(session.teamMemberId, studyCatRef.current);
+      }
+    },
     getPct: () => {
       const list = learnCards;
       if (!list.length) return 0;
@@ -763,6 +788,16 @@ export default function MainApp({ session, onSignOut }) {
       : <QuizExam items={examItems} facets={gameFacets} categoryLabel={label} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />;
   }
 
+  // The quiz's two time gates (user, 30.8): 5 flashcard-minutes in the category before
+  // its first quiz, 15 more after a fail. Off for preview/offline (no member to clock)
+  // and per restaurant via features.quiz_gate === false — CREWDEMO keeps it off so a
+  // store reviewer is never told to go study.
+  const quizGateFor = (cat) => {
+    if (preview || session?.offline || !session?.teamMemberId) return { open: true };
+    if (session?.features?.quiz_gate === false) return { open: true };
+    return gateFor(session.teamMemberId, cat.key, { passed: cat.passed });
+  };
+
   const pct = scorePct(learnCards);
   // Rank follows the weekly board, since that is the competition on screen. Falls back to
   // all-time before any points have been scored this week, so a returning waiter doesn't
@@ -915,8 +950,15 @@ export default function MainApp({ session, onSignOut }) {
     const rec = path.recommended;
     if (!rec || !aurora) return null;
     const left = (rec.items || []).filter((it) => (fivesById?.[it.id] || 0) < 2).length;
+    const recGate = rec.examUnlocked ? quizGateFor(rec) : { open: true };
     const line = rec.examUnlocked
-      ? "יש לך מספיק ידע — אפשר לגשת לבוחן"
+      // The hero must not promise a quiz the gate below will refuse — when the
+      // time gate is still counting, it names the minutes instead.
+      ? (recGate.open
+          ? "יש לך מספיק ידע — אפשר לגשת לבוחן"
+          : recGate.reason === "cooldown"
+            ? `הבוחן לא עבר — עוד ${nLabel(recGate.needMin, "דקת", "דקות")} תרגול ואפשר שוב`
+            : `עוד ${nLabel(recGate.needMin, "דקת", "דקות")} תרגול והבוחן נפתח`)
       : left > 0
         ? `נשארו ${left} ${left === 1 ? "מנה" : "מנות"} ואפשר לגשת לבוחן`
         : "עוד קצת תרגול ואפשר לגשת לבוחן";
@@ -1163,6 +1205,19 @@ export default function MainApp({ session, onSignOut }) {
                 // Same rule as the list: until the exam is actually available there is
                 // no row for it here either.
                 if (!examReady) return null;
+                const gate = quizGateFor(cat);
+                // Gate closed ⇒ the row says what opens it and taking it starts the
+                // practice that does — never a dead end (the empty-state rule).
+                if (!gate.open) return (
+                  <button
+                    onClick={() => { if (thin) { setModeItems(items); setMode("groupcards"); } else startProgressive(catView); }}
+                    className="w-full py-3 min-h-[48px] rounded-xl font-bold text-[12.5px] leading-snug bg-[#15302b]/60 border border-[#22c08c]/30 text-[#9adbc4] active:scale-[0.99] transition-transform px-3"
+                  >
+                    {gate.reason === "cooldown"
+                      ? `הבוחן לא עבר הפעם — עוד ${nLabel(gate.needMin, "דקת", "דקות")} תרגול ואפשר לגשת שוב`
+                      : `עוד ${nLabel(gate.needMin, "דקת", "דקות")} תרגול בכרטיסיות יפתחו את הבוחן`}
+                  </button>
+                );
                 return (
                   <button
                     onClick={() => { setModeItems(cat.items); setExamCategory({ key: cat.key, label: catLabel(cat.key) }); setMode("exam"); }}
@@ -1333,7 +1388,26 @@ export default function MainApp({ session, onSignOut }) {
                         <GraduationCap size={13} />
                         עברת את הבוחן! אפשר לגשת שוב
                       </button>
-                    ) : (
+                    ) : (() => {
+                      const gate = quizGateFor(cat);
+                      // Behind the gate the card still leads somewhere: it names the
+                      // minutes left and its one button is the practice that counts them.
+                      if (!gate.open) return (
+                        <div className="mt-2 rounded-xl bg-[#15302b]/60 border border-[#22c08c]/30 p-2.5 space-y-2">
+                          <p className="text-[11px] font-bold text-[#9adbc4] leading-snug">
+                            {gate.reason === "cooldown"
+                              ? `הבוחן לא עבר הפעם — עוד ${nLabel(gate.needMin, "דקת", "דקות")} תרגול ואפשר לגשת שוב`
+                              : `עוד ${nLabel(gate.needMin, "דקת", "דקות")} תרגול בכרטיסיות יפתחו את הבוחן`}
+                          </p>
+                          <button
+                            onClick={() => startProgressive(cat.key)}
+                            className="w-full py-2 min-h-[36px] rounded-lg font-black text-[11px] bg-[#22c08c] text-[#06231a]"
+                          >
+                            לתרגול {shortCat(cat.key)}
+                          </button>
+                        </div>
+                      );
+                      return (
                       <div className="mt-2 rounded-xl bg-[#15302b]/60 border border-[#22c08c]/40 p-2.5 space-y-2">
                         <p className="text-[11px] font-black text-[#22c08c] leading-snug">
                           יש לך מספיק ידע ב{shortCat(cat.key)} — לגשת לבוחן?
@@ -1353,7 +1427,8 @@ export default function MainApp({ session, onSignOut }) {
                           </button>
                         </div>
                       </div>
-                    )
+                      );
+                    })()
                   )}
                 </div>
               );
