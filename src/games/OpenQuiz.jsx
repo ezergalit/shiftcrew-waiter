@@ -80,7 +80,11 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
         localStorage.setItem(seenKey, JSON.stringify(nextSeen));
       } catch { /* private mode */ }
     }
-    return [...shuffle(withItem).slice(0, drinkCat ? 2 : Math.max(2, 8 - recs.length)), ...recs];
+    // The few describe cards land on the best sellers first (user, 31.8: «יותר
+    // שאלות על אלון לבן, שאבלי… וכל היותר נמכרים») — the manager's ⭐ is the
+    // signal; unstarred menus keep the plain shuffle.
+    const dishCards = shuffle(withItem).sort((a, b) => (b.it?.isSpecial ? 1 : 0) - (a.it?.isSpecial ? 1 : 0));
+    return [...dishCards.slice(0, drinkCat ? 2 : Math.max(2, 8 - recs.length)), ...recs];
   }, [bank, items, restaurantId]);
 
   // Phrasings previous waiters have had accepted. Loaded once and folded into the

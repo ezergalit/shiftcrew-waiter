@@ -107,7 +107,7 @@ const DESC_CLUSTERS = [
   ["חריף", "חרפרף", "חריפה", "פיקנטי"],
   ["מרענן", "רענן", "מרעננת", "רעננה", "רעננות"],
   ["קליל", "קל", "קלילה", "קלה"],
-  ["חזק", "עוצמתי", "חזקה", "עוצמתית"],
+  ["חזק", "עוצמתי", "חזקה", "עוצמתית", "קשה", "כבד", "כבדה"],
   ["עדין", "עדינה", "חלש", "חלשה"],
   ["יבש", "יבשה"], ["מעושן", "מעושנת"], ["פירותי", "פירותית"],
   ["טרופי", "טרופית"], ["עשיר", "עשירה"], ["עשבוני", "עשבונית"],
@@ -211,20 +211,52 @@ export function generate(menu) {
   for (const d of menu) (byCat[d.category] = byCat[d.category] || []).push(d);
 
   for (const d of menu) {
-    const ask = askable(d);
+    let ask = askable(d);
+    // כשר וישראלי — אותה משמעות בתפריט הזה (יותם, 31.8): יין שנושא את שניהם
+    // נבחן עליהם כפרט אחד, וכל אחת מהמילים עונה עליו. יין שנושא רק אחד מהם
+    // (שאבלי הצרפתי הכשר, שרדונה הישראלי הלא-כשר) לא מקבל את ההשלמה — שם
+    // ההבדל הוא בדיוק העובדה שנבחנת.
+    let kosherIsr = null;
+    if (d.drink === "יין" && ask.includes("כשר")) {
+      kosherIsr = ask.find((t) => /^ישראלי/.test(t)) || null;
+      if (kosherIsr) ask = ask.filter((t) => t !== kosherIsr);
+    }
+    // מנת-ליווי (יותם, 31.8: «בסלון יווני לא ישאלו איזה אלרגיה יש בלחם אלא
+    // עם מה מוגש/ממליצים») — כשהתיאור אומר «מוגש עם» וכל המרכיבים הם הליווי,
+    // השאלה היא על ההגשה, ושאלת האלרגיות הנפרדת מתייתרת: גלוטן בלחם אינו ידע.
+    const servedIdx = (d.desc || "").search(/מוגש(ת|ים|ות)? עם/);
+    const pairing = servedIdx >= 0 && (d.ingredients || []).length >= 2 &&
+      (d.ingredients || []).every((i) => {
+        const w = toks(i)[0];
+        return w && toks((d.desc || "").slice(servedIdx)).some((dw) => wMatch(dw, w));
+      });
+    // «לא כשר» הוא עובדת בטיחות: בלי עוגן, צ'יפ «כשר» היה מזכה את היעד שמכיל
+    // אותו (נתפס 31.8). יעד ששמו מתחיל ב«לא» דורש את כל מילותיו — כולל ה«לא» —
+    // ו«כשר» לבדו על יין לא-כשר גם לא נשאר ניטרלי (יוצא מה-free ⇒ wrongFar).
+    const negChips = ask.filter((t) => t.startsWith("לא "));
+    const dFree = negChips.some((t) => t === "לא כשר")
+      ? freeFor(d).filter((w) => w !== norm("כשר"))
+      : freeFor(d);
     // S1 — תיאור מנה. יין בלבד מבין המשקאות (יותם, 31.8): «אורח לא יתלבט על
     // גולדסטאר — אם הוא רוצה להזמין את זה הוא מכיר כבר», ובסאקה «אף אחד לא יבקש
     // ממך לתאר — פשוט ישאלו מה יש ומה אתה ממליץ». בירה וסאקה נבחנות בהמלצות בלבד.
-    if (ask.length >= 3 && d.drink !== "בירה" && d.drink !== "סאקה") out.push({
+    if (ask.length >= 3 && d.drink !== "בירה" && d.drink !== "סאקה"
+        && !/שתייה קלה|משקאות קלים/.test(d.category || "")) out.push({
       sit: "describe", dish: d.name, k: "recall", secs: 75,
       // A drink has no "what's inside" — the guest asks what it is LIKE. The targets
       // are the same chips either way, so grading is untouched; only the wording changes.
       ask: d.drink
         ? `אורח מבקש שתתאר לו את ה${d.drink} ״${d.name}״. מה תגיד לו?`
-        : `אורח שואל מה יש ב״${d.name}״ — מלבד מה שבשם המנה. מה תגיד לו?`,
+        : pairing
+          ? `אורח מזמין ״${d.name}״ ושואל עם מה זה מוגש. מה תגיד לו?`
+          : `אורח שואל מה יש ב״${d.name}״ — מלבד מה שבשם המנה. מה תגיד לו?`,
       // Drink chips are descriptors — attach the taste dictionary so «מתקתק» credits
       // a target that says «מתוק» and «ישראלי» one that says «ישראלית».
-      targets: ask.map(t => ({ t, ctx: freeFor(d), ...(d.drink ? { alt: descAlts(t) } : {}) })), free: freeFor(d),
+      targets: ask.map(t => ({
+        t, ctx: freeFor(d),
+        ...(d.drink ? { alt: t === "כשר" && kosherIsr ? [...descAlts(t), kosherIsr, ...descAlts(kosherIsr)] : descAlts(t) } : {}),
+        ...(t.startsWith("לא ") ? { must: toks(t) } : {}),
+      })), free: dFree,
       // קוקטייל: הדגש על סוגי האלכוהול + כמה טעמים מרכזיים — קישוט חסר לא מפיל
       // (יותם, 31.8: «כל השאר פחות משנים»).
       minOk: /קוקטייל/.test(d.category || "")
@@ -232,8 +264,9 @@ export function generate(menu) {
         : Math.max(2, Math.ceil(ask.length * 0.7)),
       maxInv: 1,
     });
-    // S2 — אלרגיות במנה (exact — safety)
-    if ((d.allergens || []).length >= 2) out.push({
+    // S2 — אלרגיות במנה (exact — safety). מנת-ליווי מוחרגת (הלחם של סלון):
+    // האלרגיות נשארות על הכרטיס ובכרטיסיות, רק לא כשאלה בפני עצמה.
+    if (!pairing && (d.allergens || []).length >= 2) out.push({
       sit: "allergens", dish: d.name, k: "recall", secs: 60, crit: true,
       ask: `אורח שואל אילו אלרגנים יש ב״${d.name}״. מה תגיד לו?`,
       targets: d.allergens.map(t => ({ t, ctx: freeFor(d), alt: ALLERGEN_ALT[t] || [] })), free: freeFor(d),
@@ -504,7 +537,12 @@ export function generate(menu) {
       // «המלץ על יין כשר — אחד לבן ואחד אדום». שני יעדים, כל אחד עונה על ידי כל
       // יין מתאים; שני לבנים = חלקי, לא כישלון.
       if (kind === "יין") {
-        const kosher = drinks.filter((d2) => (d2.ingredients || []).includes("כשר"));
+        // ישראלי ⇒ כשר בתפריט הזה (יותם, 31.8) — אלא אם היין מסומן «לא כשר»
+        // במפורש; ההיפך לא נגזר (שאבלי כשר אבל צרפתי).
+        const kosher = drinks.filter((d2) => {
+          const ing = d2.ingredients || [];
+          return !ing.includes("לא כשר") && (ing.includes("כשר") || ing.some((x) => /^ישראלי/.test(x)));
+        });
         const kWhite = kosher.filter((d2) => (d2.ingredients || []).includes("לבן"));
         const kRed = kosher.filter((d2) => (d2.ingredients || []).includes("אדום"));
         if (kWhite.length && kRed.length) {
@@ -517,7 +555,15 @@ export function generate(menu) {
           // ה-alt, מזכה — «לבן»+«אדום» לבדם הם חזרה על השאלה, לא המלצה.
           const grp = (label, group) => ({
             t: label, must: ["xqnamexq"],
-            alt: group.flatMap((d2) => [d2.name, ...distinctOf(d2)]),
+            alt: group.flatMap((d2) => {
+              const ws = toks(d2.name);
+              // שם בלי אף מילה מבחינה («בלאן דה בלאן ירדן» — בלאן וירדן שייכות
+              // גם לאחרים) עונה גם בצמד המילים הפותח, כשהצמד ייחודי בקטגוריה.
+              const bigram = ws.slice(0, 2).join(" ");
+              const bigramUnique = ws.length >= 2 && !drinks.some((o) => o !== d2 &&
+                ws.slice(0, 2).every((w) => toks(o.name).some((ow) => wMatch(ow, w))));
+              return [d2.name, ...distinctOf(d2), ...(bigramUnique ? [bigram] : [])];
+            }),
           });
           out.push({
             sit: "drinkrec", dish: `${cat} · כשר לבן ואדום`, cat, k: "recall", secs: 75,
@@ -625,6 +671,42 @@ export function generate(menu) {
           minOk: 1, maxInv: 0,
         });
       }
+    }
+  }
+
+  // ---- קטגוריות-וריאנטים (יותם, 31.8: «רול ניגירי זה לא מנה מורכבת — עדיף
+  // לשאול איזה ניגירי מגיע, מה האופציות») — כשרוב הקטגוריה מנות פשוטות (פחות
+  // מ-3 מרכיבים שאילים), הידע הוא הרשימה: «אילו יש», לא «מה יש בכל אחת».
+  // מנה מורכבת בתוך קטגוריה כזו (מגורו ניגירי, 6 מרכיבים) שומרת את שאלת
+  // התיאור שלה — הכלל על הקטגוריה, לא עליה.
+  {
+    const byVar = new Map();
+    for (const d of menu) {
+      if (d.drink || /קוקטייל|שתייה קלה|משקאות קלים/.test(d.category || "")) continue;
+      if (!byVar.has(d.category)) byVar.set(d.category, []);
+      byVar.get(d.category).push(d);
+    }
+    for (const [cat, dishes] of byVar) {
+      if (dishes.length < 3) continue;
+      const simple = dishes.filter((d) => askable(d).length < 3);
+      if (simple.length / dishes.length < 0.6) continue;
+      const head = cat.split("—")[0].trim();
+      out.push({
+        sit: "dishrec", dish: `${cat} · מה האופציות`, cat, k: "recall", secs: 60,
+        ask: `אורח שואל אילו ${head} יש. מה האופציות?`,
+        targets: dishes.map((d) => {
+          // רף 2 אותיות ולא 3 — «ניגירי בס»: המילה המבחינה היחידה היא «בס»,
+          // ובלעדיה צ'יפ «ניגירי» גנרי היה מזכה את היעד (wMatch על מילה קצרה
+          // הוא ממילא התאמה מדויקת). נתפס באימות.
+          const dw = toks(d.name).filter((w) => w.length >= 2 &&
+            !dishes.some((o) => o !== d && toks(o.name).some((ow) => wMatch(w, ow))));
+          const shared = toks(d.name).some((w) =>
+            dishes.some((o) => o !== d && toks(o.name).some((ow) => wMatch(w, ow))));
+          return { t: d.name, ...(shared && dw.length ? { must: [dw[0]] } : {}), alt: dw };
+        }),
+        free: toks(head),
+        minOk: Math.min(3, dishes.length), maxInv: 1,
+      });
     }
   }
 
