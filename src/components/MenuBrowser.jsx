@@ -274,47 +274,60 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
                 than a stack of similar buttons. Third one hands over to the real practice
                 screen — reading the category is what makes a waiter ready to be tested. */}
             <div className="w-full space-y-2.5 pt-2">
-              {/* Two full walks of a category say the reading is done — the quiz takes
-                  the top slot, highlighted (user, 31.8: "אחרי שעברת פעמיים על קטגוריה…
-                  ידגיש לך לעבור לבוחן"). Only when the quiz would actually open:
-                  the category is examable and its study gate is met. */}
-              {(walkCountFor?.(cat) ?? 0) >= 2 && examOpenFor?.(cat) && onExam && (
-                <Choice n="★" primary onClick={() => { const c = cat; setIdx(null); setCat(null); onExam(c); }}>
-                  עברת פעמיים — מוכנים? לבוחן {shortCat(cat)}
-                </Choice>
-              )}
+              {/* Order and highlight (user, 31.8): 1. read again · 2. flashcards ·
+                  3. next category — and ONE choice is highlighted, tracking where the
+                  waiter is in the journey rather than flip-flopping:
+                    · first completion of the category ⇒ continue to the NEXT one — the
+                      first pass through a menu is about reading all of it;
+                    · from the second completion ⇒ FLASHCARDS — reading is done, start
+                      converting it into practice toward the quiz;
+                    · and once the quiz is genuinely open (two walks + study gate met) ⇒
+                      the quiz CTA takes the top slot.
+                  walkCount only grows, so the highlight moves forward and never back. */}
+              {(() => {
+                const walked = walkCountFor?.(cat) ?? 0;
+                const quizReady = walked >= 2 && examOpenFor?.(cat) && !!onExam;
+                const hasNext = !!(nextCat || nextBoxCat);
+                const highlightPractice = !quizReady && !!onPractice && (walked >= 2 || !hasNext);
+                const highlightNext = !quizReady && !highlightPractice && hasNext;
+                return (
+                  <>
+                    {quizReady && (
+                      <Choice n="★" primary onClick={() => { const c = cat; setIdx(null); setCat(null); onExam(c); }}>
+                        עברת פעמיים — מוכנים? לבוחן {shortCat(cat)}
+                      </Choice>
+                    )}
 
-              <Choice n="1" onClick={() => setIdx(0)} primary={!((walkCountFor?.(cat) ?? 0) >= 2 && examOpenFor?.(cat) && onExam) && !!(nextCat || nextBoxCat)}>
-                לעבור שוב על {shortCat(cat)}
-              </Choice>
+                    <Choice n="1" onClick={() => setIdx(0)}>
+                      לעבור שוב על {shortCat(cat)}
+                    </Choice>
 
-              {/* The old "סיימת — לקטגוריות" cleared the category but kept the menu, so
-                  it landed back on the same list and read as a dead button (user, 31.8:
-                  "זה לא באמת מעביר אותך לדף הראשי"). Chaining replaced it: continue into
-                  the next category — across menus when this one is done — and when there
-                  is no next anywhere, the option simply doesn't exist. */}
-              {nextCat && (
-                <Choice n="2" onClick={() => { setCat(nextCat); setIdx(0); }}>
-                  להמשיך ל{shortCat(nextCat)}
-                </Choice>
-              )}
-              {!nextCat && nextBoxCat && (
-                <Choice n="2" onClick={() => { setMenu(nextBox); setCat(nextBoxCat); setIdx(0); }}>
-                  להמשיך ל{shortCat(nextBoxCat)}
-                </Choice>
-              )}
+                    {onPractice && (
+                      <Choice n="2" primary={highlightPractice}
+                        onClick={() => { const c = cat; setIdx(null); setCat(null); onPractice(c); }}>
+                        {/* Never promise a quiz a category can't run (user, 31.8) — soft
+                            drinks and the like still practise, they just aren't examined. */}
+                        {!examableFor || examableFor(cat)
+                          ? `לתרגול מנות ${shortCat(cat)} לקראת הבוחן`
+                          : `לתרגול מנות ${shortCat(cat)} בכרטיסיות`}
+                      </Choice>
+                    )}
 
-              {onPractice && (
-                <Choice n="3" primary={!nextCat && !nextBoxCat}
-                  onClick={() => { const c = cat; setIdx(null); setCat(null); onPractice(c); }}>
-                  {/* Never promise a quiz a category can't run (user, 31.8) — soft
-                      drinks and the like still practise, they just aren't examined. */}
-                  {!examableFor || examableFor(cat)
-                    ? `לתרגול מנות ${shortCat(cat)} לקראת הבוחן`
-                    : `לתרגול מנות ${shortCat(cat)} בכרטיסיות`}
-                </Choice>
-              )}
-
+                    {/* Chaining continues into the next menu when this one is done; when
+                        there is no next anywhere the option simply doesn't exist. */}
+                    {nextCat && (
+                      <Choice n="3" primary={highlightNext} onClick={() => { setCat(nextCat); setIdx(0); }}>
+                        להמשיך ל{shortCat(nextCat)}
+                      </Choice>
+                    )}
+                    {!nextCat && nextBoxCat && (
+                      <Choice n="3" primary={highlightNext} onClick={() => { setMenu(nextBox); setCat(nextBoxCat); setIdx(0); }}>
+                        להמשיך ל{shortCat(nextBoxCat)}
+                      </Choice>
+                    )}
+                  </>
+                );
+              })()}
               <button
                 onClick={() => setIdx(dishes.length - 1)}
                 className="w-full py-2.5 text-[12px] font-bold text-[#8a8aa0]"
