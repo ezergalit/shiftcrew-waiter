@@ -195,7 +195,8 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
           {cur.describe && (
             <AnswerInput
               vocab={vocab} values={ings} onChange={setIngs}
-              label="מרכיבים" placeholder="כתבו מרכיב ולחצו הוסף…"
+              label={cur.it?.wine ? "תיאור" : "מרכיבים"}
+              placeholder={cur.it?.wine ? "כתבו פרט (יבש, אדום, כשר…) ולחצו הוסף…" : "כתבו מרכיב ולחצו הוסף…"}
             />
           )}
           {askAll && (
@@ -219,7 +220,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               <div className="flex items-center gap-2">
                 {p.g.lvl === 2 ? <Check size={15} className="text-[#22c08c]" /> : <XIcon size={15} className="text-[#f3a712]" />}
                 <p className="text-[12px] font-black text-[#eef0f6]">
-                  {p.key === "ings" ? "מרכיבים" : "אלרגיות"} — {p.g.lvl === 2 ? "נכון" : p.g.lvl === 1 ? "חלקי" : "לא נכון"}
+                  {p.key === "ings" ? (cur.it?.wine ? "תיאור" : "מרכיבים") : "אלרגיות"} — {p.g.lvl === 2 ? "נכון" : p.g.lvl === 1 ? "חלקי" : "לא נכון"}
                 </p>
               </div>
               {/* The answer, always — a quiz that says "wrong" without saying what the

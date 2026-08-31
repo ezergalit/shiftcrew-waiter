@@ -159,7 +159,11 @@ export function generate(menu) {
     // S1 — תיאור מנה
     if (ask.length >= 3) out.push({
       sit: "describe", dish: d.name, k: "recall", secs: 75,
-      ask: `אורח שואל מה יש ב״${d.name}״ — מלבד מה שבשם המנה. מה תגיד לו?`,
+      // A wine has no "what's inside" — the guest asks what it is LIKE. The targets are
+      // the same chips either way, so grading is untouched; only the situation changes.
+      ask: d.wine
+        ? `אורח מתלבט על ״${d.name}״ ומבקש שתתאר לו את היין. מה תגיד לו?`
+        : `אורח שואל מה יש ב״${d.name}״ — מלבד מה שבשם המנה. מה תגיד לו?`,
       targets: ask.map(t => ({ t, ctx: freeFor(d) })), free: freeFor(d),
       minOk: Math.max(2, Math.ceil(ask.length * 0.7)), maxInv: 1,
     });

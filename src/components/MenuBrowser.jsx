@@ -347,7 +347,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
 
             {d.ingredients?.length > 0 && (
               <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
-                <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide mb-2.5">{d.knowledge ? "נקודות מפתח" : "מרכיבים"}</p>
+                <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide mb-2.5">{d.knowledge ? "נקודות מפתח" : d.wine ? "תיאור" : "מרכיבים"}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {d.ingredients.map((i) => (
                     <span key={i} className="text-[13px] font-bold px-3 py-1.5 rounded-lg bg-[#20232b] text-[#c4c4d4]">{i}</span>

@@ -75,6 +75,12 @@ function pubToCard(p) {
   // the older flag some seeded dishes still carry. Either one lights the star — reading
   // only the old column silently disconnected the manager's button from the waiter side.
   isSpecial: !!(p.starred || p.is_special),
+  // A wine is learned by its character, not a recipe: the chips hold תיאור descriptors
+  // (colour/dryness/body/kosher/origin/character), the grapes live in the description,
+  // and every "מרכיבים" label reads "תיאור" instead (user, 30.8).
+  // ⚠️ Not `.includes("יין")`: the nun is FINAL (ן) in "יין" but regular (נ) inside
+  // "יינות", so the naive substring test misses the actual category name.
+  wine: /יין|יינ/.test(p.category || ""),
   // Real dish photo, shown in the menu browser only — learning cards stay photo-free on purpose.
   imageUrl: p.image_url || null,
   // Knowledge cards (categories named הדרכת·) are learnable like dishes but are not dishes:

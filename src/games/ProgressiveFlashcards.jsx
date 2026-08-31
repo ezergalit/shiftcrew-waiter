@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { GraduationCap, Coffee } from "lucide-react";
 import { Star } from "lucide-react";
 import { dishLabel } from "../lib/questionEngine";
-import { countLabel, nLabel, mokshim} from "./shared";
+import { countLabel, nLabel, mokshim, wineParts } from "./shared";
 import { categoryVisual } from "../lib/categoryVisual";
 import { pickNext, isUnderstood } from "../lib/progressiveSession";
 import { nextConsecutiveFives } from "../lib/studySession";
@@ -164,7 +164,8 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
               {(it.ingredients?.length > 0 || it.allergens?.length > 0 || mokshim(it).length > 0 || it.pregnancy?.length > 0 || it.pitfalls?.length > 0) && (
                 <p className="text-xs font-bold text-[#8a8aa0]">
                   {[
-                    countLabel(it.ingredients, "מרכיב", "מרכיבים"),
+                    it.wine ? countLabel(it.ingredients, "פרט תיאור", "פרטי תיאור")
+                            : countLabel(it.ingredients, "מרכיב", "מרכיבים"),
                     countLabel(it.allergens, "אלרגיה", "אלרגיות"),
                     ...(slim ? [countLabel(mokshim(it), "מוקש", "מוקשים")]
                              : [countLabel(it.pregnancy, "רגישות בהריון", "רגישויות בהריון"), countLabel(it.pitfalls, "מוקש", "מוקשים")]),
@@ -195,13 +196,17 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
               {slim ? <>
                 {it.knowledge && it.desc && <p className="text-sm text-[#c4c4d4] leading-relaxed text-right">{it.desc}</p>}
                 {it.ingredients?.length > 0 && (
-                  <div className="bg-[#1c1f25] p-2 rounded-lg"><p className="text-xs font-bold text-[#c4c4d4]">{it.knowledge ? "נקודות מפתח" : "מרכיבים"}: {it.ingredients.join(", ")}</p></div>
+                  <div className="bg-[#1c1f25] p-2 rounded-lg"><p className="text-xs font-bold text-[#c4c4d4]">{it.knowledge ? "נקודות מפתח" : it.wine ? "תיאור" : "מרכיבים"}: {it.ingredients.join(", ")}</p></div>
                 )}
+                {(() => { const w = wineParts(it); return w ? <>
+                  {w.notes && <p className="text-sm text-[#c4c4d4] leading-relaxed text-right">{w.notes}</p>}
+                  {w.opening && <div className="bg-[#1d2a24] p-2 rounded-lg"><p className="text-xs font-bold text-[#22c08c] text-right">איך פותחים: {w.opening}</p></div>}
+                </> : null; })()}
                 {it.allergens?.length > 0 && <div className="bg-[#3a1d22] p-2 rounded-lg"><p className="text-xs font-bold text-[#e0315a]">אלרגיות: {it.allergens.join(", ")}</p></div>}
                 {mokshim(it).length > 0 && <div className="bg-[#3a2f1d] p-2 rounded-lg"><p className="text-xs font-bold text-[#f3c14b]">מוקשים: {mokshim(it).join(", ")}</p></div>}
               </> : <>
                 {it.desc && <p className="text-sm text-[#c4c4d4] leading-relaxed">{it.desc}</p>}
-                {it.ingredients?.length > 0 && <p className="text-xs text-[#8a8aa0]">מרכיבים: {it.ingredients.join(", ")}</p>}
+                {it.ingredients?.length > 0 && <p className="text-xs text-[#8a8aa0]">{it.wine ? "תיאור" : "מרכיבים"}: {it.ingredients.join(", ")}</p>}
                 {it.allergens?.length > 0 && <div className="bg-[#3a1d22] p-2 rounded-lg"><p className="text-xs font-bold text-[#e0315a]">אלרגיות: {it.allergens.join(", ")}</p></div>}
                 {it.pregnancy?.length > 0 && <div className="bg-[#2a1d3a] p-2 rounded-lg"><p className="text-xs font-bold text-[#b48cff]">רגישות בהריון: {it.pregnancy.join(", ")}</p></div>}
                 {it.pitfalls?.length > 0 && <div className="bg-[#3a2f1d] p-2 rounded-lg"><p className="text-xs font-bold text-[#f3c14b]">מוקשים: {it.pitfalls.join(", ")}</p></div>}
