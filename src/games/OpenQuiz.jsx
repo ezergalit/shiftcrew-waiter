@@ -44,7 +44,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     const byDish = new Map();
     for (const q of bank) {
       if (!inCat.has(q.dish)) continue;
-      if (q.sit !== "describe" && q.sit !== "allergens") continue;
+      if (q.sit !== "describe" && q.sit !== "allergens" && q.sit !== "flavor") continue;
       const e = byDish.get(q.dish) || { dish: q.dish };
       e[q.sit] = q;
       byDish.set(q.dish, e);
@@ -85,6 +85,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const [ings, setIngs] = useState([]);
   const [alls, setAlls] = useState([]);
   const [recAns, setRecAns] = useState([]);
+  const [flavs, setFlavs] = useState([]);
   const [result, setResult] = useState(null);
   const [scores, setScores] = useState([]);
   const [finished, setFinished] = useState(false);
@@ -136,6 +137,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     }
     let parts = [
       cur.describe && build("ings", cur.describe, ings),
+      cur.flavor && build("flav", cur.flavor, flavs),
       cur.allergens && build("alls", cur.allergens, alls),
     ].filter(Boolean).map((p) => ({ ...p, g: grade(p.q, p.answer) }));
 
@@ -176,7 +178,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   };
 
   const next = () => {
-    setResult(null); setIngs([]); setAlls([]); setRecAns([]);
+    setResult(null); setIngs([]); setAlls([]); setRecAns([]); setFlavs([]);
     if (i + 1 >= deck.length) setFinished(true); else setI(i + 1);
   };
 
@@ -213,8 +215,10 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
         <p className="text-[17px] font-black text-[#eef0f6] mt-1 leading-snug">{cur.rec ? cur.rec.ask : cur.dish}</p>
         {!cur.rec && (
           <p className="text-[12px] text-[#8a8aa0] mt-1">
-            {cur.describe && askAll ? "מה יש במנה, ואילו אלרגיות היא נושאת?"
+            {cur.describe && cur.flavor ? "מה יש בקוקטייל, ואיך הוא בטעם?"
+              : cur.describe && askAll ? "מה יש במנה, ואילו אלרגיות היא נושאת?"
               : cur.describe ? (cur.it?.drink ? "איך תתארו את המשקה?" : "מה יש במנה — מלבד מה שבשם?")
+              : cur.flavor ? "איך הקוקטייל בטעם?"
               : "אילו אלרגיות המנה נושאת?"}
           </p>
         )}
@@ -233,6 +237,12 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               vocab={vocab} values={ings} onChange={setIngs}
               label={cur.it?.drink ? "תיאור" : "מרכיבים"}
               placeholder={cur.it?.drink ? "כתבו פרט (יבש, אדום, כשר…) ולחצו הוסף…" : "כתבו מרכיב ולחצו הוסף…"}
+            />
+          )}
+          {cur.flavor && (
+            <AnswerInput
+              vocab={[]} values={flavs} onChange={setFlavs}
+              label="תיאור הטעם" placeholder="מתוק, חמצמץ, מרענן… ולחצו הוסף"
             />
           )}
           {askAll && (
@@ -256,7 +266,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               <div className="flex items-center gap-2">
                 {p.g.lvl === 2 ? <Check size={15} className="text-[#22c08c]" /> : <XIcon size={15} className="text-[#f3a712]" />}
                 <p className="text-[12px] font-black text-[#eef0f6]">
-                  {p.key === "rec" ? "ההמלצה" : p.key === "ings" ? (cur.it?.drink ? "תיאור" : "מרכיבים") : "אלרגיות"} — {p.g.lvl === 2 ? "נכון" : p.g.lvl === 1 ? "חלקי" : "לא נכון"}
+                  {p.key === "rec" ? "ההמלצה" : p.key === "flav" ? "תיאור הטעם" : p.key === "ings" ? (cur.it?.drink ? "תיאור" : "מרכיבים") : "אלרגיות"} — {p.g.lvl === 2 ? "נכון" : p.g.lvl === 1 ? "חלקי" : "לא נכון"}
                 </p>
               </div>
               {/* The answer, always — a quiz that says "wrong" without saying what the

@@ -94,6 +94,56 @@ const ALLERGEN_ALT = {
   "רכיכות": ["פירות ים"],
   "שומשום": ["טחינה"],
 };
+
+// מילון תיאורי טעם ואופי (יותם, 31.8): «מתוק» ו«מתקתק» הן אותה תשובה, וכך גם
+// «ישראלי» מול «ישראלית» — הצ'יפ שנשמר בבחינה חייב להתיישב עם מה שכתוב בתשובה.
+// wMatch כבר סולח על הטיות מגדר ועל טעות אות (ידראלית⇒ישראלית), אבל מילים
+// נרדפות אמיתיות (מר/מריר, חמוץ/חמצמץ) רחוקות מדי ממנו — ולכן המילון.
+// המילון משמש גם לחילוץ שאלות הטעם של הקוקטיילים מתוך התיאור.
+const DESC_CLUSTERS = [
+  ["מתוק", "מתקתק", "מתוקה", "מתקתקה", "מתיקות"],
+  ["מר", "מריר", "מרירה", "מרירות"],
+  ["חמוץ", "חמצמץ", "חמוצה", "חמצמצה", "חומציות", "חמיצות"],
+  ["חריף", "חרפרף", "חריפה", "פיקנטי"],
+  ["מרענן", "רענן", "מרעננת", "רעננה", "רעננות"],
+  ["קליל", "קל", "קלילה", "קלה"],
+  ["חזק", "עוצמתי", "חזקה", "עוצמתית"],
+  ["יבש", "יבשה"], ["מעושן", "מעושנת"], ["פירותי", "פירותית"],
+  ["טרופי", "טרופית"], ["עשיר", "עשירה"], ["עשבוני", "עשבונית"],
+  ["מוגז", "מוגזת"], ["הדרי", "הדרית"], ["עמוק", "עמוקה"],
+  ["אלכוהולי", "אלכוהולית"], ["מינרלי", "מינרלית", "מינרליות"],
+  ["פרחוני", "פרחונית"], ["סמיך", "סמיכה"], ["מאוזן", "מאוזנת"],
+  ["בהיר", "בהירה"], ["כהה"], ["צלול", "צלולה"], ["ירקרק", "ירקרקה"],
+  ["ישראלי", "ישראלית"], ["יפני", "יפנית"], ["איטלקי", "איטלקית"],
+  ["גרמני", "גרמנית"], ["צרפתי", "צרפתית"], ["בווארי", "בווארית"],
+  ["ארגנטינאי", "ארגנטינאית"],
+];
+// ⚠️ Keys are NORMALIZED through toks() — it folds final letters (חמצמץ⇒חמצמצ), so a
+// raw-string map silently misses half the dictionary. Lookups also strip a leading ו'
+// («ועשיר» in prose is עשיר).
+const ORIGIN_WORDS = new Set(["ישראלי", "יפני", "איטלקי", "גרמני", "צרפתי", "בווארי", "ארגנטינאי"]);
+const DESC_TOK = new Map(); // normalized token -> { display, canon, cluster }
+const DESC_ALT = new Map(); // display form -> display alts
+for (const c of DESC_CLUSTERS) for (const w of c) {
+  DESC_ALT.set(w, c.filter((x) => x !== w));
+  for (const t of toks(w)) if (!DESC_TOK.has(t)) DESC_TOK.set(t, { display: w, canon: c[0], cluster: c });
+}
+const descTok = (w) => DESC_TOK.get(w) || DESC_TOK.get(String(w).replace(/^ו/, ""));
+// alt forms for a descriptor chip: cluster-mates of every known word in it. A multiword
+// chip ("חצי יבש") swaps the known word in place so the alt stays a real phrase.
+export const descAlts = (chip) => {
+  const alts = new Set();
+  const words = toks(chip);
+  for (const w of words) {
+    const hit = descTok(w);
+    if (!hit) continue;
+    for (const a of hit.cluster) {
+      if (a === hit.display) continue;
+      alts.add(words.length === 1 ? a : String(chip).replace(hit.display, a));
+    }
+  }
+  return [...alts];
+};
 const HEBNUM = { 1:"אחד אחת", 2:"שניים שתי שתיים", 3:"שלוש שלושה", 4:"ארבע ארבעה", 5:"חמש חמישה", 6:"שש שישה", 8:"שמונה" };
 
 export const nameToks = d => toks(d.name);
@@ -165,7 +215,9 @@ export function generate(menu) {
       ask: d.drink
         ? `אורח מתלבט על ״${d.name}״ ומבקש שתתאר לו את ה${d.drink}. מה תגיד לו?`
         : `אורח שואל מה יש ב״${d.name}״ — מלבד מה שבשם המנה. מה תגיד לו?`,
-      targets: ask.map(t => ({ t, ctx: freeFor(d) })), free: freeFor(d),
+      // Drink chips are descriptors — attach the taste dictionary so «מתקתק» credits
+      // a target that says «מתוק» and «ישראלי» one that says «ישראלית».
+      targets: ask.map(t => ({ t, ctx: freeFor(d), ...(d.drink ? { alt: descAlts(t) } : {}) })), free: freeFor(d),
       minOk: Math.max(2, Math.ceil(ask.length * 0.7)), maxInv: 1,
     });
     // S2 — אלרגיות במנה (exact — safety)
@@ -251,6 +303,33 @@ export function generate(menu) {
       ans: match.map(d => d.name).join(" · "),
     });
   }
+  // ---- קוקטייל נבחן גם על הטעם (יותם, 31.8: «חשוב לבחון 1. על תיאור הקוקטייל
+  // 2. מרכיבים») ----
+  // שאלת המרכיבים כבר קיימת (describe); כאן נוספת שאלת תיאור שנבנית מהמילים
+  // שהמילון מזהה בתיאור הקוקטייל עצמו — מתוק, חמצמץ, טרופי… כל צ'יפ נושא את
+  // חבריו לאשכול, אז «מתקתק» עונה על «מתוק».
+  for (const d of menu) {
+    if (!/קוקטייל/.test(d.category || "")) continue;
+    const found = [];
+    const seenClusters = new Set();
+    for (const w of toks(d.desc || "")) {
+      const hit = descTok(w);
+      if (!hit || seenClusters.has(hit.canon)) continue;
+      // «ביטר איטלקי» בתיאור קוקטייל מדבר על המרכיב, לא על טעם הקוקטייל —
+      // מילות מוצא נשארות תיאור ליין/בירה/סאקה ולא נהיות יעד טעם.
+      if (ORIGIN_WORDS.has(hit.canon)) continue;
+      seenClusters.add(hit.canon);
+      found.push(hit.display);
+    }
+    if (found.length < 2) continue;
+    out.push({
+      sit: "flavor", dish: d.name, k: "recall", secs: 60,
+      ask: `אורח שואל איך ״${d.name}״ בטעם. איך תתאר לו את הקוקטייל?`,
+      targets: found.map((t) => ({ t, ctx: freeFor(d), alt: descAlts(t) })), free: freeFor(d),
+      minOk: Math.max(2, Math.ceil(found.length * 0.6)), maxInv: 1,
+    });
+  }
+
   // ---- המלצת משקה לפי אופי (יותם, 31.8: "על איזה סאקה תמליץ ללקוח שאוהב טעם
   // חלש?") ----
   // לכל קטגוריית משקאות, כל פרט תיאור שמבחין — נישא על ידי חלק מהמשקאות ולא
@@ -273,11 +352,21 @@ export function generate(menu) {
       }
       for (const [trait, nameSet] of traits) {
         const names = [...nameSet];
-        // פרט שכולם נושאים אינו מבחין; פרט של משקה אחד בקטגוריה של שניים — גם.
-        if (names.length === drinks.length) continue;
+        // פרט שכולם נושאים אינו מבחין — וגם פרט שרוב הקטגוריה נושאת (כשר: 9
+        // מ-19 היינות) הוא כמעט «שם יין כלשהו», לא מבחן (יותם, 31.8: שאלות
+        // לא-חדות בצד). הרף: יותר ממחצית ⇒ אין שאלה.
+        if (names.length === drinks.length || names.length / drinks.length > 0.5) continue;
+        // ניסוח שנקרא כמו עברית לכל סוגי הפרטים: «יין בגוף מלא», «יין עם
+        // טאנינים רכים», «אורח מחפש בירת בוטיק» — לא «בירה בירת בוטיק».
+        const phrase = trait.startsWith("גוף") ? `${kind} ב${trait}`
+          : trait === "טאנינים רכים" ? `${kind} עם ${trait}`
+          : /^(בירת|שיכר)/.test(trait) ? null
+          : `${kind} ${trait}`;
         out.push({
           sit: "drinkrec", dish: `${cat} · ${trait}`, cat, k: "recall", secs: 45,
-          ask: `אורח אוהב ${kind} ${trait} ומבקש המלצה. על מה תמליץ לו?`,
+          ask: phrase
+            ? `אורח אוהב ${phrase} ומבקש המלצה. על מה תמליץ לו?`
+            : `אורח מחפש ${trait} ומבקש המלצה. על מה תמליץ לו?`,
           targets: names.map((n) => ({ t: n, alt: toks(n).filter((w) => w.length >= 3) })),
           free: [trait, kind],
           minOk: 1, maxInv: 0,

@@ -14,7 +14,11 @@ export function menuFromCards(cards) {
     .map((c) => ({
       name: c.name,
       category: c.category || "",
-      desc: c.description || "",
+      // ⚠️ pubToCard names the field `desc`; only the offline fetch script used
+      // `description`. Reading description-only left desc EMPTY for every real card —
+      // which meant "words from the dish's own description are free" never actually
+      // held in the app, and the cocktail flavor questions found no text to read.
+      desc: c.desc || c.description || "",
       ingredients: c.ingredients || [],
       allergens: c.allergens || [],
       pitfalls: c.pitfalls || [],

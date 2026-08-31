@@ -674,6 +674,17 @@ export default function MainApp({ session, onSignOut }) {
     return new Set([...perCat].filter(([, d]) => d.size >= 2).map(([c]) => c));
   }, [cards, session?.features?.exam]);
   const examable = (key) => !examableCats || examableCats.has(key);
+  // The quiz's two time gates (user, 30.8): 5 flashcard-minutes in the category before
+  // its first quiz, 15 more after a fail. Off for preview/offline (no member to clock)
+  // and per restaurant via features.quiz_gate === false — CREWDEMO keeps it off so a
+  // store reviewer is never told to go study.
+  const quizGateFor = (cat) => {
+    if (preview || session?.offline || !session?.teamMemberId) return { open: true };
+    if (session?.features?.quiz_gate === false) return { open: true };
+    return gateFor(session.teamMemberId, cat.key, { passed: cat.passed, items: cat.items });
+  };
+
+
   // Completed read-throughs of a category in the menu walk, per member per device.
   // Two of them light the quiz shortcut on the end-of-category screen (user, 31.8).
   const walkKey = `menu-app-walks:${session?.teamMemberId || "preview"}`;
@@ -783,7 +794,15 @@ export default function MainApp({ session, onSignOut }) {
     // dishes right now, so the category can cross the exam threshold mid-session — and
     // that is exactly the moment worth offering the exam (user, 2026-08-23).
     return <ProgressiveFlashcards slim={aurora} items={prog.items} label={prog.label} firstId={prog.firstId} initialProgress={prog.progress}
-      examReady={!!prog.catKey && scorePct(prog.items) >= (examConfig?.pass_threshold ?? 50)}
+      /* 🔴 The full gate, not just the mastery threshold. This button used to check only
+         scorePct, so a failed quiz could be retaken through a 5-second flashcard round:
+         rate ten cards, tap the exam offer at the end, gate skipped (user, 31.8: "מסיים
+         10 כרטיסיות... בלי המתנה גם אם לקח לו 5 שניות"). The study clock DOES run in
+         here (studyCatRef), so a real practice round opens the offer exactly on time —
+         and a non-examable category never offers it at all. */
+      examReady={!!prog.catKey && scorePct(prog.items) >= (examConfig?.pass_threshold ?? 50)
+        && examable(prog.catKey)
+        && quizGateFor({ key: prog.catKey, passed: passedCats.includes(prog.catKey), items: prog.items }).open}
       onExam={prog.catKey ? () => {
         setExamCategory({ key: prog.catKey, label: catLabel(prog.catKey) });
         setModeItems(prog.items);
@@ -839,17 +858,6 @@ export default function MainApp({ session, onSignOut }) {
           : <CategoryExam items={examItems} categoryLabel={label} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />)
       : <QuizExam items={examItems} facets={gameFacets} categoryLabel={label} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />;
   }
-
-  // The quiz's two time gates (user, 30.8): 5 flashcard-minutes in the category before
-  // its first quiz, 15 more after a fail. Off for preview/offline (no member to clock)
-  // and per restaurant via features.quiz_gate === false — CREWDEMO keeps it off so a
-  // store reviewer is never told to go study.
-  const quizGateFor = (cat) => {
-    if (preview || session?.offline || !session?.teamMemberId) return { open: true };
-    if (session?.features?.quiz_gate === false) return { open: true };
-    return gateFor(session.teamMemberId, cat.key, { passed: cat.passed, items: cat.items });
-  };
-
 
   const pct = scorePct(learnCards);
   // Rank follows the weekly board, since that is the competition on screen. Falls back to
