@@ -26,6 +26,15 @@ import { loadLearnedAlts, withLearnedAlts, judgeAnswer, saveLearnedAlts } from "
 const LVL_SCORE = [0, 50, 100];
 const LVL_RATING = [1, 3, 5];
 
+// Weighted final score (user, 31.8: «שאלות כלליות צריכות להחזיק משקל כבד יותר
+// בתוצאה, ככל שהיא ארוכה יותר») — a recommendation card weighs at least 2 and up
+// to its minOk; a per-dish describe card weighs 1. One helper for the finish
+// effect and the finish screen, so the two can never disagree.
+const weightedAvg = (scores) => {
+  const wsum = scores.reduce((a, s) => a + s.w, 0);
+  return wsum ? Math.round(scores.reduce((a, s) => a + s.v * s.w, 0) / wsum) : 0;
+};
+
 export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId, onAnswer, onDone, onFinish }) {
   // The engine and the autocomplete both read the WHOLE restaurant, not this category:
   // grading needs the full vocabulary to tell a foreign word from a menu word, and the
@@ -117,7 +126,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
 
   useEffect(() => {
     if (!finished) return;
-    const avg = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+    const avg = weightedAvg(scores);
     onFinish?.({ score: avg, passed: avg >= 70, dishCount: deck.length });
   }, [finished, scores, deck.length, onFinish]);
 
@@ -144,7 +153,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       const parts = [{ key: "rec", q: cur.rec, answer: recAns, g }];
       const avg = LVL_SCORE[g.lvl];
       setResult({ parts, avg });
-      setScores((s) => [...s, avg]);
+      setScores((s) => [...s, { v: avg, w: Math.max(2, cur.rec.minOk || 1) }]);
       return;
     }
     let parts = [
@@ -185,7 +194,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     const avg = Math.round(parts.reduce((a, p) => a + LVL_SCORE[p.g.lvl], 0) / parts.length);
     const worst = Math.min(...parts.map((p) => p.g.lvl));
     setResult({ parts, avg });
-    setScores((s) => [...s, avg]);
+    setScores((s) => [...s, { v: avg, w: 1 }]);
     if (cur.it) onAnswer?.(cur.it.id, LVL_RATING[worst]);
   };
 
@@ -195,7 +204,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   };
 
   if (finished) {
-    const avg = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+    const avg = weightedAvg(scores);
     return (
       <div className="p-6 text-center space-y-4">
         <GraduationCap size={40} className={avg >= 70 ? "text-[#22c08c] mx-auto" : "text-[#f3a712] mx-auto"} />

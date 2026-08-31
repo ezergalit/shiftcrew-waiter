@@ -127,7 +127,7 @@ const ORIGIN_WORDS = new Set(["ישראלי", "יפני", "איטלקי", "גר�
 // בהיר, יפני — לא ממש צריך את כל הפרטים האחרים»): סוג + צבע + מוצא + אופי מבחין.
 const BEER_CORE_RE = /לאגר|אייל|סטאוט|חיטה|כהה|בהיר|מסוננת|בוטיק|ישראלי|יפני|גרמני|בווארי|בלגי|צ'כי/;
 // סוגי האלכוהול בקוקטייל — הדגש העיקרי של שאלת המרכיבים (יותם, 31.8).
-const ALCOHOL_RE = /וודקה|ג'ין|רום|טקילה|מזקל|קמפרי|אמארו|ורמוט|ליקר|ויסקי|ברנדי|קוניאק|אפרול|סן ז'רמן|יין|סאקה|ביר[הת]/;
+const ALCOHOL_RE = /וודקה|ג'ין|רום|טקילה|מזקל|קמפרי|אמארו|ורמוט|ליקר|ויסקי|ברנדי|קוניאק|אפרול|סן ז'רמן|יין|סאקה|ביר[הת]|אוזו|ערק|פסטיס/;
 const DESC_TOK = new Map(); // normalized token -> { display, canon, cluster }
 const DESC_ALT = new Map(); // display form -> display alts
 for (const c of DESC_CLUSTERS) for (const w of c) {
@@ -240,16 +240,27 @@ export function generate(menu) {
     // S1 — תיאור מנה. יין בלבד מבין המשקאות (יותם, 31.8): «אורח לא יתלבט על
     // גולדסטאר — אם הוא רוצה להזמין את זה הוא מכיר כבר», ובסאקה «אף אחד לא יבקש
     // ממך לתאר — פשוט ישאלו מה יש ומה אתה ממליץ». בירה וסאקה נבחנות בהמלצות בלבד.
-    if (ask.length >= 3 && d.drink !== "בירה" && d.drink !== "סאקה"
+    // בין המשקאות רק יין וסיגר מקבלים «תתאר לי» (יותם, 31.8: «אורח לא יתלבט
+    // על גולדסטאר» — וזה נכון שבעתיים לוודקה וערק): כל שאר האלכוהול נבחן
+    // בהמלצות, «מה יש», בקבוקים והגשה בלבד.
+    // כשהמנהל סימן ⭐ משקאות נמכרים — רק הם נשאלים «תתאר לי» פר-פריט; השאר
+    // נשארים תשובות בשאלות ההמלצה אבל לא נבחנים בעצמם (יותם, 31.8: «מלצר שלא
+    // יודע יינות ספציפיים חוץ מאלה שסימנתי לא צריך להישאל עליהם»). קטגוריה
+    // בלי אף כוכב שומרת את כולם.
+    const starGate = d.drink && !d.starred &&
+      (byCat[d.category] || []).some((o) => o.drink && o.starred);
+    if (ask.length >= 3 && !starGate && (!d.drink || d.drink === "יין" || d.drink === "סיגר")
         && !/שתייה קלה|משקאות קלים/.test(d.category || "")) out.push({
       sit: "describe", dish: d.name, k: "recall", secs: 75,
       // A drink has no "what's inside" — the guest asks what it is LIKE. The targets
       // are the same chips either way, so grading is untouched; only the wording changes.
       ask: d.drink
         ? `אורח מבקש שתתאר לו את ה${d.drink} ״${d.name}״. מה תגיד לו?`
-        : pairing
-          ? `אורח מזמין ״${d.name}״ ושואל עם מה זה מוגש. מה תגיד לו?`
-          : `אורח שואל מה יש ב״${d.name}״ — מלבד מה שבשם המנה. מה תגיד לו?`,
+        : d.event
+          ? `אורח מתעניין ב״${d.name}״ ושואל מה זה כולל. מה תגיד לו?`
+          : pairing
+            ? `אורח מזמין ״${d.name}״ ושואל עם מה זה מוגש. מה תגיד לו?`
+            : `אורח שואל מה יש ב״${d.name}״ — מלבד מה שבשם המנה. מה תגיד לו?`,
       // Drink chips are descriptors — attach the taste dictionary so «מתקתק» credits
       // a target that says «מתוק» and «ישראלי» one that says «ישראלית».
       targets: ask.map(t => ({
@@ -294,6 +305,10 @@ export function generate(menu) {
   // S4 — הרכבה בטאבלט (reverse identification) — sushi-like categories
   for (const [cat, pool] of Object.entries(byCat)) {
     if (pool.length < 3) continue;
+    if (pool[0]?.event) continue; // "איזו מנה תדפיס למטבח" is nonsense for a package
+    // וגם לא למשקאות: «הזמנה על הצ'ק: וודקה פולנית, מנה ודאבל» אינה הזמנה —
+    // צ'יפים של משקה הם תיאור, לא מרכיבים שמודפסים למטבח. נתפס בשער האמת.
+    if (pool[0]?.drink) continue;
     for (const d of pool) {
       const ing = askable(d);
       const dist = distinctive(d, pool);
@@ -595,6 +610,8 @@ export function generate(menu) {
           ["מתוק", "יינות מתוקים", 2], ["יבש", "יינות יבשים", 2],
           ["ישראלי", "יינות ישראליים", 2], ["פירותי", "יינות פירותיים", 2],
           ["גוף מלא", "יינות בעלי גוף מלא", 2],
+          // «אני רוצה רק כוס» — זמינות בכוס היא שאלת שולחן אמיתית.
+          ["גם בכוס", "יינות שמוגשים גם בכוס", 2],
         ];
         for (const [chip, label, want] of WINE_TRAITS) {
           const match = drinks.filter((d2) => (d2.ingredients || []).includes(chip));
@@ -611,16 +628,55 @@ export function generate(menu) {
           });
         }
       }
-      // המלצות סאקה (יותם, 31.8): «אף אחד לא יבקש לתאר — פשוט ישאלו מה יש ומה
-      // אתה ממליץ». שאלת «מה יש» אחת + המלצות הפרטים מהלולאה הגנרית.
-      if (kind === "סאקה") {
+      // «מה יש» — לכל סוגי האלכוהול חוץ מיין (יותם, 31.8 על סאקה: «פשוט ישאלו
+      // מה יש ומה אתה ממליץ», ו-31.8 על הבר של סלון: «איזה וודקה המסעדה
+      // מציעה?»). יין מוחרג — 30+ בקבוקים אינם רשימה שמדקלמים, ושם עובדות
+      // ההמלצות לפי אופי.
+      if (kind !== "יין") {
+        const fem = /^(וודקה|טקילה|בירה|סמבוקה)/.test(kind) ? "איזו" : "איזה";
         out.push({
           sit: "drinkrec", dish: `${cat} · מה יש`, cat, k: "recall", secs: 60,
-          ask: `אורח שואל איזה סאקה יש. מה תציע לו?`,
+          ask: `אורח שואל ${fem} ${kind} יש. מה תציע לו?`,
           targets: drinks.map((d2) => ({ t: d2.name })),
-          free: ["סאקה", ...drinks.flatMap((d2) => [...(d2.ingredients || []).flatMap((i) => toks(i)), ...toks(d2.desc || "")])],
-          minOk: Math.min(2, drinks.length), maxInv: 1,
+          // שמות כל הפריטים חופשיים: בשאלת רשימה כל שם בקטגוריה הוא חלק
+          // מהתשובה — «אוף» מ«לג'נד אוף קרמלין» אינו המצאה. נתפס בשער האמת.
+          free: [...toks(kind), ...drinks.flatMap((d2) => [...toks(d2.name), ...(d2.ingredients || []).flatMap((i) => toks(i)), ...toks(d2.desc || "")])],
+          minOk: Math.min(drinks.length >= 6 ? 3 : 2, drinks.length), maxInv: 1,
         });
+      }
+      // בקבוק לשולחן (יותם, 31.8: «איזה וודקה המסעדה מציעה? האם גם בבקבוק?») —
+      // ההמלצה מוגבלת למה שבאמת מוגש בבקבוק; להמליץ על בקבוק שאין = wrongFar.
+      {
+        const bottled = drinks.filter((d2) => (d2.ingredients || []).some((i) => /בקבוק לשולחן|בקבוק בלבד/.test(i)));
+        if (bottled.length >= 2) {
+          const n = Math.min(2, bottled.length);
+          out.push({
+            sit: "drinkrec", dish: `${cat} · בקבוק לשולחן`, cat, k: "recall", secs: 60,
+            ask: `אורח רוצה בקבוק ${kind} לשולחן. על ${n === 1 ? "איזה בקבוק" : `${n} בקבוקים`} תוכל להמליץ?`,
+            targets: bottled.map((d2) => ({ t: d2.name })),
+            // שמות המבוקבקים חופשיים — כולם תשובה נכונה; מי שאינו מבוקבק
+            // נשאר מחוץ ל-free ולכן wrongFar, וזה בדיוק העונש הנכון.
+            free: ["בקבוק", "לשולחן", ...toks(kind), ...bottled.flatMap((d2) => toks(d2.name))],
+            minOk: n, maxInv: 0,
+          });
+        }
+        // מה מגיע עם הבקבוק (יותם: «מה מגיע עם בקבוק ערק עלית») — עובדת הגשה,
+        // שאלה אחת-שתיים לקטגוריה על הפריטים הראשונים בתפריט, לא על כולם.
+        // ⚠️ sit:"drinkrec" בכוונה, לא סוג חדש: הבוחן הפתוח מרכיב את הישיבה
+        // מ-drinkrec/dishrec בלבד — סוג שלישי היה שאלה שאף בוחן לא שואל.
+        const served = drinks.filter((d2) => (d2.ingredients || []).some((i) => /קנקן לימונדה|תוספות לבקבוק/.test(i))).slice(0, 2);
+        for (const d2 of served) {
+          const lemonade = (d2.ingredients || []).some((i) => /קנקן לימונדה/.test(i));
+          out.push({
+            sit: "drinkrec", dish: `${cat} · הגשת ${d2.name}`, cat, k: "recall", secs: 45,
+            ask: `אורח הזמין בקבוק ״${d2.name}״ ושואל מה מגיע איתו לשולחן. מה תגיד לו?`,
+            targets: lemonade
+              ? [{ t: "קנקן לימונדה", must: ["לימונדה"], alt: ["קנקן", "לימונדה"] }]
+              : [{ t: "5 תוספות לבחירה", must: ["תוספות"], alt: ["תוספות", "5", "חמש", "לבחירה"] }],
+            free: ["בקבוק", "לשולחן", "מגיע", ...toks(kind), ...toks(d2.name)],
+            minOk: 1, maxInv: 0,
+          });
+        }
       }
       // בירה מהחבית (יותם, 31.8): כשיש — המלצה רגילה; כשאין — «אין» היא התשובה
       // הנכונה, והצעת חלופה מהבקבוק חופשית ולא מענישה.
@@ -642,6 +698,9 @@ export function generate(menu) {
       for (const [trait, nameSet] of traits) {
         if (kind === "יין") continue; // ליין יש את רשימת הליבה למעלה
         if (kind === "בירה" && !BEER_CORE_RE.test(trait)) continue; // רק מושגי ליבה
+        // צ'יפי זמינות והגשה אינם טעם — יש להם שאלות ייעודיות למעלה, וכפילות
+        // («וויסקי מנה ודאבל ומבקש המלצה») רק מרעישה את הבוחן.
+        if (/בקבוק|תוספות|קנקן|מנה ודאבל|גם בכוס|מגנום|גדלים|שליש וחצי|מהחבית|בבקבוק/.test(trait)) continue;
         const names = [...nameSet];
         // פרט שכולם נושאים אינו מבחין — וגם פרט שרוב הקטגוריה נושאת הוא כמעט
         // «שם יין כלשהו», לא מבחן (יותם, 31.8: שאלות לא-חדות בצד). הרף: יותר
@@ -649,9 +708,12 @@ export function generate(menu) {
         if (names.length === drinks.length || names.length / drinks.length > 0.5) continue;
         // ניסוח שנקרא כמו עברית לכל סוגי הפרטים: «יין בגוף מלא», «יין עם
         // טאנינים רכים», «אורח מחפש בירת בוטיק» — לא «בירה בירת בוטיק».
+        const kindWord = kind.split(" ")[0];
         const phrase = trait.startsWith("גוף") ? `${kind} ב${trait}`
           : trait === "טאנינים רכים" ? `${kind} עם ${trait}`
           : /^(בירת|שיכר)/.test(trait) ? null
+          // «וודקה פולנית» כבר אומר וודקה — בלי זה יוצא «וודקה וודקה פולנית».
+          : trait.includes(kindWord) ? trait
           : `${kind} ${trait}`;
         out.push({
           sit: "drinkrec", dish: `${cat} · ${trait}`, cat, k: "recall", secs: 45,
@@ -661,7 +723,7 @@ export function generate(menu) {
           // אותו כלל מבחין כמו ב-dishrec: מילת שם ששייכת גם למשקה אחר בקטגוריה
           // אינה alt, אחרת היא מזכה את המשקה הלא-נכון.
           targets: names.map((n) => {
-            const dw = toks(n).filter((w) => w.length >= 3 &&
+            const dw = toks(n).filter((w) => (w.length >= 3 || /^\d+$/.test(w)) &&
               !drinks.some((o) => o.name !== n && toks(o.name).some((ow) => wMatch(w, ow))));
             const shared = toks(n).some((w) =>
               drinks.some((o) => o.name !== n && toks(o.name).some((ow) => wMatch(w, ow))));

@@ -26,5 +26,12 @@ export function menuFromCards(cards) {
       // Drink questions ask for a description, not contents — the generator words the
       // situation by kind ("שתתאר לו את הסאקה"), and builds recommendation questions.
       drink: c.drink || null,
+      // The manager's ⭐ (best sellers). When a drink category carries stars, only
+      // starred drinks get per-drink describe questions (user, 31.8: «מלצר שלא יודע
+      // יינות ספציפיים חוץ מאלה שסימנתי לא צריך להישאל על יינות שלא כתבתי»).
+      starred: !!c.isSpecial,
+      // An events-menu item is a package, not a plate: the generator words it as
+      // "what does it include" and never plays reverse-identification on it.
+      event: /אירוע/.test(c.menuGroup || ""),
     }));
 }
