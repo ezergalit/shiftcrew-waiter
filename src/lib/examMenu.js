@@ -9,7 +9,14 @@ import { isKnowledgeCard } from "./examFixed.js";
 // Feeding them to the generator produces questions like "what is in 'kashrut and our
 // kitchen'?" — the same exclusion MenuExam already applies.
 export function menuFromCards(cards) {
-  return (cards || [])
+  // חריג יחיד להדרה של כרטיסי ידע (יותם, 31.8: «אל תבחן בכלל על הדרכת השירות
+  // בסלון — חוץ מדג נא וצרוב»): כרטיס הדרכה שעוסק בדג נא עובר הלאה כתדריך
+  // בטיחות, ו-generate הופך אותו לשאלה בבוחן של קטגוריית הדגים — לא לשום
+  // שאלה על שאר ההדרכה (הוראות הגעה, חניה — «סתם נוח שידעו»).
+  const safety = (cards || [])
+    .filter((c) => isKnowledgeCard(c) && /דג(ים)? נא/.test(c.name || ""))
+    .map((c) => ({ name: c.name, desc: c.desc || c.description || "", safetyBrief: true }));
+  return [...safety, ...(cards || [])
     .filter((c) => !isKnowledgeCard(c))
     .map((c) => ({
       name: c.name,
@@ -33,5 +40,5 @@ export function menuFromCards(cards) {
       // An events-menu item is a package, not a plate: the generator words it as
       // "what does it include" and never plays reverse-identification on it.
       event: /אירוע/.test(c.menuGroup || ""),
-    }));
+    }))];
 }

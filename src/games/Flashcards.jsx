@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Trophy, Star } from "lucide-react";
 import { dishLabel } from "../lib/questionEngine";
-import { countLabel, nLabel, mokshim, wineParts } from "./shared";
+import { countLabel, nLabel, mokshim, wineParts, ingLabel } from "./shared";
 import { categoryVisual } from "../lib/categoryVisual";
 import { gz } from "../lib/shiftChoice";
 
@@ -84,6 +84,7 @@ export default function Flashcards({ items, session, quick, onRate, onDone, slim
                 <p className="text-xs font-bold text-[#8a8aa0]">
                   {[
                     it.drink ? countLabel(it.ingredients, "פרט תיאור", "פרטי תיאור")
+                            : it.event ? countLabel(it.ingredients, "מנה", "מנות")
                             : countLabel(it.ingredients, "מרכיב", "מרכיבים"),
                     countLabel(it.allergens, "אלרגיה", "אלרגיות"),
                     ...(slim ? [countLabel(mokshim(it), "מוקש", "מוקשים")]
@@ -115,7 +116,7 @@ export default function Flashcards({ items, session, quick, onRate, onDone, slim
               {slim ? <>
                 {it.knowledge && it.desc && <p className="text-sm text-[#c4c4d4] leading-relaxed text-right">{it.desc}</p>}
                 {it.ingredients?.length > 0 && (
-                  <div className="bg-[#1c1f25] p-2 rounded-lg"><p className="text-xs font-bold text-[#c4c4d4]">{it.knowledge ? "נקודות מפתח" : it.drink ? "תיאור" : "מרכיבים"}: {it.ingredients.join(", ")}</p></div>
+                  <div className="bg-[#1c1f25] p-2 rounded-lg"><p className="text-xs font-bold text-[#c4c4d4]">{ingLabel(it)}: {it.ingredients.join(", ")}</p></div>
                 )}
                 {(() => { const w = wineParts(it); return w ? <>
                   {w.notes && <p className="text-sm text-[#c4c4d4] leading-relaxed text-right">{w.notes}</p>}
@@ -125,7 +126,7 @@ export default function Flashcards({ items, session, quick, onRate, onDone, slim
                 {mokshim(it).length > 0 && <div className="bg-[#3a2f1d] p-2 rounded-lg"><p className="text-xs font-bold text-[#f3c14b]">מוקשים: {mokshim(it).join(", ")}</p></div>}
               </> : <>
                 {it.desc && <p className="text-sm text-[#c4c4d4] leading-relaxed">{it.desc}</p>}
-                {it.ingredients?.length > 0 && <p className="text-xs text-[#8a8aa0]">{it.drink ? "תיאור" : "מרכיבים"}: {it.ingredients.join(", ")}</p>}
+                {it.ingredients?.length > 0 && <p className="text-xs text-[#8a8aa0]">{ingLabel(it)}: {it.ingredients.join(", ")}</p>}
                 {it.allergens?.length > 0 && <div className="bg-[#3a1d22] p-2 rounded-lg"><p className="text-xs font-bold text-[#e0315a]">אלרגיות: {it.allergens.join(", ")}</p></div>}
                 {it.pregnancy?.length > 0 && <div className="bg-[#2a1d3a] p-2 rounded-lg"><p className="text-xs font-bold text-[#b48cff]">רגישות בהריון: {it.pregnancy.join(", ")}</p></div>}
                 {it.pitfalls?.length > 0 && <div className="bg-[#3a2f1d] p-2 rounded-lg"><p className="text-xs font-bold text-[#f3c14b]">מוקשים: {it.pitfalls.join(", ")}</p></div>}

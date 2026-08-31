@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { GraduationCap, Check, X as XIcon } from "lucide-react";
 import ExitExam from "./ExitExam";
 import AnswerInput from "../components/AnswerInput";
-import { shortCat, shuffle } from "./shared";
+import { shortCat, shuffle, ingLabel } from "./shared";
 import { generate, grade, setMenuVocab, norm } from "../lib/examEngine";
 import { menuFromCards } from "../lib/examMenu";
 import { buildVocab } from "../lib/examSuggest";
@@ -256,7 +256,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
           {cur.describe && (
             <AnswerInput
               vocab={vocab} values={ings} onChange={setIngs}
-              label={cur.it?.drink ? "תיאור" : "מרכיבים"}
+              label={ingLabel(cur.it)}
               placeholder={cur.it?.drink ? "כתבו פרט (יבש, אדום, כשר…) ולחצו הוסף…" : "כתבו מרכיב ולחצו הוסף…"}
             />
           )}
@@ -287,7 +287,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               <div className="flex items-center gap-2">
                 {p.g.lvl === 2 ? <Check size={15} className="text-[#22c08c]" /> : <XIcon size={15} className="text-[#f3a712]" />}
                 <p className="text-[12px] font-black text-[#eef0f6]">
-                  {p.key === "rec" ? "ההמלצה" : p.key === "flav" ? "תיאור הטעם" : p.key === "ings" ? (cur.it?.drink ? "תיאור" : "מרכיבים") : "אלרגיות"} — {p.g.lvl === 2 ? "נכון" : p.g.lvl === 1 ? "חלקי" : "לא נכון"}
+                  {p.key === "rec" ? "ההמלצה" : p.key === "flav" ? "תיאור הטעם" : p.key === "ings" ? ingLabel(cur.it) : "אלרגיות"} — {p.g.lvl === 2 ? "נכון" : p.g.lvl === 1 ? "חלקי" : "לא נכון"}
                 </p>
               </div>
               {/* The answer, always — a quiz that says "wrong" without saying what the

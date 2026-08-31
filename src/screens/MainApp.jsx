@@ -84,11 +84,28 @@ function pubToCard(p) {
   // word the exam uses ("שתתאר לו את הסאקה").
   // ⚠️ Not `.includes("יין")`: the nun is FINAL (ן) in "יין" but regular (נ) inside
   // "יינות", so the naive substring test misses the actual category name.
-  drink: /יין|יינ/.test(p.category || "") ? "יין"
+  // Spirits joined when Salon's bar landed (user, 31.8: recommendation questions,
+  // never "what's in Belvedere") — every kind here is asked by offering, bottle and
+  // serving, and only wine and cigars are ever asked to be DESCRIBED.
+  // רוזה ומבעבעים הם יין גם כשהמילה «יין» לא בשם הקטגוריה (הבר של סלון).
+  drink: /יין|יינ|רוזה|מבעבע|שמפניה/.test(p.category || "") ? "יין"
        : /סאקה/.test(p.category || "") ? "סאקה"
-       : /ביר(ה|ות)/.test(p.category || "") ? "בירה" : null,
+       : /ביר(ה|ות)/.test(p.category || "") ? "בירה"
+       : /וודקה/.test(p.category || "") ? "וודקה"
+       : /וויסקי|ויסקי/.test(p.category || "") ? "וויסקי"
+       : /טקילה/.test(p.category || "") ? "טקילה"
+       : /ג['׳]ין/.test(p.category || "") ? "ג'ין"
+       : /ערק|אוזו|אניס/.test(p.category || "") ? "ערק או אוזו"
+       : /קוניאק|ברנדי/.test(p.category || "") ? "קוניאק"
+       : /ליקר/.test(p.category || "") ? "ליקר"
+       : /רום/.test(p.category || "") ? "רום"
+       : /אפריטיף|ורמוט/.test(p.category || "") ? "אפריטיף"
+       : /סיגר/.test(p.category || "") ? "סיגר" : null,
   // Real dish photo, shown in the menu browser only — learning cards stay photo-free on purpose.
   imageUrl: p.image_url || null,
+  // An events-menu item is a package: its chips are the dishes/benefits it includes,
+  // so every "מרכיבים" label reads "המנות"/"מה כלול" for it (see ingLabel).
+  event: /אירוע/.test(p.menu_group || ""),
   // Knowledge cards (categories named הדרכת·) are learnable like dishes but are not dishes:
   // the whole-menu exam and its scenario builders must never treat them as orderable food.
   knowledge: (p.category || "").startsWith("הדרכת") || (p.name || "").startsWith("מה חשוב לדעת") };

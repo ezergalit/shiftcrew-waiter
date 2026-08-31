@@ -135,6 +135,14 @@ for (const c of DESC_CLUSTERS) for (const w of c) {
   for (const t of toks(w)) if (!DESC_TOK.has(t)) DESC_TOK.set(t, { display: w, canon: c[0], cluster: c });
 }
 const descTok = (w) => DESC_TOK.get(w) || DESC_TOK.get(String(w).replace(/^ו/, ""));
+// זוגות סותרים (יותם, 31.8: «כתבתי קוקטייל מתוק, מר — צריך להוריד ניקוד אם
+// בפועל הוא לא שניהם ואחד מהם סתם ניחוש»). רק ניגודים אמיתיים שלא מתקיימים
+// יחד — מתוק-וחמוץ קיים, מתוק-ומר במשקה אחד הוא ניחוש.
+const DESC_OPPOSITE = {
+  "מתוק": ["מר", "יבש"], "מר": ["מתוק"], "יבש": ["מתוק"],
+  "חזק": ["עדין", "קליל"], "עדין": ["חזק"], "קליל": ["חזק"],
+  "בהיר": ["כהה"], "כהה": ["בהיר"],
+};
 // alt forms for a descriptor chip: cluster-mates of every known word in it. A multiword
 // chip ("חצי יבש") swaps the known word in place so the alt stays a real phrase.
 export const descAlts = (chip) => {
@@ -207,8 +215,29 @@ const freeFor = d => [...new Set([...nameToks(d), ...toks(d.desc || ""), ...(d.i
 /* ══ Situation generators — each returns exam moves in the page schema ══ */
 export function generate(menu) {
   const out = [];
+  // תדריכי בטיחות (כרטיס «דגים נאים — מה חובה לומר» של סלון) מבודדים מהתפריט
+  // לפני הכל — הם לא מנות, והשאלה היחידה שהם מולידים משויכת לקטגוריית האוכל
+  // שהם מדברים עליה, כך שהיא נשאלת בבוחן של דגים נאים ולא בשום הדרכה.
+  const briefs = menu.filter((d) => d.safetyBrief);
+  menu = menu.filter((d) => !d.safetyBrief);
   const byCat = {};
   for (const d of menu) (byCat[d.category] = byCat[d.category] || []).push(d);
+  for (const b of briefs) {
+    const cat = Object.keys(byCat).find((c) => (b.name || "").includes(c) || (b.desc || "").includes(c));
+    if (!cat) continue;
+    const hasMykonos = /מיקונוס/.test(b.desc || "");
+    out.push({
+      sit: "dishrec", dish: `${cat} · מה חובה לומר`, cat, k: "recall", secs: 75, crit: true,
+      ask: `אורחת בהיריון מתעניינת ב${cat} ושואלת מה חשוב לדעת. מה חובה לומר לה?`,
+      targets: [
+        { t: "הכול מוגש נא", must: ["נא"], ctx: toks(b.desc || "") },
+        ...(hasMykonos ? [{ t: "גם מיקונוס רוסט טונה נחשבת נא — הצריבה חיצונית בלבד",
+                            alt: ["מיקונוס", "רוסט", "צרובה", "צריבה", "צרוב"] }] : []),
+      ],
+      free: [...toks(b.desc || ""), ...((byCat[cat] || []).flatMap((d) => toks(d.name)))],
+      minOk: 1, maxInv: 1,
+    });
+  }
 
   for (const d of menu) {
     let ask = askable(d);
@@ -838,8 +867,22 @@ export function grade(q, answer) {
     const matched = new Set(); let inv = 0;
     for (const t of q.targets) addVocab(t.t, ...(t.must || []), ...(t.alt || []));
     addVocab(...(q.free || []));
+    // התיאורים שהאמת של השאלה באמת נושאת — כדי לזהות ניחוש סותר: «מר» על
+    // קוקטייל שכל האמת שלו מתוקה נספר כטעות גם אם המילה «מתוק» שלצידו נכונה.
+    const truthCanons = new Set();
+    for (const t of q.targets) for (const w of [t.t, ...(t.alt || [])].flatMap((x) => toks(String(x)))) {
+      const dt = descTok(w); if (dt) truthCanons.add(dt.canon);
+    }
+    const contradicts = (w) => {
+      const dt = descTok(w);
+      if (!dt || truthCanons.has(dt.canon)) return false;
+      return (DESC_OPPOSITE[dt.canon] || []).some((c) => truthCanons.has(c));
+    };
     for (const c of chips) {
       const cw = toks(c); total += cw.length;
+      // ניגוד לאמת = טעות בטוחה, גם כשהיא רוכבת על צ'יפ שחציו נכון («מתוק מר»
+      // מזוכה על המתוק — וה«מר» היה עובר חינם).
+      if (truthCanons.size && cw.some(contradicts)) wrongFar++;
       let best = -1, bs = -1;
       for (let ti = 0; ti < q.targets.length; ti++) {
         if (matched.has(ti)) continue;

@@ -21,6 +21,14 @@ export const shortCat = (c) => catLabel(c || "").split(/\s*[—–]\s*/)[0].trim
 export const FEEDBACK_MS = 1800;
 
 // Hebrew has no "1 items" — a count of one takes the singular noun.
+// תווית מקטע ה"מרכיבים" לפי סוג הפריט: כרטיס ידע ⇒ נקודות מפתח · פריט אירוע ⇒
+// המנות שמוגשות בו (יותם, 31.8: «אלה מנות, לא מרכיבים — פינרלי וצלחת חריפים») ·
+// משקה ⇒ תיאור · מנה ⇒ מרכיבים.
+export const ingLabel = (it) =>
+  it?.knowledge ? "נקודות מפתח"
+  : it?.event ? (/מוגש/.test(it?.category || "") ? "המנות" : "מה כלול")
+  : it?.drink ? "תיאור" : "מרכיבים";
+
 export const countLabel = (arr, one, many) =>
   arr?.length > 0 ? `${arr.length} ${arr.length === 1 ? one : many}` : null;
 
