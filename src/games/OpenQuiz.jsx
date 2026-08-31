@@ -53,8 +53,27 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       ...e,
       it: (items || []).find((i) => i.name === e.dish),
     })).filter((e) => e.it);
-    return shuffle(withItem).slice(0, 8);
-  }, [bank, items]);
+    // Recommendation questions for a drink category (user, 31.8: "על איזה סאקה תמליץ
+    // ללקוח שאוהב טעם חלש?"). A pool that avoids repeating itself: traits already asked
+    // on this device sink to the back until the whole pool has been seen once.
+    const catName = (items || []).find((i) => !i.knowledge)?.category;
+    const recPool = catName ? bank.filter((q) => q.sit === "drinkrec" && q.cat === catName) : [];
+    let recs = [];
+    if (recPool.length) {
+      const seenKey = `menu-app-recasked:${restaurantId || "r"}:${catName}`;
+      let seen = [];
+      try { seen = JSON.parse(localStorage.getItem(seenKey)) || []; } catch { /* fresh */ }
+      const fresh = shuffle(recPool.filter((q) => !seen.includes(q.dish)));
+      const used = shuffle(recPool.filter((q) => seen.includes(q.dish)));
+      recs = [...fresh, ...used].slice(0, 3).map((q) => ({ rec: q, dish: q.ask }));
+      try {
+        const asked = recs.map((r) => r.rec.dish);
+        const nextSeen = fresh.length >= recs.length ? [...seen, ...asked] : asked;
+        localStorage.setItem(seenKey, JSON.stringify(nextSeen));
+      } catch { /* private mode */ }
+    }
+    return [...shuffle(withItem).slice(0, Math.max(2, 8 - recs.length)), ...recs];
+  }, [bank, items, restaurantId]);
 
   // Phrasings previous waiters have had accepted. Loaded once and folded into the
   // questions, so tier 1 matches them for free and this sitting never pays for them again.
@@ -65,6 +84,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const [i, setI] = useState(0);
   const [ings, setIngs] = useState([]);
   const [alls, setAlls] = useState([]);
+  const [recAns, setRecAns] = useState([]);
   const [result, setResult] = useState(null);
   const [scores, setScores] = useState([]);
   const [finished, setFinished] = useState(false);
@@ -106,6 +126,14 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
 
   const submit = async () => {
     const build = (key, q, answer) => ({ key, q: withLearnedAlts(q, alts), answer });
+    if (cur.rec) {
+      const g = grade(cur.rec, recAns);
+      const parts = [{ key: "rec", q: cur.rec, answer: recAns, g }];
+      const avg = LVL_SCORE[g.lvl];
+      setResult({ parts, avg });
+      setScores((s) => [...s, avg]);
+      return;
+    }
     let parts = [
       cur.describe && build("ings", cur.describe, ings),
       cur.allergens && build("alls", cur.allergens, alls),
@@ -144,11 +172,11 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     const worst = Math.min(...parts.map((p) => p.g.lvl));
     setResult({ parts, avg });
     setScores((s) => [...s, avg]);
-    onAnswer?.(cur.it.id, LVL_RATING[worst]);
+    if (cur.it) onAnswer?.(cur.it.id, LVL_RATING[worst]);
   };
 
   const next = () => {
-    setResult(null); setIngs([]); setAlls([]);
+    setResult(null); setIngs([]); setAlls([]); setRecAns([]);
     if (i + 1 >= deck.length) setFinished(true); else setI(i + 1);
   };
 
@@ -181,22 +209,30 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       </div>
 
       <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
-        <p className="text-[11px] font-black text-[#22c08c]">כתיבה מהזיכרון</p>
-        <p className="text-[17px] font-black text-[#eef0f6] mt-1 leading-snug">{cur.dish}</p>
-        <p className="text-[12px] text-[#8a8aa0] mt-1">
-          {cur.describe && askAll ? "מה יש במנה, ואילו אלרגיות היא נושאת?"
-            : cur.describe ? "מה יש במנה — מלבד מה שבשם?"
-            : "אילו אלרגיות המנה נושאת?"}
-        </p>
+        <p className="text-[11px] font-black text-[#22c08c]">{cur.rec ? "המלצה ללקוח" : "כתיבה מהזיכרון"}</p>
+        <p className="text-[17px] font-black text-[#eef0f6] mt-1 leading-snug">{cur.rec ? cur.rec.ask : cur.dish}</p>
+        {!cur.rec && (
+          <p className="text-[12px] text-[#8a8aa0] mt-1">
+            {cur.describe && askAll ? "מה יש במנה, ואילו אלרגיות היא נושאת?"
+              : cur.describe ? (cur.it?.drink ? "איך תתארו את המשקה?" : "מה יש במנה — מלבד מה שבשם?")
+              : "אילו אלרגיות המנה נושאת?"}
+          </p>
+        )}
       </div>
 
       {!result ? (
         <div className="space-y-4">
+          {cur.rec && (
+            <AnswerInput
+              vocab={[]} values={recAns} onChange={setRecAns}
+              label="ההמלצה שלך" placeholder="כתבו את שם המשקה ולחצו הוסף…"
+            />
+          )}
           {cur.describe && (
             <AnswerInput
               vocab={vocab} values={ings} onChange={setIngs}
-              label={cur.it?.wine ? "תיאור" : "מרכיבים"}
-              placeholder={cur.it?.wine ? "כתבו פרט (יבש, אדום, כשר…) ולחצו הוסף…" : "כתבו מרכיב ולחצו הוסף…"}
+              label={cur.it?.drink ? "תיאור" : "מרכיבים"}
+              placeholder={cur.it?.drink ? "כתבו פרט (יבש, אדום, כשר…) ולחצו הוסף…" : "כתבו מרכיב ולחצו הוסף…"}
             />
           )}
           {askAll && (
@@ -220,7 +256,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               <div className="flex items-center gap-2">
                 {p.g.lvl === 2 ? <Check size={15} className="text-[#22c08c]" /> : <XIcon size={15} className="text-[#f3a712]" />}
                 <p className="text-[12px] font-black text-[#eef0f6]">
-                  {p.key === "ings" ? (cur.it?.wine ? "תיאור" : "מרכיבים") : "אלרגיות"} — {p.g.lvl === 2 ? "נכון" : p.g.lvl === 1 ? "חלקי" : "לא נכון"}
+                  {p.key === "rec" ? "ההמלצה" : p.key === "ings" ? (cur.it?.drink ? "תיאור" : "מרכיבים") : "אלרגיות"} — {p.g.lvl === 2 ? "נכון" : p.g.lvl === 1 ? "חלקי" : "לא נכון"}
                 </p>
               </div>
               {/* The answer, always — a quiz that says "wrong" without saying what the

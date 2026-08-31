@@ -81,7 +81,7 @@ export const mokshim = (it) => [...new Set([
 // Splitting on the פתיחה: marker gives the card a tasting-notes paragraph and a
 // separate "how to open" box — both of which the waiter is expected to know.
 export const wineParts = (it) => {
-  if (!it?.wine || !it.desc) return null;
+  if (!it?.drink || !it.desc) return null;
   const i = it.desc.indexOf("פתיחה:");
   return {
     notes: (i < 0 ? it.desc : it.desc.slice(0, i)).trim(),

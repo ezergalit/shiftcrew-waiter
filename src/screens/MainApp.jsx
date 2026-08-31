@@ -78,12 +78,15 @@ function pubToCard(p) {
   // the older flag some seeded dishes still carry. Either one lights the star — reading
   // only the old column silently disconnected the manager's button from the waiter side.
   isSpecial: !!(p.starred || p.is_special),
-  // A wine is learned by its character, not a recipe: the chips hold תיאור descriptors
-  // (colour/dryness/body/kosher/origin/character), the grapes live in the description,
-  // and every "מרכיבים" label reads "תיאור" instead (user, 30.8).
+  // A drink is learned by its character, not a recipe (user, 30-31.8: wine first,
+  // then "תחשוב על שאר הקטגוריות כמו סאקה… או כל אלכוהול"): the chips hold תיאור
+  // descriptors, and every "מרכיבים" label reads "תיאור" for these. The kind is the
+  // word the exam uses ("שתתאר לו את הסאקה").
   // ⚠️ Not `.includes("יין")`: the nun is FINAL (ן) in "יין" but regular (נ) inside
   // "יינות", so the naive substring test misses the actual category name.
-  wine: /יין|יינ/.test(p.category || ""),
+  drink: /יין|יינ/.test(p.category || "") ? "יין"
+       : /סאקה/.test(p.category || "") ? "סאקה"
+       : /ביר(ה|ות)/.test(p.category || "") ? "בירה" : null,
   // Real dish photo, shown in the menu browser only — learning cards stay photo-free on purpose.
   imageUrl: p.image_url || null,
   // Knowledge cards (categories named הדרכת·) are learnable like dishes but are not dishes:
@@ -560,7 +563,11 @@ export default function MainApp({ session, onSignOut }) {
       byCat.get(c.category).push(c);
     }
     const guideCats = [...byCat.entries()].filter(([, v]) => v.every((x) => x.knowledge)).map(([k]) => k);
-    return (cards || []).filter((c) => !guideCats.includes(c.category));
+    // Soft drinks are read in the menu, not practised (user, 31.8: "תוריד את השתייה
+    // הקלה מאופציית התרגול") — a flashcard whose front and back both say קולה teaches
+    // nothing, and the quiz already refuses the category.
+    return (cards || []).filter((c) => !guideCats.includes(c.category)
+      && c.category !== "שתייה קלה" && c.menuGroup !== "שתייה קלה");
   }, [cards]);
 
   const path = useMemo(() => {
@@ -667,6 +674,27 @@ export default function MainApp({ session, onSignOut }) {
     return new Set([...perCat].filter(([, d]) => d.size >= 2).map(([c]) => c));
   }, [cards, session?.features?.exam]);
   const examable = (key) => !examableCats || examableCats.has(key);
+  // Completed read-throughs of a category in the menu walk, per member per device.
+  // Two of them light the quiz shortcut on the end-of-category screen (user, 31.8).
+  const walkKey = `menu-app-walks:${session?.teamMemberId || "preview"}`;
+  const walkCounts = () => { try { return JSON.parse(localStorage.getItem(walkKey)) || {}; } catch { return {}; } };
+  const noteWalk = (c) => {
+    if (!c) return;
+    try { const w = walkCounts(); w[c] = (w[c] || 0) + 1; localStorage.setItem(walkKey, JSON.stringify(w)); } catch { /* private mode */ }
+  };
+  const walkCountFor = (c) => walkCounts()[c] || 0;
+  // The shortcut only appears when the quiz would actually open: examable, present in
+  // the learning path, threshold reached, and the study-time gate satisfied.
+  const examOpenFor = (c) => {
+    if (!examable(c)) return false;
+    const cat = (path.categories || []).find((x) => x.key === c);
+    return !!cat && cat.examUnlocked && quizGateFor(cat).open;
+  };
+  const launchExam = (c) => {
+    const cat = (path.categories || []).find((x) => x.key === c);
+    if (!cat) return;
+    setModeItems(cat.items); setExamCategory({ key: cat.key, label: catLabel(cat.key) }); setMode("exam");
+  };
 
   if (!session?.offline && !preview && !tasksOff && cards?.length > 0 && !profileRole)
     return (
@@ -1477,6 +1505,7 @@ export default function MainApp({ session, onSignOut }) {
         {tab === "categories" && (
           <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} aurora={aurora} merged={mergedWarnings}
             onDepth={setBrowseDeep} examableFor={examable}
+            onExam={launchExam} examOpenFor={examOpenFor} walkCountFor={walkCountFor} noteWalk={noteWalk}
             bottomSlot={
               aurora ? (
                 <button onClick={() => setShowAbout(true)} className="glass cat" data-name="אודות המסעדה">

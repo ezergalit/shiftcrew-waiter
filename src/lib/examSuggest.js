@@ -38,8 +38,32 @@ export function buildVocab(menu) {
       if (key && !seen.has(key)) seen.set(key, { label, key, skel: skel(key.replace(/ /g, "")) });
     }
   }
-  return [...seen.values()];
+  const all = [...seen.values()];
+  // A bare term with two or more qualified variants on the menu is noise (user, 31.8:
+  // "אם יש צ'ילי אדום וירוק לא צריך גם צ'ילי רגיל"): typing צ'ילי still works — this
+  // only removes it from the SUGGESTIONS, where it stood beside its own variants as a
+  // third, redundant choice. One qualified variant is not enough to hide the bare form:
+  // "שום" next to "שום קונפי" are genuinely two different answers.
+  const subsumed = (e) => {
+    const et = toks(e.label);
+    let variants = 0;
+    for (const o of all) {
+      if (o === e) continue;
+      const ot = toks(o.label);
+      if (ot.length > et.length && et.every((w, i) => wMatch(w, ot[i]))) variants++;
+      if (variants >= 2) return true;
+    }
+    return false;
+  };
+  return all.filter((e) => !subsumed(e));
 }
+
+// Hebrew singular/plural of the same word — "עגבנייה" and "עגבניות" are one answer, not
+// two. wMatch alone misses this pair (distance 2), so the same-thing collapse also
+// compares stemmed forms: strip a final ות / ים / יה / ה and let wMatch absorb the rest.
+const stem = (w) => String(w).replace(/(יות|ות|יים|ים|יה|ה)$/, "");
+export const sameWord = (a, b) => wMatch(a, b) ||
+  (a.length >= 4 && b.length >= 4 && wMatch(stem(a), stem(b)));
 
 /** Suggestions for what the waiter has typed so far. Ranked: prefix, then skeleton, then fuzzy. */
 export function suggest(vocab, query, { limit = 6, exclude = [] } = {}) {
@@ -82,7 +106,7 @@ export function suggest(vocab, query, { limit = 6, exclude = [] } = {}) {
   // Compared token-by-token, so "עגבניות שרי" and "חמאת עגבניות" stay separate.
   const sameThing = (a, b) => {
     const A = toks(a.label), B = toks(b.label);
-    return A.length > 0 && A.length === B.length && A.every((w, i) => wMatch(w, B[i]));
+    return A.length > 0 && A.length === B.length && A.every((w, i) => sameWord(w, B[i]));
   };
   const uniq = [];
   for (const v of out) {

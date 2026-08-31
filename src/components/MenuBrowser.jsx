@@ -121,7 +121,7 @@ function Overlay({ children }) {
   );
 }
 
-export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, aurora = false, merged = false, onDepth, examableFor }) {
+export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, aurora = false, merged = false, onDepth, examableFor, onExam, examOpenFor, walkCountFor, noteWalk }) {
   // ⚠️ Not `groups` — that name already means the restaurant's MENU groups in this file.
   const warnGroups = merged ? MERGED_GROUPS : FLAG_GROUPS;
   // Search on the menu door (the handoff page's dynamic): a query matches a category by
@@ -143,6 +143,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   useEffect(() => { onDepth?.(menu !== null || cat !== null || idx !== null); },
             [menu, cat, idx, onDepth]);
   const flat = menus.length <= 1;
+  const serviceCats = serviceGuideCategories(cards);
   // ⚠️ The service box is a destination, not a menu_group — filtering dishes by it would
   // match nothing and every guide category would open empty.
   const inMenu = (c) => (!menu || menu === SERVICE ? true : c.menuGroup === menu);
@@ -160,6 +161,19 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
     .sort((a, b) => (a.menuPosition ?? 0) - (b.menuPosition ?? 0))
     .map((c) => c.category).filter(Boolean))];
   const nextCat = cat ? catList[catList.indexOf(cat) + 1] || null : null;
+  // The last category of a menu chains into the NEXT menu's first category (user, 31.8:
+  // "שזה באמת יעביר אותך אליה") — door order: the menus, then the service box. When
+  // nothing is left anywhere, the chain simply ends and practice takes the stage.
+  const boxOrder = [...menus, ...(serviceCats.length ? [SERVICE] : [])];
+  const nextBox = !nextCat && cat && menu !== undefined
+    ? boxOrder[boxOrder.indexOf(menu ?? menus[0]) + 1] || null : null;
+  const nextBoxCat = nextBox === SERVICE
+    ? serviceCats[0] || null
+    : nextBox
+      ? [...new Set((cards || []).filter((c) => c.menuGroup === nextBox)
+          .sort((a, b) => (a.menuPosition ?? 0) - (b.menuPosition ?? 0))
+          .map((c) => c.category).filter(Boolean))][0] || null
+      : null;
 
   // Arrow keys walk the category on a desktop the same way the on-screen arrows do.
   useEffect(() => {
@@ -260,22 +274,39 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
                 than a stack of similar buttons. Third one hands over to the real practice
                 screen — reading the category is what makes a waiter ready to be tested. */}
             <div className="w-full space-y-2.5 pt-2">
-              <Choice n="1" onClick={() => setIdx(0)} primary>
+              {/* Two full walks of a category say the reading is done — the quiz takes
+                  the top slot, highlighted (user, 31.8: "אחרי שעברת פעמיים על קטגוריה…
+                  ידגיש לך לעבור לבוחן"). Only when the quiz would actually open:
+                  the category is examable and its study gate is met. */}
+              {(walkCountFor?.(cat) ?? 0) >= 2 && examOpenFor?.(cat) && onExam && (
+                <Choice n="★" primary onClick={() => { const c = cat; setIdx(null); setCat(null); onExam(c); }}>
+                  עברת פעמיים — מוכנים? לבוחן {shortCat(cat)}
+                </Choice>
+              )}
+
+              <Choice n="1" onClick={() => setIdx(0)} primary={!((walkCountFor?.(cat) ?? 0) >= 2 && examOpenFor?.(cat) && onExam) && !!(nextCat || nextBoxCat)}>
                 לעבור שוב על {shortCat(cat)}
               </Choice>
 
-              {nextCat ? (
+              {/* The old "סיימת — לקטגוריות" cleared the category but kept the menu, so
+                  it landed back on the same list and read as a dead button (user, 31.8:
+                  "זה לא באמת מעביר אותך לדף הראשי"). Chaining replaced it: continue into
+                  the next category — across menus when this one is done — and when there
+                  is no next anywhere, the option simply doesn't exist. */}
+              {nextCat && (
                 <Choice n="2" onClick={() => { setCat(nextCat); setIdx(0); }}>
                   להמשיך ל{shortCat(nextCat)}
                 </Choice>
-              ) : (
-                <Choice n="2" onClick={() => { setCat(null); setIdx(null); }}>
-                  {flat ? "לחזור לרשימת הקטגוריות" : `סיימת את ${menu} — לקטגוריות`}
+              )}
+              {!nextCat && nextBoxCat && (
+                <Choice n="2" onClick={() => { setMenu(nextBox); setCat(nextBoxCat); setIdx(0); }}>
+                  להמשיך ל{shortCat(nextBoxCat)}
                 </Choice>
               )}
 
               {onPractice && (
-                <Choice n="3" onClick={() => { const c = cat; setIdx(null); setCat(null); onPractice(c); }}>
+                <Choice n="3" primary={!nextCat && !nextBoxCat}
+                  onClick={() => { const c = cat; setIdx(null); setCat(null); onPractice(c); }}>
                   {/* Never promise a quiz a category can't run (user, 31.8) — soft
                       drinks and the like still practise, they just aren't examined. */}
                   {!examableFor || examableFor(cat)
@@ -351,7 +382,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
 
             {d.ingredients?.length > 0 && (
               <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
-                <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide mb-2.5">{d.knowledge ? "נקודות מפתח" : d.wine ? "תיאור" : "מרכיבים"}</p>
+                <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide mb-2.5">{d.knowledge ? "נקודות מפתח" : d.drink ? "תיאור" : "מרכיבים"}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {d.ingredients.map((i) => (
                     <span key={i} className="text-[13px] font-bold px-3 py-1.5 rounded-lg bg-[#20232b] text-[#c4c4d4]">{i}</span>
@@ -403,7 +434,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
             <ChevronRight size={17} /> הקודם
           </button>
           <button
-            onClick={() => setIdx(idx + 1)}
+            onClick={() => { if (idx === dishes.length - 1) noteWalk?.(cat); setIdx(idx + 1); }}
             className="flex-1 py-3 min-h-[48px] rounded-xl font-black text-sm text-white flex items-center justify-center gap-1.5"
             style={{ background: "linear-gradient(135deg,#22c08c,#17805d)" }}
           >

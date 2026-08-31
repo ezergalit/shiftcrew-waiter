@@ -159,10 +159,11 @@ export function generate(menu) {
     // S1 — תיאור מנה
     if (ask.length >= 3) out.push({
       sit: "describe", dish: d.name, k: "recall", secs: 75,
-      // A wine has no "what's inside" — the guest asks what it is LIKE. The targets are
-      // the same chips either way, so grading is untouched; only the situation changes.
-      ask: d.wine
-        ? `אורח מתלבט על ״${d.name}״ ומבקש שתתאר לו את היין. מה תגיד לו?`
+      // A drink has no "what's inside" — the guest asks what it is LIKE. The targets
+      // are the same chips either way, so grading is untouched; only the wording changes,
+      // by kind: היין / הסאקה / הבירה.
+      ask: d.drink
+        ? `אורח מתלבט על ״${d.name}״ ומבקש שתתאר לו את ה${d.drink}. מה תגיד לו?`
         : `אורח שואל מה יש ב״${d.name}״ — מלבד מה שבשם המנה. מה תגיד לו?`,
       targets: ask.map(t => ({ t, ctx: freeFor(d) })), free: freeFor(d),
       minOk: Math.max(2, Math.ceil(ask.length * 0.7)), maxInv: 1,
@@ -250,6 +251,41 @@ export function generate(menu) {
       ans: match.map(d => d.name).join(" · "),
     });
   }
+  // ---- המלצת משקה לפי אופי (יותם, 31.8: "על איזה סאקה תמליץ ללקוח שאוהב טעם
+  // חלש?") ----
+  // לכל קטגוריית משקאות, כל פרט תיאור שמבחין — נישא על ידי חלק מהמשקאות ולא
+  // כולם — נהיה שאלה: האורח אוהב <פרט>, על מה תמליץ? כל משקה שנושא את הפרט
+  // הוא תשובה נכונה; המלצה על משקה שאינו נושא אותו נופלת ב-wrongFar (שם המשקה
+  // הוא מילות תפריט). המלצה נכונה אחת = ציון מלא (minOk 1).
+  {
+    const byCat = new Map();
+    for (const d of menu) if (d.drink) {
+      if (!byCat.has(d.category)) byCat.set(d.category, []);
+      byCat.get(d.category).push(d);
+    }
+    for (const [cat, drinks] of byCat) {
+      if (drinks.length < 2) continue;
+      const kind = drinks[0].drink;
+      const traits = new Map();
+      for (const d of drinks) for (const t of d.ingredients || []) {
+        if (!traits.has(t)) traits.set(t, new Set());
+        traits.get(t).add(d.name);
+      }
+      for (const [trait, nameSet] of traits) {
+        const names = [...nameSet];
+        // פרט שכולם נושאים אינו מבחין; פרט של משקה אחד בקטגוריה של שניים — גם.
+        if (names.length === drinks.length) continue;
+        out.push({
+          sit: "drinkrec", dish: `${cat} · ${trait}`, cat, k: "recall", secs: 45,
+          ask: `אורח אוהב ${kind} ${trait} ומבקש המלצה. על מה תמליץ לו?`,
+          targets: names.map((n) => ({ t: n, alt: toks(n).filter((w) => w.length >= 3) })),
+          free: [trait, kind],
+          minOk: 1, maxInv: 0,
+        });
+      }
+    }
+  }
+
   return out;
 }
 

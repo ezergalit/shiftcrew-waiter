@@ -19,8 +19,8 @@ export function menuFromCards(cards) {
       allergens: c.allergens || [],
       pitfalls: c.pitfalls || [],
       pregnancy: c.pregnancy || [],
-      // Wine questions ask for a description, not contents — the generator words the
-      // situation differently (the chips already hold the descriptors).
-      wine: !!c.wine,
+      // Drink questions ask for a description, not contents — the generator words the
+      // situation by kind ("שתתאר לו את הסאקה"), and builds recommendation questions.
+      drink: c.drink || null,
     }));
 }
