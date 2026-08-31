@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { Loader2, AlertTriangle, UserCheck } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Loader2, AlertTriangle, UserCheck, Smartphone } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { setSessionToken } from "../lib/appSession";
+import { normalizeIlPhone, displayIlPhone } from "../lib/phone";
 
 const SESSION_KEY = "menu-app-team-session";
 const db = supabase.schema("menu_app");
@@ -25,6 +26,19 @@ export default function TeamLogin({ onGranted }) {
   const [err, setErr] = useState("");
   // When a near-duplicate name is found, pause here for a yes/no before committing.
   const [pendingMatch, setPendingMatch] = useState(null); // { rest, match, typedFirst, typedLast }
+  // Phone-verified join (features.phone_join, per restaurant): after code+name the
+  // waiter verifies their phone once — one phone = one member, so rejoining from a new
+  // device brings the same profile back, and a blocked number stays out on its own.
+  // null = classic flow · { sent, phone, code, cooldown } = the verification screen.
+  const [phoneStep, setPhoneStep] = useState(null);
+  const [verifyToken, setVerifyToken] = useState(null);
+
+  // The resend cooldown ticks down once a second while the code screen is up.
+  useEffect(() => {
+    if (!phoneStep?.cooldown) return;
+    const t = setTimeout(() => setPhoneStep((ps) => ps && { ...ps, cooldown: ps.cooldown - 1 }), 1000);
+    return () => clearTimeout(t);
+  }, [phoneStep?.cooldown]);
 
   const finishLogin = (result) => {
     const rest = result.restaurant, member = result.member;
@@ -61,12 +75,35 @@ export default function TeamLogin({ onGranted }) {
     onGranted(session);
   };
 
-  const join = (extra = {}) => db.rpc("team_join", {
-    p_team_code: teamCode.trim(),
-    p_first: firstName.trim(),
-    p_last: lastName.trim(),
-    ...extra,
-  });
+  const join = (extra = {}) => (verifyToken
+    ? db.rpc("team_join_v2", {
+        p_team_code: teamCode.trim(),
+        p_first: firstName.trim(),
+        p_last: lastName.trim(),
+        p_phone: normalizeIlPhone(phoneStep?.phone || ""),
+        p_verify_token: verifyToken,
+        ...extra,
+      })
+    : db.rpc("team_join", {
+        p_team_code: teamCode.trim(),
+        p_first: firstName.trim(),
+        p_last: lastName.trim(),
+        ...extra,
+      }));
+
+  // Statuses only the verified path returns. A blocked number gets a door, not an
+  // explanation — the person it blocks already knows why.
+  const v2Status = (status) => {
+    if (status === "blocked") { setErr("ההצטרפות לא זמינה כרגע. דברו עם המנהל/ת."); return true; }
+    if (status === "need_verify") {
+      setErr("האימות פג — נשלח קוד חדש.");
+      setVerifyToken(null);
+      setPhoneStep((ps) => ps && { ...ps, sent: false, code: "" });
+      return true;
+    }
+    if (status === "bad_phone") { setErr("המספר לא נראה כמו נייד ישראלי."); return true; }
+    return false;
+  };
 
   const submit = async (e) => {
     e?.preventDefault();
@@ -76,9 +113,21 @@ export default function TeamLogin({ onGranted }) {
     setErr("");
 
     try {
+      // Which door does this restaurant use? join_mode is a flag lookup only — unlike
+      // team_preview it mints nothing. Restaurants without phone_join keep the exact
+      // old path, so nothing changes for them (or for store reviewers).
+      if (!verifyToken) {
+        const { data: jm } = await db.rpc("join_mode", { p_team_code: teamCode.trim() });
+        if (jm?.status === "bad_code") { setErr("קוד הצוות לא נמצא. אפשר לבדוק אותו מול המנהל/ת."); setBusy(false); return; }
+        if (jm?.phone_join) { setPhoneStep({ phone: "", code: "", sent: false, cooldown: 0 }); setBusy(false); return; }
+      }
+
       const { data, error } = await join();
 
       if (error || !data) {
+        // A failed VERIFIED join must not silently become an unverified offline
+        // profile — that would be a bypass of the whole gate.
+        if (verifyToken) { setErr("משהו השתבש. אפשר לנסות שוב."); return; }
         console.warn("[TeamLogin] Supabase lookup failed, using local offline session:", error);
         const session = {
           teamMemberId: crypto.randomUUID(),
@@ -95,6 +144,7 @@ export default function TeamLogin({ onGranted }) {
 
       if (data.status === "bad_code") { setErr("קוד הצוות לא נמצא. אפשר לבדוק אותו מול המנהל/ת."); return; }
       if (data.status === "bad_name") { setErr("צריך שם פרטי ושם משפחה כדי להתחבר."); return; }
+      if (v2Status(data.status)) return;
 
       // Near match (small edit distance, decided server-side) — could be the same
       // person with a typo, could be a genuinely different name. Ask, don't guess.
@@ -117,6 +167,7 @@ export default function TeamLogin({ onGranted }) {
       const { data, error } = await join(
         isSamePerson ? { p_confirm_member: match.id } : { p_force_new: true }
       );
+      if (data?.status && v2Status(data.status)) { setBusy(false); return; }
       if (error || data?.status !== "ok") throw error || new Error(data?.status);
       finishLogin(data);
     } catch (e2) {
@@ -125,6 +176,106 @@ export default function TeamLogin({ onGranted }) {
       setBusy(false);
     }
   };
+
+  const sendCode = async () => {
+    const phone = normalizeIlPhone(phoneStep.phone);
+    if (!phone) { setErr("המספר לא נראה כמו נייד ישראלי (05X-XXXXXXX)."); return; }
+    setBusy(true); setErr("");
+    try {
+      const { data, error } = await supabase.functions.invoke("phone-join", { body: { mode: "send", phone } });
+      if (error) throw error;
+      if (data?.status === "too_many") { setErr("נשלחו יותר מדי קודים למספר הזה היום. נסו שוב מחר."); return; }
+      if (data?.status !== "sent") { setErr("שליחת הקוד נכשלה. אפשר לנסות שוב."); return; }
+      setPhoneStep((ps) => ({ ...ps, sent: true, code: "", cooldown: 30 }));
+    } catch (e2) {
+      console.error(e2);
+      setErr("שליחת הקוד נכשלה. אפשר לנסות שוב.");
+    } finally { setBusy(false); }
+  };
+
+  const checkCode = async () => {
+    const phone = normalizeIlPhone(phoneStep.phone);
+    setBusy(true); setErr("");
+    try {
+      const { data, error } = await supabase.functions.invoke("phone-join", { body: { mode: "check", phone, code: phoneStep.code } });
+      if (error) throw error;
+      if (data?.status !== "verified" || !data.token) { setErr("הקוד לא נכון. אפשר לנסות שוב."); return; }
+      setVerifyToken(data.token);
+      // Straight into the join with the fresh token — same submit path, which also
+      // handles the "is this you?" fuzzy-match screen if the name is close to an
+      // existing one.
+      const { data: jd, error: je } = await db.rpc("team_join_v2", {
+        p_team_code: teamCode.trim(), p_first: firstName.trim(), p_last: lastName.trim(),
+        p_phone: phone, p_verify_token: data.token,
+      });
+      if (je || !jd) { setErr("משהו השתבש. אפשר לנסות שוב."); return; }
+      if (jd.status === "confirm") { setPendingMatch({ match: jd.candidate }); return; }
+      if (v2Status(jd.status)) return;
+      if (jd.status !== "ok") { setErr("משהו השתבש. אפשר לנסות שוב."); return; }
+      finishLogin(jd);
+    } catch (e2) {
+      console.error(e2);
+      setErr("משהו השתבש. אפשר לנסות שוב.");
+    } finally { setBusy(false); }
+  };
+
+  if (phoneStep) {
+    const phoneOk = normalizeIlPhone(phoneStep.phone) !== null;
+    return (
+      <div className="h-full max-w-md mx-auto flex flex-col items-center justify-center px-7 bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
+        <div className="bg-[#16181c] border border-[#22252b] rounded-3xl p-6 w-full text-center space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-[#1c1e22] text-[#22c08c] flex items-center justify-center mx-auto">
+            <Smartphone size={26} />
+          </div>
+          {!phoneStep.sent ? (
+            <>
+              <div>
+                <p className="text-lg font-black">אימות מהיר בטלפון</p>
+                <p className="text-[12px] text-[#8a8aa0] mt-1.5 leading-relaxed">
+                  פעם אחת בלבד — נשלח קוד למספר שלך, וההתקדמות שלך תישמר גם אם תחליפו טלפון.
+                </p>
+              </div>
+              <input
+                value={phoneStep.phone} inputMode="tel" dir="ltr" autoComplete="tel" placeholder="050-1234567"
+                onChange={(e) => setPhoneStep((ps) => ({ ...ps, phone: e.target.value }))}
+                className="w-full bg-[#0c0d10] border border-[#22252b] rounded-2xl px-3.5 py-3 text-base font-bold text-[#eef0f6] text-center placeholder:text-[#b4b4c4] focus:outline-none focus:border-[#22c08c]"
+              />
+              {err && <p className="text-xs font-bold text-[#e0315a] flex items-center gap-1.5 justify-center"><AlertTriangle size={14} /> {err}</p>}
+              <button disabled={!phoneOk || busy} onClick={sendCode}
+                className={`w-full py-3.5 rounded-2xl font-black text-sm ${phoneOk && !busy ? "bg-[#22c08c] text-[#06231a]" : "bg-[#22252b] text-[#b4b4c4]"}`}>
+                {busy ? <Loader2 size={16} className="animate-spin mx-auto" /> : "שלחו לי קוד"}
+              </button>
+            </>
+          ) : (
+            <>
+              <div>
+                <p className="text-lg font-black">מה הקוד שקיבלת?</p>
+                <p className="text-[12px] text-[#8a8aa0] mt-1.5">נשלח אל {displayIlPhone(normalizeIlPhone(phoneStep.phone))}</p>
+              </div>
+              <input
+                value={phoneStep.code} inputMode="numeric" dir="ltr" autoComplete="one-time-code" placeholder="••••••" maxLength={8}
+                onChange={(e) => setPhoneStep((ps) => ({ ...ps, code: e.target.value.replace(/\D/g, "") }))}
+                className="w-full bg-[#0c0d10] border border-[#22252b] rounded-2xl px-3.5 py-3 text-xl font-black tracking-[0.4em] text-[#eef0f6] text-center placeholder:tracking-normal placeholder:text-[#b4b4c4] focus:outline-none focus:border-[#22c08c]"
+              />
+              {err && <p className="text-xs font-bold text-[#e0315a] flex items-center gap-1.5 justify-center"><AlertTriangle size={14} /> {err}</p>}
+              <button disabled={phoneStep.code.length < 4 || busy} onClick={checkCode}
+                className={`w-full py-3.5 rounded-2xl font-black text-sm ${phoneStep.code.length >= 4 && !busy ? "bg-[#22c08c] text-[#06231a]" : "bg-[#22252b] text-[#b4b4c4]"}`}>
+                {busy ? <Loader2 size={16} className="animate-spin mx-auto" /> : "אישור והצטרפות"}
+              </button>
+              <button disabled={busy || phoneStep.cooldown > 0} onClick={sendCode}
+                className="w-full py-2 rounded-xl font-bold text-[12px] text-[#8a8aa0] disabled:opacity-50">
+                {phoneStep.cooldown > 0 ? `אפשר לשלוח שוב בעוד ${phoneStep.cooldown} שניות` : "לא הגיע? שלחו שוב"}
+              </button>
+            </>
+          )}
+          <button disabled={busy} onClick={() => { setPhoneStep(null); setVerifyToken(null); setErr(""); }}
+            className="w-full py-1.5 text-[12px] font-bold text-[#8a8aa0]">
+            → חזרה
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (pendingMatch) {
     return (
