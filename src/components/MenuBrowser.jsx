@@ -276,22 +276,15 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
                 than a stack of similar buttons. Third one hands over to the real practice
                 screen — reading the category is what makes a waiter ready to be tested. */}
             <div className="w-full space-y-2.5 pt-2">
-              {/* Order and highlight (user, 31.8): 1. read again · 2. flashcards ·
-                  3. next category — and ONE choice is highlighted, tracking where the
-                  waiter is in the journey rather than flip-flopping:
-                    · first completion of the category ⇒ continue to the NEXT one — the
-                      first pass through a menu is about reading all of it;
-                    · from the second completion ⇒ FLASHCARDS — reading is done, start
-                      converting it into practice toward the quiz;
-                    · and once the quiz is genuinely open (two walks + study gate met) ⇒
-                      the quiz CTA takes the top slot.
-                  walkCount only grows, so the highlight moves forward and never back. */}
+              {/* Order and highlight (user, 31.8, superseding the progressive
+                  highlight from earlier the same day): 1. CONTINUE to the next
+                  category — first in line and always highlighted green («תדגיש
+                  בירוק מעכשיו להמשיך לקטגוריה הבאה») · 2. flashcards · 3. read
+                  again. The quiz CTA still takes the very top once it is open. */}
               {(() => {
                 const walked = walkCountFor?.(cat) ?? 0;
                 const quizReady = walked >= 2 && examOpenFor?.(cat) && !!onExam;
                 const hasNext = !!(nextCat || nextBoxCat);
-                const highlightPractice = !quizReady && !!onPractice && (walked >= 2 || !hasNext);
-                const highlightNext = !quizReady && !highlightPractice && hasNext;
                 return (
                   <>
                     {quizReady && (
@@ -300,12 +293,19 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
                       </Choice>
                     )}
 
-                    <Choice n="1" onClick={() => setIdx(0)}>
-                      לעבור שוב על {shortCat(cat)}
-                    </Choice>
+                    {nextCat && (
+                      <Choice n="1" primary onClick={() => { setCat(nextCat); setIdx(0); }}>
+                        להמשיך ל{shortCat(nextCat)}
+                      </Choice>
+                    )}
+                    {!nextCat && nextBoxCat && (
+                      <Choice n="1" primary onClick={() => { setMenu(nextBox); setCat(nextBoxCat); setIdx(0); }}>
+                        להמשיך ל{shortCat(nextBoxCat)}
+                      </Choice>
+                    )}
 
                     {onPractice && (
-                      <Choice n="2" primary={highlightPractice}
+                      <Choice n="2" primary={!hasNext && !quizReady}
                         onClick={() => { const c = cat; setIdx(null); setCat(null); onPractice(c); }}>
                         {/* Never promise a quiz a category can't run (user, 31.8) — soft
                             drinks and the like still practise, they just aren't examined. */}
@@ -315,18 +315,9 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
                       </Choice>
                     )}
 
-                    {/* Chaining continues into the next menu when this one is done; when
-                        there is no next anywhere the option simply doesn't exist. */}
-                    {nextCat && (
-                      <Choice n="3" primary={highlightNext} onClick={() => { setCat(nextCat); setIdx(0); }}>
-                        להמשיך ל{shortCat(nextCat)}
-                      </Choice>
-                    )}
-                    {!nextCat && nextBoxCat && (
-                      <Choice n="3" primary={highlightNext} onClick={() => { setMenu(nextBox); setCat(nextBoxCat); setIdx(0); }}>
-                        להמשיך ל{shortCat(nextBoxCat)}
-                      </Choice>
-                    )}
+                    <Choice n="3" onClick={() => setIdx(0)}>
+                      לעבור שוב על {shortCat(cat)}
+                    </Choice>
                   </>
                 );
               })()}
