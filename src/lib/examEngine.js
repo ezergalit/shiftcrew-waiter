@@ -108,6 +108,7 @@ const DESC_CLUSTERS = [
   ["מרענן", "רענן", "מרעננת", "רעננה", "רעננות"],
   ["קליל", "קל", "קלילה", "קלה"],
   ["חזק", "עוצמתי", "חזקה", "עוצמתית"],
+  ["עדין", "עדינה", "חלש", "חלשה"],
   ["יבש", "יבשה"], ["מעושן", "מעושנת"], ["פירותי", "פירותית"],
   ["טרופי", "טרופית"], ["עשיר", "עשירה"], ["עשבוני", "עשבונית"],
   ["מוגז", "מוגזת"], ["הדרי", "הדרית"], ["עמוק", "עמוקה"],
@@ -122,6 +123,11 @@ const DESC_CLUSTERS = [
 // raw-string map silently misses half the dictionary. Lookups also strip a leading ו'
 // («ועשיר» in prose is עשיר).
 const ORIGIN_WORDS = new Set(["ישראלי", "יפני", "איטלקי", "גרמני", "צרפתי", "בווארי", "ארגנטינאי"]);
+// בירה נבחנת על המושגים, לא על כל התו (יותם, 31.8: «להבחין במושג ישראלי, כהה,
+// בהיר, יפני — לא ממש צריך את כל הפרטים האחרים»): סוג + צבע + מוצא + אופי מבחין.
+const BEER_CORE_RE = /לאגר|אייל|סטאוט|חיטה|כהה|בהיר|מסוננת|בוטיק|ישראלי|יפני|גרמני|בווארי|בלגי|צ'כי/;
+// סוגי האלכוהול בקוקטייל — הדגש העיקרי של שאלת המרכיבים (יותם, 31.8).
+const ALCOHOL_RE = /וודקה|ג'ין|רום|טקילה|מזקל|קמפרי|אמארו|ורמוט|ליקר|ויסקי|ברנדי|קוניאק|אפרול|סן ז'רמן|יין|סאקה|ביר[הת]/;
 const DESC_TOK = new Map(); // normalized token -> { display, canon, cluster }
 const DESC_ALT = new Map(); // display form -> display alts
 for (const c of DESC_CLUSTERS) for (const w of c) {
@@ -206,19 +212,25 @@ export function generate(menu) {
 
   for (const d of menu) {
     const ask = askable(d);
-    // S1 — תיאור מנה
-    if (ask.length >= 3) out.push({
+    // S1 — תיאור מנה. יין בלבד מבין המשקאות (יותם, 31.8): «אורח לא יתלבט על
+    // גולדסטאר — אם הוא רוצה להזמין את זה הוא מכיר כבר», ובסאקה «אף אחד לא יבקש
+    // ממך לתאר — פשוט ישאלו מה יש ומה אתה ממליץ». בירה וסאקה נבחנות בהמלצות בלבד.
+    if (ask.length >= 3 && d.drink !== "בירה" && d.drink !== "סאקה") out.push({
       sit: "describe", dish: d.name, k: "recall", secs: 75,
       // A drink has no "what's inside" — the guest asks what it is LIKE. The targets
-      // are the same chips either way, so grading is untouched; only the wording changes,
-      // by kind: היין / הסאקה / הבירה.
+      // are the same chips either way, so grading is untouched; only the wording changes.
       ask: d.drink
-        ? `אורח מתלבט על ״${d.name}״ ומבקש שתתאר לו את ה${d.drink}. מה תגיד לו?`
+        ? `אורח מבקש שתתאר לו את ה${d.drink} ״${d.name}״. מה תגיד לו?`
         : `אורח שואל מה יש ב״${d.name}״ — מלבד מה שבשם המנה. מה תגיד לו?`,
       // Drink chips are descriptors — attach the taste dictionary so «מתקתק» credits
       // a target that says «מתוק» and «ישראלי» one that says «ישראלית».
       targets: ask.map(t => ({ t, ctx: freeFor(d), ...(d.drink ? { alt: descAlts(t) } : {}) })), free: freeFor(d),
-      minOk: Math.max(2, Math.ceil(ask.length * 0.7)), maxInv: 1,
+      // קוקטייל: הדגש על סוגי האלכוהול + כמה טעמים מרכזיים — קישוט חסר לא מפיל
+      // (יותם, 31.8: «כל השאר פחות משנים»).
+      minOk: /קוקטייל/.test(d.category || "")
+        ? Math.max(2, Math.min(4, ask.filter((t) => ALCOHOL_RE.test(t)).length + 1))
+        : Math.max(2, Math.ceil(ask.length * 0.7)),
+      maxInv: 1,
     });
     // S2 — אלרגיות במנה (exact — safety)
     if ((d.allergens || []).length >= 2) out.push({
@@ -291,17 +303,56 @@ export function generate(menu) {
     });
   }
 
-  // S7 — בר: המלצה לפי בסיס אלכוהולי
-  const cockt = menu.filter(d => d.category === "קוקטיילים");
-  for (const spirit of ["ג'ין", "וודקה", "טקילה", "רום", "ויסקי"]) {
-    const match = cockt.filter(d => (d.ingredients || []).some(i => wMatch(norm(i), norm(spirit))));
+  // S7 — בר: המלצה לפי בסיס אלכוהולי (יותם, 31.8: «תמליץ לי על קוקטייל על בסיס
+  // וודקה ותתאר אותו»). היה sit:"bar" שדרש למנות את *כל* הקוקטיילים המתאימים —
+  // הוחלף בהמלצה: אחד מספיק, ומילות התיאור של המתאימים חופשיות כדי ש«ותתאר
+  // אותו» לא יעניש.
+  const cockt = menu.filter(d => /קוקטייל/.test(d.category || ""));
+  const cocktDistinct = (d) => toks(d.name).filter((w) => w.length >= 3 &&
+    !cockt.some((o) => o !== d && toks(o.name).some((ow) => wMatch(w, ow))));
+  const cocktTargets = (list) => list.map((d) => {
+    const dw = cocktDistinct(d);
+    const shared = toks(d.name).some((w) =>
+      cockt.some((o) => o !== d && toks(o.name).some((ow) => wMatch(w, ow))));
+    return { t: d.name, ...(shared && dw.length ? { must: [dw[0]] } : {}), alt: dw };
+  });
+  for (const spirit of ["ג'ין", "וודקה", "טקילה", "מזקל", "רום", "ויסקי", "קמפרי", "אמארו"]) {
+    const match = cockt.filter(d => (d.ingredients || []).some(i => toks(i).some(w => wMatch(w, norm(spirit)))));
     if (!match.length) continue;
     out.push({
-      sit: "bar", constraint: spirit, k: "fact", secs: 45,
-      ask: `לקוח אוהב ${spirit}. אילו קוקטיילים תציע לו?`,
-      req: match.map(d => [ ...distinctive(d, cockt) ]),
-      ans: match.map(d => d.name).join(" · "),
+      sit: "drinkrec", dish: `קוקטיילים · בסיס ${spirit}`, cat: cockt[0].category, k: "recall", secs: 60,
+      ask: `אורח מבקש קוקטייל על בסיס ${spirit}, עם מילה עליו. על מה תמליץ?`,
+      targets: cocktTargets(match),
+      free: [spirit, "קוקטייל", ...match.flatMap(d => [...toks(d.desc || ""), ...(d.ingredients || []).flatMap(i => toks(i))])],
+      minOk: 1, maxInv: 0,
     });
+  }
+  // המלצת קוקטייל לפי טעם (יותם, 31.8: «קוקטייל חזק או מתוק וכו׳») — מהמילון, על
+  // תיאורי הקוקטיילים. התיאור אינו רשימה סגורה ⇒ שמות הקוקטיילים שלא נמצאו
+  // חופשיים: קוקטייל שמתוק באמת אבל התיאור שתק לא מפיל (כלל ה-lenient של dishrec).
+  if (cockt.length >= 3) {
+    const byTaste = new Map();
+    for (const d of cockt) {
+      const seen = new Set();
+      for (const w of toks(d.desc || "")) {
+        const hit = descTok(w);
+        if (!hit || ORIGIN_WORDS.has(hit.canon) || seen.has(hit.canon)) continue;
+        if (hit.canon.startsWith("אלכוהול")) continue; // «קוקטייל אלכוהולי» — כולם כאלה
+        seen.add(hit.canon);
+        if (!byTaste.has(hit.canon)) byTaste.set(hit.canon, { display: hit.display, match: [] });
+        byTaste.get(hit.canon).match.push(d);
+      }
+    }
+    for (const [, { display, match }] of byTaste) {
+      if (match.length === cockt.length) continue; // כולם ⇒ לא מבחין
+      out.push({
+        sit: "drinkrec", dish: `קוקטיילים · ${display}`, cat: cockt[0].category, k: "recall", secs: 45,
+        ask: `אורח מבקש קוקטייל ${display}. על מה תמליץ?`,
+        targets: cocktTargets(match),
+        free: [display, "קוקטייל", ...cockt.filter(o => !match.includes(o)).flatMap(o => toks(o.name))],
+        minOk: 1, maxInv: 1,
+      });
+    }
   }
   // ---- קוקטייל נבחן גם על הטעם (יותם, 31.8: «חשוב לבחון 1. על תיאור הקוקטייל
   // 2. מרכיבים») ----
@@ -358,6 +409,8 @@ export function generate(menu) {
       };
       const push = (key, ask, matching, situationWords, { lenient = false } = {}) => {
         if (!matching.length || matching.length > half) return;
+        // «על איזו מנה תמליץ» נשמע עקום כשממליצים על משקה — שתייה קלה וכדומה.
+        if (/שתיי|משקא/.test(cat)) ask = ask.replace("על איזו מנה תמליץ?", "על מה תמליץ?");
         // שאלת טעם נשענת על התיאור, והתיאור אינו רשימה סגורה — קינוח שמתוק
         // באמת אבל התיאור שלו לא אומר זאת אסור שיפיל את המלצר. המנות האחרות
         // של הקטגוריה נכנסות ל-free: לא מזכות, לא מענישות. שאלות אלרגיה
@@ -373,7 +426,12 @@ export function generate(menu) {
           // אלרגיה דו-משמעות היא טעות. שם בלי אף מילה ייחודית ⇒ התאמת שם רגילה.
           targets: matching.map((d2) => {
             const dw = distinct(d2);
-            return { t: d2.name, ...(dw.length ? { must: [dw[0]] } : {}), alt: dw };
+            // ה-must קיים בשביל שמות שחולקים מילה («סינטה» פעמיים) — שם שאף מילה
+            // שלו לא מופיעה אצל שכן לא צריך עוגן, אחרת «תה קר» נופל על זה שלא
+            // אמר «סנצ'ה» (נתפס באימות חי, 31.8).
+            const shared = toks(d2.name).some((w) =>
+              dishes.some((o) => o !== d2 && toks(o.name).some((ow) => wMatch(w, ow))));
+            return { t: d2.name, ...(shared && dw.length ? { must: [dw[0]] } : {}), alt: dw };
           }),
           free,
           minOk: 1, maxInv: 0,
@@ -442,11 +500,106 @@ export function generate(menu) {
         if (!traits.has(t)) traits.set(t, new Set());
         traits.get(t).add(d.name);
       }
+      // «יין כשר» לבדו כמעט לא מבחין (9 מ-19) — יותם החליף אותו בשאלה מורכבת:
+      // «המלץ על יין כשר — אחד לבן ואחד אדום». שני יעדים, כל אחד עונה על ידי כל
+      // יין מתאים; שני לבנים = חלקי, לא כישלון.
+      if (kind === "יין") {
+        const kosher = drinks.filter((d2) => (d2.ingredients || []).includes("כשר"));
+        const kWhite = kosher.filter((d2) => (d2.ingredients || []).includes("לבן"));
+        const kRed = kosher.filter((d2) => (d2.ingredients || []).includes("אדום"));
+        if (kWhite.length && kRed.length) {
+          // מילה מבחינה = בשם היין הזה ולא בשם שום משקה אחר בקטגוריה (כלל dishrec)
+          const distinctOf = (d2) => {
+            const others = drinks.filter((o) => o !== d2).flatMap((o) => toks(o.name));
+            return toks(d2.name).filter((w) => w.length >= 3 && !others.some((ow) => wMatch(w, ow)));
+          };
+          // must בלתי-אפשרי בכוונה (x/q לא קיימים בשלד עברי): רק שם יין אמיתי, דרך
+          // ה-alt, מזכה — «לבן»+«אדום» לבדם הם חזרה על השאלה, לא המלצה.
+          const grp = (label, group) => ({
+            t: label, must: ["xqnamexq"],
+            alt: group.flatMap((d2) => [d2.name, ...distinctOf(d2)]),
+          });
+          out.push({
+            sit: "drinkrec", dish: `${cat} · כשר לבן ואדום`, cat, k: "recall", secs: 75,
+            ask: "אורח מבקש המלצה על יין כשר — אחד לבן ואחד אדום, עם מילה על כל אחד. על אילו תמליץ?",
+            targets: [grp("יין כשר לבן", kWhite), grp("יין כשר אדום", kRed)],
+            // מילות ההסבר של היינות הכשרים חופשיות — «ותסביר עליהם» לא מעניש.
+            free: ["כשר", "לבן", "אדום", "יין",
+              ...kosher.flatMap((d2) => [...(d2.ingredients || []), ...toks(d2.desc || "")])],
+            minOk: 2, maxInv: 1,
+          });
+        }
+      }
+      // ---- יין: המלצות-N על פרטי הליבה בלבד (יותם, 31.8: «המלץ על 3 יינות
+      // לבנים… תתרכז בדברים האלו: לבן, מבעבע, אדום, מתוק, לא מתוק, כשר, פירותי»).
+      // מחליף את לולאת הפרטים הגנרית ליין — פרט אזוטרי («קטיפתי») כבר לא נשאל.
+      // יין לא-נכון בתשובה מוריד נקודות (wrongFar) גם כשמולאה המכסה — «אם הוא
+      // בחר יין שהוא לא אדום אבל תיאר אותו טוב, צריך להסביר ולהוריד את הנקודות».
+      if (kind === "יין") {
+        const nameTargets = (list) => list.map((d2) => {
+          const dw = toks(d2.name).filter((w) => w.length >= 3 &&
+            !drinks.some((o) => o.name !== d2.name && toks(o.name).some((ow) => wMatch(w, ow))));
+          const shared = toks(d2.name).some((w) =>
+            drinks.some((o) => o.name !== d2.name && toks(o.name).some((ow) => wMatch(w, ow))));
+          return { t: d2.name, ...(shared && dw.length ? { must: [dw[0]] } : {}), alt: dw };
+        });
+        const WINE_TRAITS = [
+          ["לבן", "יינות לבנים", 3], ["אדום", "יינות אדומים", 3],
+          ["רוזה", "יינות רוזה", 2], ["מבעבע", "יינות מבעבעים", 2],
+          ["מתוק", "יינות מתוקים", 2], ["יבש", "יינות יבשים", 2],
+          ["ישראלי", "יינות ישראליים", 2], ["פירותי", "יינות פירותיים", 2],
+          ["גוף מלא", "יינות בעלי גוף מלא", 2],
+        ];
+        for (const [chip, label, want] of WINE_TRAITS) {
+          const match = drinks.filter((d2) => (d2.ingredients || []).includes(chip));
+          if (match.length < 2) continue;
+          const n = Math.min(want, match.length);
+          out.push({
+            sit: "drinkrec", dish: `${cat} · ${chip}`, cat, k: "recall", secs: 60,
+            ask: `אורח מבקש המלצה על ${n} ${label}. על אילו תמליץ?`,
+            targets: nameTargets(match),
+            // «עם מילה על כל אחד»: מילות התיאור של היינות המתאימים חופשיות.
+            free: [...toks(chip), "יין", "יינות",
+              ...match.flatMap((d2) => [...(d2.ingredients || []).flatMap((i) => toks(i)), ...toks(d2.desc || "")])],
+            minOk: n, maxInv: 0,
+          });
+        }
+      }
+      // המלצות סאקה (יותם, 31.8): «אף אחד לא יבקש לתאר — פשוט ישאלו מה יש ומה
+      // אתה ממליץ». שאלת «מה יש» אחת + המלצות הפרטים מהלולאה הגנרית.
+      if (kind === "סאקה") {
+        out.push({
+          sit: "drinkrec", dish: `${cat} · מה יש`, cat, k: "recall", secs: 60,
+          ask: `אורח שואל איזה סאקה יש. מה תציע לו?`,
+          targets: drinks.map((d2) => ({ t: d2.name })),
+          free: ["סאקה", ...drinks.flatMap((d2) => [...(d2.ingredients || []).flatMap((i) => toks(i)), ...toks(d2.desc || "")])],
+          minOk: Math.min(2, drinks.length), maxInv: 1,
+        });
+      }
+      // בירה מהחבית (יותם, 31.8): כשיש — המלצה רגילה; כשאין — «אין» היא התשובה
+      // הנכונה, והצעת חלופה מהבקבוק חופשית ולא מענישה.
+      if (kind === "בירה") {
+        const tap = drinks.filter((d2) => /חבית/.test([...(d2.ingredients || []), d2.desc || ""].join(" ")));
+        out.push(tap.length ? {
+          sit: "drinkrec", dish: `${cat} · מהחבית`, cat, k: "recall", secs: 45,
+          ask: "אורח מבקש בירה מהחבית. על מה תמליץ?",
+          targets: tap.map((d2) => ({ t: d2.name })), free: ["חבית", "מהחבית", "בירה"],
+          minOk: 1, maxInv: 0,
+        } : {
+          sit: "drinkrec", dish: `${cat} · מהחבית`, cat, k: "recall", secs: 45,
+          ask: "אורח מבקש בירה מהחבית. מה תגיד לו?",
+          targets: [{ t: "אין אצלנו בירה מהחבית — הכול בבקבוקים", must: ["אין"], alt: ["אין"] }],
+          free: ["בירה", "בקבוק", "בבקבוקים", ...drinks.flatMap((d2) => toks(d2.name))],
+          minOk: 1, maxInv: 0,
+        });
+      }
       for (const [trait, nameSet] of traits) {
+        if (kind === "יין") continue; // ליין יש את רשימת הליבה למעלה
+        if (kind === "בירה" && !BEER_CORE_RE.test(trait)) continue; // רק מושגי ליבה
         const names = [...nameSet];
-        // פרט שכולם נושאים אינו מבחין — וגם פרט שרוב הקטגוריה נושאת (כשר: 9
-        // מ-19 היינות) הוא כמעט «שם יין כלשהו», לא מבחן (יותם, 31.8: שאלות
-        // לא-חדות בצד). הרף: יותר ממחצית ⇒ אין שאלה.
+        // פרט שכולם נושאים אינו מבחין — וגם פרט שרוב הקטגוריה נושאת הוא כמעט
+        // «שם יין כלשהו», לא מבחן (יותם, 31.8: שאלות לא-חדות בצד). הרף: יותר
+        // ממחצית ⇒ אין שאלה.
         if (names.length === drinks.length || names.length / drinks.length > 0.5) continue;
         // ניסוח שנקרא כמו עברית לכל סוגי הפרטים: «יין בגוף מלא», «יין עם
         // טאנינים רכים», «אורח מחפש בירת בוטיק» — לא «בירה בירת בוטיק».
@@ -464,12 +617,41 @@ export function generate(menu) {
           targets: names.map((n) => {
             const dw = toks(n).filter((w) => w.length >= 3 &&
               !drinks.some((o) => o.name !== n && toks(o.name).some((ow) => wMatch(w, ow))));
-            return { t: n, ...(dw.length ? { must: [dw[0]] } : {}), alt: dw };
+            const shared = toks(n).some((w) =>
+              drinks.some((o) => o.name !== n && toks(o.name).some((ow) => wMatch(w, ow))));
+            return { t: n, ...(shared && dw.length ? { must: [dw[0]] } : {}), alt: dw };
           }),
           free: [trait, kind],
           minOk: 1, maxInv: 0,
         });
       }
+    }
+  }
+
+  // ---- שתייה קלה (יותם, 31.8: «איזה שתייה מוגזת יש, איזה מיץ יש? ומעט
+  // שאלות») — שאלות «מה יש» בלבד; אף אחד לא מבקש שתתאר לו קולה. היעדים הם
+  // שמות מלאים בלי must — «קולה» לבדה עונה, וכל משקה מתאים נחשב.
+  {
+    const soft = menu.filter((d) => /שתייה קלה|משקאות קלים/.test(d.category || ""));
+    if (soft.length >= 3) {
+      const cat = soft[0].category;
+      const softFree = soft.flatMap((d) => (d.ingredients || []).flatMap((i) => toks(i)));
+      const fizzy = soft.filter((d) => /מוגז/.test([...(d.ingredients || []), d.desc || ""].join(" ")));
+      if (fizzy.length >= 2) out.push({
+        sit: "drinkrec", dish: `${cat} · מוגז`, cat, k: "recall", secs: 60,
+        ask: "אורח מבקש שתייה מוגזת. מה יש להציע?",
+        targets: fizzy.map((d) => ({ t: d.name })),
+        free: ["מוגז", "מוגזת", "שתייה", ...softFree],
+        minOk: Math.min(2, fizzy.length), maxInv: 1,
+      });
+      const juices = soft.filter((d) => /מיץ/.test(d.name));
+      if (juices.length >= 2) out.push({
+        sit: "drinkrec", dish: `${cat} · מיצים`, cat, k: "recall", secs: 45,
+        ask: "אורח שואל אילו מיצים יש. מה תגיד לו?",
+        targets: juices.map((d) => ({ t: d.name })),
+        free: ["מיץ", "מיצים", ...softFree],
+        minOk: Math.min(2, juices.length), maxInv: 1,
+      });
     }
   }
 

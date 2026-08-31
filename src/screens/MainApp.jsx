@@ -176,6 +176,10 @@ export default function MainApp({ session, onSignOut }) {
   // Menu-tab drill-down (2026-08-19): a tapped category shows its dish list instead of
   // launching a deck, and a tapped dish opens the continuous progressive session.
   const [catView, setCatView] = useState(null); // category key or null
+  // תת-היקף בתוך קטגוריית יינות (יותם, 31.8: «אולי אפילו בתוך היינות לחלק
+  // לקטגוריות של אדום ולבן») — צ'יפ מסנן את הרשימה ואת סבב הכרטיסיות.
+  const [wineScope, setWineScope] = useState(null);
+  useEffect(() => { setWineScope(null); }, [catView]);
   const [groupView, setGroupView] = useState(null); // menu (menu_group) key or null
   // Bumped to remount MenuBrowser at its top level (see the tour's onNavigate).
   const [browseDeep, setBrowseDeep] = useState(false);
@@ -664,16 +668,37 @@ export default function MainApp({ session, onSignOut }) {
     setMenuVocab(menu);
     const catOf = new Map(cards.map((c) => [c.name, c.category]));
     const perCat = new Map();
+    const recCount = new Map();
     for (const q of generate(menu)) {
+      // Recommendation questions carry a quiz on their own (user, 31.8: beer/sake
+      // are examined through recommendations only, soft drinks through «מה יש») —
+      // a category with two of them is examable even with zero describe cards.
+      if (q.sit === "drinkrec" || q.sit === "dishrec") {
+        if (q.cat) recCount.set(q.cat, (recCount.get(q.cat) || 0) + 1);
+        continue;
+      }
       if (q.sit !== "describe" && q.sit !== "allergens") continue;
       const cat = catOf.get(q.dish);
       if (!cat) continue;
       if (!perCat.has(cat)) perCat.set(cat, new Set());
       perCat.get(cat).add(q.dish);
     }
-    return new Set([...perCat].filter(([, d]) => d.size >= 2).map(([c]) => c));
+    return new Set([
+      ...[...perCat].filter(([, d]) => d.size >= 2).map(([c]) => c),
+      ...[...recCount].filter(([, n]) => n >= 2).map(([c]) => c),
+    ]);
   }, [cards, session?.features?.exam]);
   const examable = (key) => !examableCats || examableCats.has(key);
+  // שתייה קלה נשארת מחוץ לתרגול (31.8 בוקר) אבל מקבלת בוחן «מה יש» קצר (יותם,
+  // 31.8 ערב: «איזה שתייה מוגזת יש, איזה מיץ יש? ומעט שאלות»). שער הזמן לא חל —
+  // אין שם מה לתרגל; השאלות הן רשימת המלאי. רק במסעדות הבוחן-בכתיבה.
+  const softQuizItems = useMemo(() => {
+    if (!examableCats) return null;
+    const its = (cards || []).filter((c) => !c.knowledge &&
+      (c.category === "שתייה קלה" || c.menuGroup === "שתייה קלה"));
+    if (its.length < 3 || !examableCats.has(its[0].category)) return null;
+    return its;
+  }, [cards, examableCats]);
   // The quiz's two time gates (user, 30.8): 5 flashcard-minutes in the category before
   // its first quiz, 15 more after a fail. Off for preview/offline (no member to clock)
   // and per restaurant via features.quiz_gate === false — CREWDEMO keeps it off so a
@@ -1049,6 +1074,19 @@ export default function MainApp({ session, onSignOut }) {
     );
   };
 
+  const softQuizRow = () => softQuizItems ? (
+    <button
+      onClick={() => { setModeItems(softQuizItems); setExamCategory({ key: softQuizItems[0].category, label: catLabel(softQuizItems[0].category) }); setMode("exam"); }}
+      className="w-full rounded-2xl p-3.5 text-right active:scale-[0.99] transition-transform flex items-center gap-3 bg-[#16181c] border border-[#22252b]"
+    >
+      <span className="text-lg flex-shrink-0" aria-hidden>🥤</span>
+      <span className="flex-1 min-w-0">
+        <span className="block text-sm font-black text-[#eef0f6]">שתייה קלה — בוחן קצר</span>
+        <span className="block text-[11px] text-[#8a8aa0] font-bold">מה יש אצלנו להציע? בלי תרגול — רק לדעת מה מגישים</span>
+      </span>
+    </button>
+  ) : null;
+
   const generalExamCard = () =>
     generalUnlocked ? (
       <button
@@ -1235,6 +1273,16 @@ export default function MainApp({ session, onSignOut }) {
           // Tapping a dish opens it as the first card of a progressive session; the big
           // button starts the same session without choosing an opener.
           const items = (cards || []).filter((c) => c.category === catView);
+          // Wine colour scopes: a whole flashcard round on just the reds or just the
+          // whites (user, 31.8). Data-driven from the descriptor chips, so any
+          // restaurant whose wines carry לבן/אדום gets them for free.
+          const wineScopes = items.filter((x) => x.drink === "יין").length >= 4 ? [
+            ["לבנים", (x) => x.ingredients?.includes("לבן")],
+            ["אדומים", (x) => x.ingredients?.includes("אדום")],
+            ["רוזה ומבעבע", (x) => x.ingredients?.includes("רוזה") || x.ingredients?.includes("מבעבע")],
+          ].filter(([, f]) => items.filter(f).length >= 2) : [];
+          const scopeFn = wineScope && wineScopes.find(([l]) => l === wineScope)?.[1];
+          const scoped = scopeFn ? items.filter(scopeFn) : items;
           // A "thin" category — most items carry no ingredients and no description
           // (soft drinks and the like) — can't build the regular question types, but it
           // has a quiz of its own: do you know the carry list? (user request, 2026-08-20)
@@ -1257,11 +1305,30 @@ export default function MainApp({ session, onSignOut }) {
                   <p className="text-[11px] text-[#8a8aa0]">הקשה על מנה = לימוד ממוקד, או להתחיל תרגול מלא</p>
                 </div>
               </div>
+              {wineScopes.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {[["הכל", null], ...wineScopes].map(([label]) => (
+                    <button key={label || "all"}
+                      onClick={() => setWineScope(label === "הכל" ? null : label)}
+                      className={`px-3 py-1.5 rounded-full text-[11.5px] font-black border transition-colors ${
+                        (wineScope || "הכל") === label
+                          ? "bg-[#22c08c] text-[#06231a] border-[#22c08c]"
+                          : "bg-[#191b1f] text-[#8a8aa0] border-[#22252b]"}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
               {/* Thin categories study as group cards, not per-item flashcards —
-                  a card whose front and back both say קולה teaches nothing. */}
-              <button onClick={() => { if (thin) { setModeItems(items); setMode("groupcards"); } else startProgressive(catView); }}
+                  a card whose front and back both say קולה teaches nothing.
+                  A wine scope launches flashcards on just that slice. */}
+              <button onClick={() => {
+                  if (scopeFn) { setModeItems(scoped); setMode("flashcards"); }
+                  else if (thin) { setModeItems(items); setMode("groupcards"); }
+                  else startProgressive(catView);
+                }}
                 className="w-full py-3 min-h-[48px] rounded-xl bg-[#6d5efc] text-white text-sm font-black active:scale-[0.99] transition-transform">
-                תרגול {shortCat(catView)}
+                תרגול {scopeFn ? `יינות ${wineScope}` : shortCat(catView)}
               </button>
               {/* The exam belongs inside the category page too (user, 2026-08-20) —
                   finishing the dishes here and having to hunt for the exam outside
@@ -1296,7 +1363,7 @@ export default function MainApp({ session, onSignOut }) {
                   </button>
                 );
               })()}
-              {items.map((it) => {
+              {scoped.map((it) => {
                 const m = masteryById?.[it.id] || 0;
                 const done = isUnderstood(fivesById?.[it.id]);
                 return (
@@ -1364,6 +1431,7 @@ export default function MainApp({ session, onSignOut }) {
                 )
               );
             })}
+            {softQuizRow()}
           </div>
         )}
 
@@ -1506,6 +1574,7 @@ export default function MainApp({ session, onSignOut }) {
                 </div>
               );
             })}
+            {!groupView && softQuizRow()}
           </div>
         )}
         {/* The menu tab is the menu: menu → category → dishes with descriptions. Read

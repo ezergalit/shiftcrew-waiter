@@ -59,6 +59,10 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     // allows, and never fewer than one. A pool that avoids repeating itself: questions
     // already asked on this device sink to the back until the whole pool has cycled.
     const catName = (items || []).find((i) => !i.knowledge)?.category;
+    // Drink categories flip the mix (user, 31.8: «לא צריך יותר מ1-2 שאלות תיאור
+    // במבחן — רוב השאלות צריכות להיות פתוחות יותר, המלץ על…»): at most 2 dish
+    // cards, and recommendations fill the sitting instead.
+    const drinkCat = (items || []).some((i) => i.drink);
     const recPool = catName
       ? bank.filter((q) => (q.sit === "drinkrec" || q.sit === "dishrec") && q.cat === catName)
       : [];
@@ -69,14 +73,14 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       try { seen = JSON.parse(localStorage.getItem(seenKey)) || []; } catch { /* fresh */ }
       const fresh = shuffle(recPool.filter((q) => !seen.includes(q.dish)));
       const used = shuffle(recPool.filter((q) => seen.includes(q.dish)));
-      recs = [...fresh, ...used].slice(0, 4).map((q) => ({ rec: q, dish: q.ask }));
+      recs = [...fresh, ...used].slice(0, drinkCat ? 6 : 4).map((q) => ({ rec: q, dish: q.ask }));
       try {
         const asked = recs.map((r) => r.rec.dish);
         const nextSeen = fresh.length >= recs.length ? [...seen, ...asked] : asked;
         localStorage.setItem(seenKey, JSON.stringify(nextSeen));
       } catch { /* private mode */ }
     }
-    return [...shuffle(withItem).slice(0, Math.max(2, 8 - recs.length)), ...recs];
+    return [...shuffle(withItem).slice(0, drinkCat ? 2 : Math.max(2, 8 - recs.length)), ...recs];
   }, [bank, items, restaurantId]);
 
   // Phrasings previous waiters have had accepted. Loaded once and folded into the
