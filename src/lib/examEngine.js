@@ -42,7 +42,10 @@ export const norm = w => w.toLowerCase()
   .replace(/['׳״"”“]/g, "").replace(/[־\-–—]/g, " ")
   .replace(/ך/g, "כ").replace(/ם/g, "מ").replace(/ן/g, "נ").replace(/ף/g, "פ").replace(/ץ/g, "צ")
   .replace(/[^a-z0-9א-ת ]/g, " ").replace(/\s+/g, " ").trim();
-const STOP = new Set(["עמ","של","את","על","או","גמ","זה","זו","יש","הוא","היא","עוד","כל","עם","גם","וגם","אבל","רק","כי","מה","בו","בה","מנה","מוגש","מוגשת"]);
+// מילות סרק — כולל מילות משפט טבעי (יותם, 1.9: «האלגוריתם במבחן החי לא משהו» —
+// מלצר כותב «אני ממליץ על תה קר», «מאוד מתוק», והמילים האלה אסור שיפריעו).
+const STOP = new Set(["עמ","של","את","על","או","גמ","זה","זו","יש","הוא","היא","עוד","כל","עם","גם","וגם","אבל","רק","כי","מה","בו","בה","מנה","מוגש","מוגשת",
+  "אני","ממליצ","ממליצה","אמליצ","הייתי","מציע","מציעה","כדאי","אפשר","שווה","הכי","מאוד","ממש","קצת","טיפה","די","נורא","יותר","פחות","המונ","הרבה","כזה","כזאת","בערכ","אולי","להמליצ","לקחת","לוקח","לוקחת","אקח","ניקח","למשל","נניח","וגמ","וזה","שהוא","שהיא","לו","לה","להמ"]);
 export const toks = s => norm(s).split(" ").filter(w => (w.length > 1 || /\d/.test(w)) && !STOP.has(w));
 function lev(a, b) {
   if (Math.abs(a.length - b.length) > 2) return 9;
@@ -270,9 +273,11 @@ export function generate(menu) {
     // אותו (נתפס 31.8). יעד ששמו מתחיל ב«לא» דורש את כל מילותיו — כולל ה«לא» —
     // ו«כשר» לבדו על יין לא-כשר גם לא נשאר ניטרלי (יוצא מה-free ⇒ wrongFar).
     const negChips = ask.filter((t) => t.startsWith("לא "));
-    const dFree = negChips.some((t) => t === "לא כשר")
+    let dFree = negChips.some((t) => t === "לא כשר")
       ? freeFor(d).filter((w) => w !== norm("כשר"))
       : freeFor(d);
+    // «זה יין רוזה…» — מילת הסוג היא חלק טבעי מכל תיאור ולעולם אינה טעות.
+    if (d.drink) dFree = [...dFree, ...toks(d.drink)];
     // S1 — תיאור מנה. יין בלבד מבין המשקאות (יותם, 31.8): «אורח לא יתלבט על
     // גולדסטאר — אם הוא רוצה להזמין את זה הוא מכיר כבר», ובסאקה «אף אחד לא יבקש
     // ממך לתאר — פשוט ישאלו מה יש ומה אתה ממליץ». בירה וסאקה נבחנות בהמלצות בלבד.
@@ -460,7 +465,7 @@ export function generate(menu) {
     out.push({
       sit: "flavor", dish: d.name, k: "recall", secs: 60,
       ask: `אורח שואל איך ״${d.name}״ בטעם. איך תתאר לו את הקוקטייל?`,
-      targets: found.map((t) => ({ t, ctx: freeFor(d), alt: descAlts(t) })), free: freeFor(d),
+      targets: found.map((t) => ({ t, ctx: freeFor(d), alt: descAlts(t) })), free: [...freeFor(d), "קוקטייל"],
       minOk: Math.max(2, Math.ceil(found.length * 0.6)), maxInv: 1,
     });
   }
@@ -878,6 +883,27 @@ export function generate(menu) {
   return out;
 }
 
+// שלב-2 של שאלת המלצה (יותם, 1.9): בחרת יין ⇒ «עכשיו תאר אותו לאורח».
+// שאלה נבנית במקום מהכרטיס של המשקה שנבחר — אותם יעדים ואותה בדיקה כמו
+// שאלת תיאור רגילה, בלי תלות בבנק.
+export function describeQuestionFor(d) {
+  let ask = askable(d);
+  if (d.drink === "יין") {
+    const isr = ask.find((t) => /^ישראלי/.test(t));
+    if (isr && ask.includes("כשר")) ask = ask.filter((t) => t !== isr);
+  }
+  if (ask.length < 2) return null;
+  const free = [...new Set([...toks(d.name), ...toks(d.desc || ""), ...(d.ingredients || []).flatMap((i) => toks(i)), ...toks(d.drink || "")])];
+  return {
+    sit: "describe", dish: d.name, k: "recall", secs: 60,
+    ask: `עכשיו תאר ללקוח את ״${d.name}״ במשפט או שניים.`,
+    targets: ask.map((t) => ({ t, ctx: free, ...(d.drink ? { alt: descAlts(t) } : {}), ...(t.startsWith("לא ") ? { must: toks(t) } : {}) })),
+    free,
+    // שלב בונוס — סף רך יותר משאלת תיאור מלאה: מחצית הפרטים ולפחות שניים.
+    minOk: Math.max(2, Math.ceil(ask.length * 0.5)), maxInv: 1,
+  };
+}
+
 /* ══ Grader — tier 1 deterministic, with the uncertainty gate for tier 2 ══ */
 function chipScore(cw, target) {
   const tw = toks(target.t);
@@ -899,6 +925,45 @@ function chipScore(cw, target) {
   // השכן והשאיר את «בלוודר 10» עצמו בלי התאמה (נתפס בשער האמת אחרי איחוד
   // וודקה-וג'ין, כש«10» הפך משותף עם טנקרי 10).
   return (ov === tw.length ? 1000 : 0) + tw.length * 10 + ov;
+}
+
+// מצב משפט (יותם, 1.9): «מתוק וחמצמץ ומאוד פירותי» מגיע כצ'יפ אחד, וההתאמה
+// צ'יפ⇒יעד-יחיד נופלת עליו. כשצ'יפ ארוך לא התאים לאף יעד בודד — מנסים את
+// הכיוון ההפוך: כל יעד שכל מילותיו (או אחת מהחלופות שלו) נמצאות בתוך המשפט
+// מזוכה. ⚠️ יעד עם עוגן (must) מוחרג — לחזור על נוסח השאלה («יין כשר לבן»)
+// בתוך משפט זה בדיוק ההד שהעוגן נבנה לחסום.
+function sentenceCredit(cw, q, matched, credited) {
+  if (cw.length < 2) return false;
+  let hit = 0;
+  for (let ti = 0; ti < q.targets.length; ti++) {
+    if (matched.has(ti)) continue;
+    const t = q.targets[ti];
+    let ok = false;
+    if (!t.must || !t.must.length) ok = entryOk(t.t, cw);
+    if (!ok && t.alt) ok = t.alt.some(a => entryOk(a, cw));
+    if (ok && t.not && t.not.some(nw => inToks(nw, cw))) ok = false;
+    if (ok) { matched.add(ti); credited?.push(ti); hit++; }
+  }
+  return hit > 0;
+}
+// שאריות המשפט: מילה שלא כוסתה על ידי אף יעד שזוכה, אינה חופשית — והתפריט
+// מכיר אותה — היא טענה שגויה שרוכבת על משפט נכון («…עם המון בצל»). נתפס
+// באימות: בלי זה, מצב המשפט הבריח את מה שהמסלול הרגיל תופס.
+function sentenceLeftoverWrong(cw, q, creditedTis) {
+  const cover = [];
+  for (const ti of creditedTis) {
+    const t = q.targets[ti];
+    for (const w of [t.t, ...(t.alt || []), ...(t.must || [])].flatMap((x) => toks(String(x)))) cover.push(w);
+  }
+  for (const w of cw) {
+    if (cover.some((v) => wMatch(w, v))) continue;
+    if ((q.free || []).some((f) => wMatch(w, norm(f)))) continue;
+    // קנס חייב להיות ודאי: חברות מדויקת באוצר המילים, לא עמומה — «ומאוד»
+    // נתפס דרך prefix ל«מאודה» (גיוזה מאודה) והפיל משפט נכון. נתפס באימות.
+    const bare = w.startsWith("ו") && w.length > 2 ? w.slice(1) : w;
+    if (MENU_VOCAB && (MENU_VOCAB.has(w) || MENU_VOCAB.has(bare))) return true;
+  }
+  return false;
 }
 
 let MENU_VOCAB = null;
@@ -940,7 +1005,21 @@ export function grade(q, answer) {
         const sc = chipScore(cw, q.targets[ti]);
         if (sc > bs) { bs = sc; best = ti; }
       }
-      if (bs >= 0) matched.add(best);
+      if (bs >= 0) {
+        matched.add(best);
+        // משפט ארוך יכול לשאת כמה עובדות — ההתאמה ליעד-יחיד תופסת אחת,
+        // והשאר מזוכות במצב משפט על היעדים שנותרו (נתפס באימות: «מתוק
+        // וחמצמץ ופירותי» זיכה רק את מתוק).
+        const credited = [best];
+        if (cw.length >= 3) {
+          sentenceCredit(cw, q, matched, credited);
+          if (sentenceLeftoverWrong(cw, q, credited)) wrongFar++;
+        }
+      }
+      else if ((() => { const credited = [];
+        if (!sentenceCredit(cw, q, matched, credited)) return false;
+        if (sentenceLeftoverWrong(cw, q, credited)) wrongFar++;
+        return true; })()) { /* מצב משפט — זיכה כמה יעדים */ }
       else if (cw.length && cw.every(w => (q.free || []).some(f => wMatch(w, norm(f))))) { /* neutral */ }
       else {
         inv++;

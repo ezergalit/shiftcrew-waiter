@@ -3,7 +3,7 @@ import { GraduationCap, Check, X as XIcon } from "lucide-react";
 import ExitExam from "./ExitExam";
 import AnswerInput from "../components/AnswerInput";
 import { shortCat, shuffle, ingLabel } from "./shared";
-import { generate, grade, setMenuVocab, norm } from "../lib/examEngine";
+import { generate, grade, setMenuVocab, norm, toks, wMatch, describeQuestionFor } from "../lib/examEngine";
 import { menuFromCards } from "../lib/examMenu";
 import { buildVocab } from "../lib/examSuggest";
 import { loadLearnedAlts, withLearnedAlts, judgeAnswer, saveLearnedAlts } from "../lib/examJudge";
@@ -108,6 +108,9 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const [recAns, setRecAns] = useState([]);
   const [flavs, setFlavs] = useState([]);
   const [result, setResult] = useState(null);
+  // שלב 2 (יותם, 1.9): בחרת משקה בשאלת המלצה ⇒ «עכשיו תאר אותו לאורח» — טקסט
+  // חופשי, נבדק במצב-משפט ואם צריך עולה לשופט. {dish, q, text, res, judging}
+  const [stage2, setStage2] = useState(null);
   const [scores, setScores] = useState([]);
   const [finished, setFinished] = useState(false);
 
@@ -154,6 +157,19 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       const avg = LVL_SCORE[g.lvl];
       setResult({ parts, avg });
       setScores((s) => [...s, { v: avg, w: Math.max(2, cur.rec.minOk || 1) }]);
+      // שלב 2: זיהינו איזה משקה נבחר? מציעים לתאר אותו. רק על המלצות משקה,
+      // ורק כשהתשובה זוכתה לפחות חלקית — אין טעם לתאר משהו שלא נבחר נכון.
+      if (g.lvl > 0 && cur.rec.sit === "drinkrec") {
+        const picked = recAns
+          .map((c) => fullMenu.find((d) => d.drink && toks(d.name).length &&
+            toks(c).length && toks(d.name).every((w) => toks(c).some((cwd) => wMatch(cwd, w)))
+            || (d.drink && toks(c).some((cwd) => toks(d.name).some((w) => w.length >= 3 && wMatch(cwd, w)) &&
+                !fullMenu.some((o) => o !== d && o.drink && toks(o.name).some((ow) => wMatch(cwd, ow)))))
+            ? d : null))
+          .find(Boolean);
+        const q2 = picked ? describeQuestionFor(picked) : null;
+        if (q2) setStage2({ dish: picked, q: withLearnedAlts(q2, alts), text: "", res: null, judging: false });
+      }
       return;
     }
     let parts = [
@@ -198,8 +214,37 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     if (cur.it) onAnswer?.(cur.it.id, LVL_RATING[worst]);
   };
 
+  // בדיקת שלב 2: מצב-משפט קודם (חינם), ורק יעדים שנשארו לא-מכוסים עם חומר זר
+  // עולים לשופט — בדיוק הקסקדה של שאר הבוחן.
+  const gradeStage2 = async () => {
+    if (!stage2 || !stage2.text.trim()) return;
+    const text = stage2.text.trim();
+    let g = grade(stage2.q, [text]);
+    if (g.lvl < 2 && g.escalate) {
+      setStage2((s2) => ({ ...s2, judging: true }));
+      const covered = new Set();
+      for (const t of stage2.q.targets) if (grade({ ...stage2.q, targets: [t], minOk: 1, maxInv: 99 }, [text]).lvl === 2) covered.add(t.t);
+      const expected = stage2.q.targets.map((t) => t.t).filter((t) => !covered.has(t));
+      const credited = await judgeAnswer({ ask: stage2.q.ask, expected, said: [text] });
+      if (credited.length) {
+        const q2 = { ...stage2.q, targets: stage2.q.targets.map((t) => {
+          const extra = credited.filter((c) => c.means === t.t).map((c) => c.said);
+          return extra.length ? { ...t, alt: [...(t.alt || []), ...extra] } : t;
+        }) };
+        g = grade(q2, [text]);
+        // למטמון נכנסים רק ניסוחים קצרים — משפט שלם לא יעזור לאף מלצר עתידי
+        // (התאמת ההכלה דורשת את כולו), והוא רק מנפח את הטבלה.
+        saveLearnedAlts(restaurantId, credited.filter((c) => toks(c.said).length <= 4));
+      }
+    }
+    const v = LVL_SCORE[g.lvl];
+    setScores((s) => [...s, { v, w: 1 }]);
+    if (stage2.dish && onAnswer) onAnswer(stage2.dish.id ?? null, LVL_RATING[g.lvl]);
+    setStage2((s2) => ({ ...s2, res: g, judging: false }));
+  };
+
   const next = () => {
-    setResult(null); setIngs([]); setAlls([]); setRecAns([]); setFlavs([]);
+    setResult(null); setIngs([]); setAlls([]); setRecAns([]); setFlavs([]); setStage2(null);
     if (i + 1 >= deck.length) setFinished(true); else setI(i + 1);
   };
 
@@ -297,6 +342,37 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               </p>
             </div>
           ))}
+          {stage2 && (
+            <div className="bg-[#15302b]/50 border border-[#22c08c]/30 rounded-xl p-3 space-y-2">
+              <p className="text-[12px] font-black text-[#22c08c]">{stage2.q.ask}</p>
+              {!stage2.res ? (
+                <>
+                  <textarea
+                    value={stage2.text}
+                    onChange={(e) => setStage2((s2) => ({ ...s2, text: e.target.value }))}
+                    rows={2}
+                    placeholder="כמו שהיית אומר לאורח ליד השולחן…"
+                    className="w-full bg-[#101216] border border-[#22252b] rounded-xl p-2.5 text-[16px] text-[#eef0f6]"
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={gradeStage2} disabled={stage2.judging}
+                      className="flex-1 py-2.5 min-h-[40px] rounded-xl bg-[#22c08c] text-[#06231a] font-black text-[12.5px]">
+                      {stage2.judging ? "בודק…" : "בדיקת התיאור"}
+                    </button>
+                    <button onClick={() => setStage2(null)}
+                      className="py-2.5 px-3 rounded-xl bg-[#20232b] text-[#8a8aa0] font-bold text-[12.5px]">דלג</button>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-1.5">
+                  <p className="text-[12.5px] font-black text-[#eef0f6]">
+                    {stage2.res.lvl === 2 ? "✓ תיאור מצוין" : stage2.res.lvl === 1 ? "◐ חלקי — ככה מתארים אותו:" : "✗ ככה מתארים אותו:"}
+                  </p>
+                  <p className="text-[12px] text-[#8a8aa0]">{stage2.q.targets.map((t) => t.t).join(" · ")}</p>
+                </div>
+              )}
+            </div>
+          )}
           <button
             onClick={next}
             className="w-full py-3 min-h-[44px] rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm"
