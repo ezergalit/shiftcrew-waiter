@@ -994,11 +994,16 @@ export function grade(q, answer) {
       if (!dt || truthCanons.has(dt.canon)) return false;
       return (DESC_OPPOSITE[dt.canon] || []).some((c) => truthCanons.has(c));
     };
+    // פירוק פר-תשובה (יותם, 1.9: «תסביר לי מה חלקי בדיוק בתשובה») — לכל צ'יפ
+    // נרשם מה קרה איתו, והצרכנים (האפליקציה, הדמואים) מציגים את זה כמו שהוא.
+    const detail = [];
     for (const c of chips) {
       const cw = toks(c); total += cw.length;
+      const d = { chip: c, credited: [], status: "" };
+      detail.push(d);
       // ניגוד לאמת = טעות בטוחה, גם כשהיא רוכבת על צ'יפ שחציו נכון («מתוק מר»
       // מזוכה על המתוק — וה«מר» היה עובר חינם).
-      if (truthCanons.size && cw.some(contradicts)) wrongFar++;
+      if (truthCanons.size && cw.some(contradicts)) { wrongFar++; d.contradicts = true; }
       let best = -1, bs = -1;
       for (let ti = 0; ti < q.targets.length; ti++) {
         if (matched.has(ti)) continue;
@@ -1013,14 +1018,18 @@ export function grade(q, answer) {
         const credited = [best];
         if (cw.length >= 3) {
           sentenceCredit(cw, q, matched, credited);
-          if (sentenceLeftoverWrong(cw, q, credited)) wrongFar++;
+          if (sentenceLeftoverWrong(cw, q, credited)) { wrongFar++; d.leftover = true; }
         }
+        d.status = "ok";
+        d.credited = credited.map((ti) => q.targets[ti].t);
       }
       else if ((() => { const credited = [];
         if (!sentenceCredit(cw, q, matched, credited)) return false;
-        if (sentenceLeftoverWrong(cw, q, credited)) wrongFar++;
+        if (sentenceLeftoverWrong(cw, q, credited)) { wrongFar++; d.leftover = true; }
+        d.status = "ok";
+        d.credited = credited.map((ti) => q.targets[ti].t);
         return true; })()) { /* מצב משפט — זיכה כמה יעדים */ }
-      else if (cw.length && cw.every(w => (q.free || []).some(f => wMatch(w, norm(f))))) { /* neutral */ }
+      else if (cw.length && cw.every(w => (q.free || []).some(f => wMatch(w, norm(f))))) { d.status = "free"; }
       else {
         inv++;
         const u = cw.filter(w => !vocab.some(v => wMatch(w, v)));
@@ -1034,7 +1043,8 @@ export function grade(q, answer) {
         // prefixes and a Levenshtein slip, so a misspelling matches its target first. A
         // word the menu has never seen is not counted either — that is a possible synonym,
         // and it is what the judge tier exists to settle.
-        if (cw.length && foreignInChip === 0) wrongFar++;
+        if (cw.length && foreignInChip === 0) { wrongFar++; d.status = "wrong"; }
+        else d.status = "unknown";
       }
     }
     const got = matched.size;
@@ -1042,6 +1052,7 @@ export function grade(q, answer) {
     // was right — on a plate, a confident wrong ingredient is the answer that sends an
     // allergic guest the wrong dish.
     lvl = (got >= q.minOk && inv <= (q.maxInv ?? 1) && wrongFar === 0) ? 2 : got > 0 ? 1 : 0;
+    var recallDetail = { detail, got, missing: Math.max(0, q.minOk - got) };
     // near-full blocked by UNRECOGNISED chips → likely synonyms → judge worth paying for.
     // ⚠️ `inv > wrongFar`: don't buy a judgment on a chip we already know is wrong.
     if (lvl < 2 && inv > wrongFar && got >= q.minOk - 1) foreignW = Math.max(foreignW, 2, Math.ceil(total * 0.4));
@@ -1073,5 +1084,5 @@ export function grade(q, answer) {
   // ── the tier-2 gate: FOREIGN substance only. A menu word used wrongly is confidently
   //    wrong; a word the menu has never seen (synonym, transliteration) needs a judge. ──
   const escalate = lvl < 2 && foreignW >= 2 && total > 0 && foreignW / total >= 0.34;
-  return { lvl, escalate, unknown, foreign: foreignW, total, wrong: wrongFar };
+  return { lvl, escalate, unknown, foreign: foreignW, total, wrong: wrongFar , ...(typeof recallDetail !== "undefined" ? recallDetail : {}) };
 }

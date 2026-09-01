@@ -24,6 +24,33 @@ import { loadLearnedAlts, withLearnedAlts, judgeAnswer, saveLearnedAlts } from "
 // truth+3 wrong→partial, 25-ingredient shotgun→partial, blank→zero.
 
 const LVL_SCORE = [0, 50, 100];
+
+// «תסביר לי מה חלקי בדיוק» (user, 1.9) — the engine returns a per-chip detail;
+// this renders it: what counted, what didn't and why, and how much is missing.
+function GradeDetail({ g, unit = "המלצות" }) {
+  if (!g?.detail?.length && !g?.missing) return null;
+  const label = (d) =>
+    d.status === "ok" ? `✓ נספר${d.credited?.length ? " — " + d.credited.join(", ") : ""}${d.leftover ? " · ⚠️ יש בו גם מילה שלא במקומה" : ""}`
+    : d.contradicts ? "✗ סותר את התשובה (ההפך מהאמת)"
+    : d.status === "free" ? "◌ תיאור/הסבר — לא נספר ולא הוריד"
+    : d.status === "wrong" ? "✗ לא עונה לבקשה — מוריד את הציון"
+    : "❓ לא מזוהה — נשלח לשופט";
+  const cls = (d) => d.status === "ok" ? "text-[#22c08c]" : d.status === "free" ? "text-[#8a8aa0]"
+    : d.status === "unknown" ? "text-[#9b7bff]" : "text-[#f3a712]";
+  return (
+    <div className="space-y-1 mt-1">
+      {(g.detail || []).map((d, i) => (
+        <p key={i} className="text-[11.5px] font-bold leading-snug">
+          <span className="text-[#eef0f6]">«{d.chip}»</span>{" "}
+          <span className={cls(d)}>{label(d)}</span>
+        </p>
+      ))}
+      {g.missing > 0 && (
+        <p className="text-[11.5px] font-black text-[#f3c14b]">חסרו עוד {g.missing} {unit}</p>
+      )}
+    </div>
+  );
+}
 const LVL_RATING = [1, 3, 5];
 
 // Weighted final score (user, 31.8: «שאלות כלליות צריכות להחזיק משקל כבד יותר
@@ -335,6 +362,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
                   {p.key === "rec" ? "ההמלצה" : p.key === "flav" ? "תיאור הטעם" : p.key === "ings" ? ingLabel(cur.it) : "אלרגיות"} — {p.g.lvl === 2 ? "נכון" : p.g.lvl === 1 ? "חלקי" : "לא נכון"}
                 </p>
               </div>
+              <GradeDetail g={p.g} unit={p.key === "rec" ? "המלצות" : "פרטים"} />
               {/* The answer, always — a quiz that says "wrong" without saying what the
                   right answer was teaches nothing. */}
               <p className="text-[12px] text-[#8a8aa0] leading-relaxed">
