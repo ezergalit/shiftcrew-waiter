@@ -123,8 +123,17 @@ export default function App() {
   if (phase === "login") return (
     <TeamLogin onGranted={(sess) => {
       setSession(sess);
-      // A brand-new profile has no baseline by definition; a restored one was checked above.
-      if (sess.isNew && !sess.offline) setNeedsBaseline(true);
+      // A brand-new profile has no baseline by definition; a restored one was checked
+      // above. ⚠️ This path must ALSO honour exam_config.baseline_enabled — it used to
+      // flip needsBaseline unconditionally, so the owner's "no intake quiz" setting
+      // only applied to returning waiters (caught live 1.9, the day the welcome video
+      // came out and new joiners hit this screen again).
+      if (sess.isNew && !sess.offline) {
+        db.from("exam_config").select("baseline_enabled")
+          .eq("restaurant_id", sess.restaurantId).maybeSingle()
+          .then(({ data: cfg }) => { if (cfg?.baseline_enabled !== false) setNeedsBaseline(true); })
+          .catch(() => {});
+      }
       setPhase("app");
     }} />
   );

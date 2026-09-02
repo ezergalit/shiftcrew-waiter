@@ -217,14 +217,11 @@ export default function MainApp({ session, onSignOut }) {
   // "both" — then today's answer.
   const myRole = profileRole === "both" ? dailyRole : profileRole;
   const [tourOpen, setTourOpen] = useState(() =>
-    // Trainees skip the auto-tour: its steps walk the tasks tab, which learning-only
-    // mode doesn't have (same class of break as the GuidedTour/nav-rename trap).
-    !session?.trainee && session?.features?.tasks !== false &&
+    // Every mode has fitting steps now (user, 1.9: the tour is back for everyone —
+    // the 2-tab world gets AURORA_STEPS, the classic task world keeps STEPS).
     // ⚠️ A restaurant with its own welcome video has ALREADY walked the new waiter through
-    // the app — menu, practice, exams, metrics — and the tour covers exactly the same
-    // ground (user, 2026-08-26: "if there is an explanation video we don't need another
-    // tutorial"). One explanation per waiter. Still reachable by hand from the metrics
-    // screen, so nobody loses it; only the automatic second telling goes away.
+    // the app, so the video still suppresses the automatic tour — but the videos were
+    // cleared for now (1.9: the video is advertising material, not the in-app tutorial).
     !session?.welcomeVideoUrl &&
     !!session?.teamMemberId && localStorage.getItem(`menu-app-apptour-done-${session.teamMemberId}`) !== "1");
   const { rows: shiftRows, doneIds: taskDone, toggle: toggleTask } = useShiftTasks(session);
@@ -774,6 +771,8 @@ export default function MainApp({ session, onSignOut }) {
   // (the metrics screen) without the tour unmounting the moment it opens.
   const tourNode = tourOpen ? (
       <AppTour
+        aurora={tasksOff || trainee}
+        metricsOff={metricsOff}
         step={tourStep}
         onStep={setTourStep}
         onNavigate={(t, reset) => {

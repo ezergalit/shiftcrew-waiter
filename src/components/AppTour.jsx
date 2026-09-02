@@ -84,6 +84,90 @@ const STEPS = [
   },
 ];
 
+// The 2-tab world (aurora/tasksOff restaurants + trainees): no tasks tab, written
+// quizzes with the study-time gate, end-of-category chaining. Kept as a SEPARATE list
+// so the classic flow (CREWDEMO, the store reviewers) is untouched (user, 1.9: bring
+// the tour back for both apps, video is advertising now).
+const AURORA_STEPS = [
+  {
+    icon: GraduationCap, title: "ככה לומדים כאן",
+    body: "הסדר פשוט: קודם עוברים על התפריט וקוראים את המנות. אחר כך מתרגלים בכרטיסיות עד שמכירים. כשמכירים מספיק — בוחן קצר על כל קטגוריה, ובסוף מבחן התפריט המלא. בוא/י נעבור על זה יחד, צעד-צעד.",
+  },
+  {
+    icon: BookOpen, title: "שלב 1 — התפריט עצמו",
+    body: "הכול מתחיל בטאב \u05f4תפריט\u05f4 בסרגל למטה — שם חיים כל תפריטי המסעדה.",
+    target: '[data-tour="nav-categories"]', cue: "הקש/י על טאב התפריט למטה",
+  },
+  {
+    tab: "categories", reset: true, icon: BookOpen, title: "בחר/י תפריט",
+    body: "אלה התפריטים של המסעדה. נתחיל מלפתוח אחד.",
+    target: '[data-tour="browse-menu"]', cue: "הקש/י על תפריט כדי לפתוח אותו",
+  },
+  {
+    tab: "categories", deep: true, icon: BookOpen, title: "בחר/י קטגוריה",
+    body: "בתוך כל תפריט יש קטגוריות. הקש/י על אחת כדי לראות את המנות שבה.",
+    target: '[data-tour="browse-category"]', cue: "הקש/י על קטגוריה",
+  },
+  {
+    tab: "categories", deep: true, icon: Sparkles, title: "עכשיו נפתח מנה",
+    body: "אלה המנות. הקשה על מנה פותחת אותה על כל המסך — תמונה, תיאור מלא, ומה שאסור לפספס לפני שמגישים.",
+    target: '[data-tour="browse-dish"]', cue: "הקש/י על המנה הראשונה",
+  },
+  {
+    tab: "categories", deep: true, icon: Sparkles, title: "ככה נראית מנה",
+    body: "התגיות הצבעוניות הן האזהרות: אדום = אלרגיות — מה שיכול לסכן אורח, והשאר מוקשים ורגישויות — דברים שאורחים מבקשים לדעת מראש. המקרא למעלה מסביר כל צבע. החצים למטה מעבירים למנה הבאה, ובסוף הקטגוריה ממשיכים ישר לבאה — ככה עוברים על כל התפריט ברצף.",
+  },
+  {
+    tab: "categories", reset: true,
+    icon: GraduationCap, title: "שלב 2 — לתרגל",
+    body: "את התרגול מוצאים בטאב \u05f4תרגול ובחינה\u05f4 בסרגל למטה.",
+    target: '[data-tour="nav-learn"]', cue: "הקש/י על טאב התרגול למטה",
+  },
+  {
+    tab: "learn", reset: true, icon: GraduationCap, title: "לתרגל את מה שקראת",
+    body: "כאן בוחרים מה לתרגל, והטבעות מראות כמה כבר בכיס. נתחיל מאחד.",
+    target: '[data-tour="learn-menu"], [data-tour="learn-category"]', cue: "הקש/י כדי להיכנס",
+  },
+  {
+    tab: "learn", icon: Sparkles, title: "כרטיסיות",
+    body: "בחזית הכרטיס — שם המנה בלבד. נזכרים מה יש בה, הופכים ובודקים, ומדרגים 1-5 כמה ידעת. מנה שמקבלת 5 פעמיים ברצף מסומנת ✓ ויוצאת מהסבב, והבאה נכנסת במקומה.",
+  },
+  {
+    tab: "learn", icon: GraduationCap, title: "הבוחן — עונים בכתיבה",
+    body: "אחרי כמה דקות של תרגול נפתח בוחן. עונים בכתיבה חופשית, כמו לאורח אמיתי: \u05f4על אילו יינות תמליץ?\u05f4, \u05f4מה יש במנה?\u05f4. לא צריך לדייק באיות — המערכת מבינה, ואחרי כל תשובה רואים בדיוק מה נספר ומה היה חסר.",
+  },
+  {
+    tab: "learn", icon: GraduationCap, title: "ובסוף — מבחן התפריט המלא",
+    body: "עוברים את הבוחן בכל קטגוריה, ואז נפתח מבחן התפריט המלא — שאלות מהשולחן האמיתי, עם שעון. זו המטרה של כל התרגול. את המבחן עצמו עושים יחד עם המנהל/ת, במסעדה.",
+  },
+  {
+    // ⚠️ tab+reset are load-bearing: the waiter arrives here still inside the learn
+    // drill-down from step 8, and the header row that holds the metrics button is
+    // hidden there — the spotlight was pointing at nothing (caught live, 1.9).
+    // ⚠️ metricsStep: both aurora restaurants currently run features.metrics === false,
+    // so these two steps are filtered out for them — the button they point at does not
+    // exist (also caught live, same round).
+    metricsStep: true,
+    tab: "categories", reset: true,
+    icon: Wallet, title: "המדדים שלך",
+    body: "כפתור הגרף למעלה פותח את המדדים שלך. נפתח אותו עכשיו.",
+    target: '[data-tour="metrics"]', cue: "הקש/י על כפתור הגרף למעלה",
+  },
+  {
+    metricsStep: true,
+    deep: true, icon: Wallet, title: "אלה הנתונים שלך",
+    body: "כמה מהתפריט כבר בכיס, באיזו רמת שליטה, והמקום שלך בצוות. מכאן אפשר גם להריץ את הסיור הזה שוב, מתי שרוצים. בהצלחה — מתחילים מהתפריט!",
+  },
+  {
+    // The closing step for metrics-off restaurants — a tour must end on a full
+    // sentence, not evaporate mid-list when the metrics steps are filtered out.
+    noMetricsOnly: true,
+    tab: "categories", reset: true,
+    icon: GraduationCap, title: "זהו — הכול אצלך",
+    body: "זה כל המסלול: קוראים את התפריט, מתרגלים בכרטיסיות, עוברים את הבחנים — ובסוף מבחן התפריט המלא. בהצלחה, מתחילים מהתפריט!",
+  },
+];
+
 // The target may not exist the moment the step opens (tab switch, list still rendering),
 // so poll briefly rather than measure once.
 function useTargetRect(selector, step) {
@@ -116,11 +200,15 @@ function useTargetRect(selector, step) {
 // (the metrics screen), and MainApp returns that view from a different branch of its tree —
 // React sees a different parent, unmounts the tour and mounts a fresh one, which with local
 // state meant landing on the metrics screen and being thrown back to step 1.
-export default function AppTour({ onNavigate, onDone, step = 0, onStep }) {
+export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora = false, metricsOff = false }) {
+  // metricsOff restaurants have no metrics button at all — the steps that point at it
+  // are filtered out, and they get the dedicated closing step instead.
+  const LIST = (aurora ? AURORA_STEPS : STEPS)
+    .filter((st) => !(metricsOff ? st.metricsStep : st.noMetricsOnly));
   const i = step;
   const setI = onStep;
-  const s = STEPS[i];
-  const last = i === STEPS.length - 1;
+  const s = LIST[i];
+  const last = i === LIST.length - 1;
   const rect = useTargetRect(s.target, i);
 
   const firedRef = useRef(-1);
@@ -131,8 +219,8 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep }) {
     // the waiter's own taps can reach, so stepping back past one rewinds to the last
     // reachable step instead of leaving a spotlight hunting for an element that is no
     // longer on screen — which is exactly what "stuck" looked like.
-    if (back) while (n > 0 && STEPS[n].deep) n--;
-    const next = STEPS[n];
+    if (back) while (n > 0 && LIST[n].deep) n--;
+    const next = LIST[n];
     if (next?.tab) onNavigate?.(next.tab, back || !!next.reset);
     else if (back) {
       // "Back" moves the screen back too (user, 2026-08-23): a step that points at the
@@ -141,7 +229,7 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep }) {
       // Going forward we deliberately do NOT navigate for those steps: the tap the waiter
       // is about to make is what moves the app.
       let t = "home";
-      for (let k = n; k >= 0; k--) { if (STEPS[k]?.tab) { t = STEPS[k].tab; break; } }
+      for (let k = n; k >= 0; k--) { if (LIST[k]?.tab) { t = LIST[k].tab; break; } }
       onNavigate?.(t, true);
     }
     // Re-arm the tap detector for the steps we just left — without this, firedRef (the
@@ -237,7 +325,7 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep }) {
             </span>
             <div className="flex-1 min-w-0">
               <p className="text-[15px] font-black text-[#eef0f6] leading-snug">{gz(s.title)}</p>
-              <p className="text-[10px] font-bold text-[#5a5a6e] mt-0.5">צעד {i + 1} מתוך {STEPS.length}</p>
+              <p className="text-[10px] font-bold text-[#5a5a6e] mt-0.5">צעד {i + 1} מתוך {LIST.length}</p>
             </div>
           </div>
 
