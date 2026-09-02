@@ -134,7 +134,8 @@ const AURORA_STEPS = [
   },
   {
     tab: "learn", icon: GraduationCap, title: "הבוחן — עונים בכתיבה",
-    body: "אחרי כמה דקות של תרגול נפתח בוחן. עונים בכתיבה חופשית, כמו לאורח אמיתי: \u05f4על אילו יינות תמליץ?\u05f4, \u05f4מה יש במנה?\u05f4. לא צריך לדייק באיות — המערכת מבינה, ואחרי כל תשובה רואים בדיוק מה נספר ומה היה חסר.",
+    body: "אחרי כמה דקות של תרגול נפתח בוחן. עונים בכתיבה חופשית, כמו לאורח אמיתי — לא צריך לדייק באיות, ואחרי כל תשובה רואים בדיוק מה נספר ומה היה חסר.",
+    demo: true,
   },
   {
     tab: "learn", icon: GraduationCap, title: "ובסוף — מבחן התפריט המלא",
@@ -168,6 +169,47 @@ const AURORA_STEPS = [
   },
 ];
 
+// «רק של איך זה נראה» (Yotam, 2.9) — a staged, looks-only mock of the written quiz
+// inside the tour's quiz step. No engine, no grading: two real names from the
+// restaurant's own menu play the part of a perfect answer, so the waiter sees the
+// exact screen shape — question, typed chips, verdict, per-answer breakdown —
+// before ever opening the real thing. Pure CSS delays do the animation.
+function ExamPeek({ items }) {
+  const [run, setRun] = useState(0);
+  const pick = (() => {
+    const pool = items || [];
+    const wine = pool.filter((it) => /יין|יינ/.test(it.category || "") && !/רוזה|מבעבע/.test(it.category || ""));
+    const src = wine.length >= 2 ? wine : pool;
+    const names = src.slice(0, 2).map((it) => (it.name || "").split(" - ")[0].trim()).filter(Boolean);
+    const cat = wine.length >= 2 ? "יינות" : "מנות";
+    return { names, ask: wine.length >= 2 ? "אורח מבקש המלצה על 2 יינות — מה תציע?" : "המלץ לאורח על 2 מנות מהתפריט" , cat };
+  })();
+  if (pick.names.length < 2) return null;
+  const D = (d) => ({ animation: `tour-step 0.3s cubic-bezier(0.22,0.61,0.36,1) ${d}s both` });
+  return (
+    <div key={run} className="mt-3 rounded-xl bg-[#101216] border border-[#22c08c]/25 p-3 text-right" dir="rtl">
+      <p className="text-[10px] font-black text-[#22c08c] mb-1.5">ככה נראה הבוחן:</p>
+      <p className="text-[12px] font-black text-[#eef0f6] leading-snug" style={D(0.1)}>{pick.ask}</p>
+      <div className="flex flex-wrap gap-1.5 mt-2">
+        {pick.names.map((n, i) => (
+          <span key={n} className="px-2.5 py-1 rounded-full bg-[#20232b] border border-[#2a2e37] text-[11.5px] font-bold text-[#eef0f6]" style={D(0.7 + i * 0.55)}>
+            {n}
+          </span>
+        ))}
+      </div>
+      <div className="mt-2.5 rounded-lg px-2.5 py-1.5 bg-[rgba(34,192,140,0.13)] border border-[rgba(34,192,140,0.4)]" style={D(2.1)}>
+        <p className="text-[11.5px] font-black text-[#22c08c]">✓ המלצה נכונה</p>
+      </div>
+      <div className="space-y-0.5 mt-1.5" style={D(2.6)}>
+        {pick.names.map((n) => (
+          <p key={n} className="text-[10.5px] font-bold text-[#8a919e]">«{n}» <span className="text-[#22c08c]">✓ נספר</span></p>
+        ))}
+      </div>
+      <button onClick={() => setRun((v) => v + 1)} className="text-[10px] font-black text-[#8a8aa0] mt-2">↻ להציג שוב</button>
+    </div>
+  );
+}
+
 // The target may not exist the moment the step opens (tab switch, list still rendering),
 // so poll briefly rather than measure once.
 function useTargetRect(selector, step) {
@@ -183,7 +225,7 @@ function useTargetRect(selector, step) {
     measure();
     // 120ms, not 300: this is how long the spotlight takes to catch up with a screen
     // that just changed, and at 300 every step opened with a visible beat of nothing.
-    const t = setInterval(measure, 120);
+    const t = setInterval(measure, 60);
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
     return () => {
@@ -200,7 +242,7 @@ function useTargetRect(selector, step) {
 // (the metrics screen), and MainApp returns that view from a different branch of its tree —
 // React sees a different parent, unmounts the tour and mounts a fresh one, which with local
 // state meant landing on the metrics screen and being thrown back to step 1.
-export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora = false, metricsOff = false }) {
+export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora = false, metricsOff = false, demoItems = [] }) {
   // metricsOff restaurants have no metrics button at all — the steps that point at it
   // are filtered out, and they get the dedicated closing step instead.
   const LIST = (aurora ? AURORA_STEPS : STEPS)
@@ -252,7 +294,7 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
       const el = document.querySelector(s.target);
       if (el && (el === e.target || el.contains(e.target))) {
         firedRef.current = i;
-        setTimeout(() => go(i + 1), 120);   // let the screen change first, but barely
+        setTimeout(() => go(i + 1), 40);   // let the screen change first, but barely
       }
     };
     document.addEventListener("click", onClick, true);
@@ -281,7 +323,7 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
   // 180ms ease-out is short enough to still feel instant on a tap, and it also smooths the
   // 120ms polling: while the page scrolls the target into view, the spotlight follows it
   // instead of stuttering one measurement at a time.
-  const GLIDE = "top 180ms cubic-bezier(0.22,0.61,0.36,1), left 180ms cubic-bezier(0.22,0.61,0.36,1), width 180ms cubic-bezier(0.22,0.61,0.36,1), height 180ms cubic-bezier(0.22,0.61,0.36,1)";
+  const GLIDE = "top 110ms cubic-bezier(0.22,0.61,0.36,1), left 110ms cubic-bezier(0.22,0.61,0.36,1), width 110ms cubic-bezier(0.22,0.61,0.36,1), height 110ms cubic-bezier(0.22,0.61,0.36,1)";
   const Dim = ({ style }) => (
     <div className="absolute bg-black/70 pointer-events-auto" style={{ transition: GLIDE, ...style }} />
   );
@@ -330,6 +372,7 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
           </div>
 
           <p className="text-[13px] text-[#c4c4d4] leading-relaxed">{gz(s.body)}</p>
+          {s.demo && <ExamPeek items={demoItems} />}
 
           {s.target ? (
             <>

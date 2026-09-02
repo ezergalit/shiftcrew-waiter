@@ -773,6 +773,7 @@ export default function MainApp({ session, onSignOut }) {
       <AppTour
         aurora={tasksOff || trainee}
         metricsOff={metricsOff}
+        demoItems={cards}
         step={tourStep}
         onStep={setTourStep}
         onNavigate={(t, reset) => {
@@ -1522,12 +1523,21 @@ export default function MainApp({ session, onSignOut }) {
                         {nLabel(cat.items.length, "מנה", "מנות")}
                         {(() => { const m = cat.items.filter((it) => (fivesById?.[it.id] || 0) >= 2).length; return m > 0 ? ` · ${m} בשליטה` : ""; })()}
                       </p>
-                      {hasExam && (
-                        <span className={`chip mt-2 ${examReady ? "" : "opacity-60"}`}
-                              style={examReady ? { background: "rgba(34,192,140,.12)", borderColor: "rgba(34,192,140,.35)", color: "#22C08C" } : undefined}>
-                          {cat.passed ? "עברת את הבוחן ✓" : examReady ? "הבוחן זמין" : `בוחן ב-${examConfig?.pass_threshold ?? 50}%`}
-                        </span>
-                      )}
+                      {hasExam && (() => {
+                        // ⚠️ The chip must agree with the exam row below it: "הבוחן זמין"
+                        // while the study-time gate still wants 5 more minutes is a lie
+                        // the row immediately contradicts (Yotam, 2.9).
+                        const gateOpen = examReady && (cat.passed || quizGateFor(cat).open);
+                        return (
+                          <span className={`chip mt-2 ${gateOpen ? "" : "opacity-60"}`}
+                                style={gateOpen ? { background: "rgba(34,192,140,.12)", borderColor: "rgba(34,192,140,.35)", color: "#22C08C" } : undefined}>
+                            {cat.passed ? "עברת את הבוחן ✓"
+                              : !examReady ? `בוחן ב-${examConfig?.pass_threshold ?? 50}%`
+                              : gateOpen ? "הבוחן זמין"
+                              : `לבוחן: עוד ${nLabel(quizGateFor(cat).needMin, "דקה", "דקות")} תרגול`}
+                          </span>
+                        );
+                      })()}
                     </span>}
                     {aurora && <Ring pct={cat.pct} />}
                   </button>
