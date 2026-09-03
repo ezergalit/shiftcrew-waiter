@@ -307,21 +307,36 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
     return () => document.removeEventListener("click", onClick, true);
   }, [s.target, i, go]);
 
+  // ⚠️ Both timed effects below must NOT depend on `go`: it is rebuilt every render
+  // (its onNavigate prop is an inline arrow in MainApp), and MainApp re-renders every
+  // second while the study-time ticker runs — so a timer keyed on `go` was cleared and
+  // restarted before it could ever fire. The tour sat on "ככה נראית מנה" forever on a
+  // visible tab, and only worked in a hidden test tab where the ticker is paused
+  // (caught live by Yotam, 3.9). The deadline is fixed when the step is ENTERED.
+  const goRef = useRef(go);
+  goRef.current = go;
+  const deadlineRef = useRef(null);
+  useEffect(() => {
+    deadlineRef.current = s.autoAfter ? Date.now() + s.autoAfter : null;
+  }, [i, s.autoAfter]);
+
   // `skipIfMissing`: a step that only applies to some restaurants (an extra drill-down
   // level) walks on by itself when its target is not on screen after a short grace.
   useEffect(() => {
     if (!s.skipIfMissing || !s.target) return;
-    const t = setTimeout(() => { if (!document.querySelector(s.target)) go(i + 1); }, 450);
+    const sel = s.target;
+    const t = setTimeout(() => { if (!document.querySelector(sel)) goRef.current(i + 1); }, 450);
     return () => clearTimeout(t);
-  }, [s.skipIfMissing, s.target, i, go]);
+  }, [s.skipIfMissing, s.target, i]);
 
   // A step with `autoAfter` shows its card for a moment and then walks on by itself —
   // used right after opening a dish, so the waiter looks before being sent to the exit.
   useEffect(() => {
     if (!s.autoAfter) return;
-    const t = setTimeout(() => go(i + 1), s.autoAfter);
+    const wait = Math.max(0, (deadlineRef.current ?? Date.now() + s.autoAfter) - Date.now());
+    const t = setTimeout(() => goRef.current(i + 1), wait);
     return () => clearTimeout(t);
-  }, [s.autoAfter, i, go]);
+  }, [i, s.autoAfter]);
 
   // Scroll the target into view — a spotlight on something below the fold is just a
   // dimmed screen with nothing to tap.
