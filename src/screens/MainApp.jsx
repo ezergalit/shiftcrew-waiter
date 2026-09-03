@@ -792,6 +792,10 @@ export default function MainApp({ session, onSignOut }) {
           if (reset || t !== tab) {
             if (t === "categories") setBrowseKey((k) => k + 1);
             if (t === "learn") { setCatView(null); setGroupView(null); }
+            // The tour now walks INTO a real flashcard session (one card, then a short
+            // written test). A step that resets must also leave that session, or the
+            // closing steps would stand on a card instead of the tab they name.
+            setMode(null); setProg(null);
           }
         }}
         onDone={() => {
@@ -835,7 +839,7 @@ export default function MainApp({ session, onSignOut }) {
     // ⚠️ Recomputed here, not captured when the session started: the waiter is rating
     // dishes right now, so the category can cross the exam threshold mid-session — and
     // that is exactly the moment worth offering the exam (user, 2026-08-23).
-    return <ProgressiveFlashcards slim={aurora} items={prog.items} label={prog.label} firstId={prog.firstId} initialProgress={prog.progress}
+    return <>{tourNode}<ProgressiveFlashcards slim={aurora} items={prog.items} label={prog.label} firstId={prog.firstId} initialProgress={prog.progress}
       /* 🔴 The full gate, not just the mastery threshold. This button used to check only
          scorePct, so a failed quiz could be retaken through a 5-second flashcard round:
          rate ten cards, tap the exam offer at the end, gate skipped (user, 31.8: "מסיים
@@ -850,7 +854,7 @@ export default function MainApp({ session, onSignOut }) {
         setModeItems(prog.items);
         setMode("exam");
       } : null}
-      onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={() => { setMode(null); setProg(null); }} />;
+      onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={() => { setMode(null); setProg(null); }} /></>;
 
   if (mode === "flashcards") return <Flashcards slim={aurora} items={studySession.deck} session={studySession} onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
   if (mode === "quick") return <Flashcards slim={aurora} items={quickSession.deck} session={quickSession} quick onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
@@ -1339,7 +1343,7 @@ export default function MainApp({ session, onSignOut }) {
               {/* Thin categories study as group cards, not per-item flashcards —
                   a card whose front and back both say קולה teaches nothing.
                   A wine scope launches flashcards on just that slice. */}
-              <button onClick={() => {
+              <button data-tour="learn-practice" onClick={() => {
                   if (scopeFn) { setModeItems(scoped); setMode("flashcards"); }
                   else if (thin) { setModeItems(items); setMode("groupcards"); }
                   else startProgressive(catView);

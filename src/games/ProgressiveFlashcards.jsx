@@ -144,6 +144,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
 
             {/* front — the whole face is the tap target */}
             <button
+              data-tour="flashcard-front"
               onClick={() => setRevealed(true)}
               className="flip-face bg-[#16181c] border border-[#22252b] rounded-2xl p-6 w-full text-center space-y-3 min-h-[260px] flex flex-col items-center justify-center active:scale-[0.99] transition-transform"
             >
@@ -156,7 +157,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
                   {vis.emoji}
                 </span>
               ); })()}
-              <p className="text-2xl font-black text-[#eef0f6] flex items-center justify-center gap-1.5">
+              <p data-tour="flashcard-name" className="text-2xl font-black text-[#eef0f6] flex items-center justify-center gap-1.5">
                 {it.isSpecial && <Star size={18} className="text-[#f3c14b] flex-shrink-0" fill="#f3c14b" />}
                 {dishLabel(it)}
               </p>
@@ -215,7 +216,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
               <div className="pt-1">
                 <p className="text-xs font-bold text-[#8a8aa0] mb-1.5">כמה טוב ידעת?</p>
                 <p className="text-[11px] text-[#5a5a6e] mb-1.5">הדירוג העצמי קובע מה חוזרים עליו — נקודות נצברות רק בבחנים ובמבחן</p>
-                <div className="grid grid-cols-5 gap-1.5">
+                <div className="grid grid-cols-5 gap-1.5" data-tour="flashcard-rate">
                   {[1, 2, 3, 4, 5].map(v => (
                     <button key={v} onClick={() => rate(v)} className={`py-3 min-h-[44px] rounded-lg font-black text-base ${RATING_STYLE[v]}`}>{v}</button>
                   ))}

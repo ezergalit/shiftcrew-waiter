@@ -352,7 +352,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
         <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 flex items-center justify-between flex-shrink-0">
           <button onClick={() => setIdx(null)}
             className="min-h-[44px] px-3.5 py-2 -mr-1.5 rounded-xl bg-[#20232b] border border-[#2a2e37] text-[#c4c4d4] flex items-center gap-1.5 text-[13px] font-black active:scale-95 transition-transform"
-            aria-label="סגירה">
+            aria-label="סגירה" data-tour="dish-close">
             <X size={19} /> סגירה
           </button>
           <p className="text-[11px] font-black text-[#8a8aa0]">{shortCat(d.category)} · {idx + 1}/{dishes.length}</p>

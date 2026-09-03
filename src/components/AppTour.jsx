@@ -1,6 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { BookOpen, ListChecks, GraduationCap, Wallet, Sparkles, Hand } from "lucide-react";
 import { gz } from "../lib/shiftChoice";
+import AnswerInput from "./AnswerInput";
+import { buildVocab } from "../lib/examSuggest";
+import { menuFromCards } from "../lib/examMenu";
 
 // First-run guided tour — rebuilt 2026-08-20 to actually be guided.
 //
@@ -114,8 +117,16 @@ const AURORA_STEPS = [
     target: '[data-tour="browse-dish"]', cue: "הקש/י על המנה הראשונה",
   },
   {
-    tab: "categories", deep: true, icon: Sparkles, title: "ככה נראית מנה",
-    body: "התגיות הצבעוניות הן האזהרות: אדום = אלרגיות — מה שיכול לסכן אורח, והשאר מוקשים ורגישויות — דברים שאורחים מבקשים לדעת מראש. המקרא למעלה מסביר כל צבע. החצים למטה מעבירים למנה הבאה, ובסוף הקטגוריה ממשיכים ישר לבאה — ככה עוברים על כל התפריט ברצף.",
+    // No target and no "next": the waiter looks at the dish, and after a few seconds
+    // the tour itself moves on to the close button (Yotam, 3.9: "after around 3 seconds
+    // it should guide you to the exit button").
+    tab: "categories", deep: true, autoAfter: 3200, icon: Sparkles, title: "ככה נראית מנה",
+    body: "התגיות הצבעוניות הן האזהרות: אדום = אלרגיות — מה שיכול לסכן אורח, והשאר מוקשים ורגישויות — דברים שאורחים מבקשים לדעת מראש. החצים למטה מעבירים למנה הבאה.",
+  },
+  {
+    tab: "categories", deep: true, icon: Sparkles, title: "וכשסיימת — יוצאים מהמנה",
+    body: "כפתור הסגירה למעלה מחזיר לרשימת המנות. ככה חוזרים החוצה מכל מנה.",
+    target: '[data-tour="dish-close"]', cue: "הקש על סגירה",
   },
   {
     tab: "categories", reset: true,
@@ -129,13 +140,38 @@ const AURORA_STEPS = [
     target: '[data-tour="learn-menu"], [data-tour="learn-category"]', cue: "הקש/י כדי להיכנס",
   },
   {
-    tab: "learn", icon: Sparkles, title: "כרטיסיות",
-    body: "בחזית הכרטיס — שם המנה בלבד. נזכרים מה יש בה, הופכים ובודקים, ומדרגים 1-5 כמה ידעת. מנה שמקבלת 5 פעמיים ברצף מסומנת ✓ ויוצאת מהסבב, והבאה נכנסת במקומה.",
+    // Restaurants with several menus show the menu's categories first — one more tap
+    // before the practice button exists. A flat restaurant lands on the category page
+    // straight away, so this step skips itself when there is nothing to tap.
+    tab: "learn", deep: true, skipIfMissing: true, icon: GraduationCap, title: "בחר/י קטגוריה לתרגול",
+    body: "בתוך התפריט — הקטגוריות. נכנסים לאחת.",
+    target: '[data-tour="learn-category"]', cue: "הקש/י על קטגוריה",
   },
   {
-    tab: "learn", icon: GraduationCap, title: "הבוחן — עונים בכתיבה",
-    body: "אחרי כמה דקות של תרגול נפתח בוחן. עונים בכתיבה חופשית, כמו לאורח אמיתי — לא צריך לדייק באיות, ואחרי כל תשובה רואים בדיוק מה נספר ומה היה חסר.",
-    demo: true,
+    // From here the tour walks through ONE real flashcard and then a short written
+    // test about that very dish (Yotam, 3.9: "guide you through like 1 example
+    // flashcard and then a test about it") — no mock, the real screens.
+    tab: "learn", deep: true, icon: Sparkles, title: "נתרגל כרטיסייה אחת יחד",
+    body: "התרגול הוא בכרטיסיות. נפתח סבב ונעבור על כרטיס אחד לדוגמה.",
+    target: '[data-tour="learn-practice"]', cue: "הקש/י על תרגול",
+  },
+  {
+    tab: "learn", deep: true, icon: Sparkles, title: "בחזית — רק שם המנה",
+    body: "נסה/י להיזכר מה יש במנה הזו: מרכיבים, אלרגיות, מוקשים. כשמוכן — הופכים את הכרטיס ובודקים.",
+    target: '[data-tour="flashcard-front"]', cue: "הקש/י על הכרטיס כדי להפוך",
+  },
+  {
+    tab: "learn", deep: true, icon: Sparkles, title: "בגב — התשובה. עכשיו דרג/י",
+    body: "5 = ידעת הכל, 1 = בכלל לא. הדירוג קובע מה תחזור/י עליו — מנה שמקבלת 5 פעמיים ברצף יוצאת מהסבב.",
+    target: '[data-tour="flashcard-rate"]', cue: "בחר/י דירוג 1-5",
+    captureDish: true,
+  },
+  {
+    // The written test, for real: same input as the quiz, on the dish just rated.
+    // Deliberately NO verdict afterwards (Yotam, 3.9: "in the test you don't show the
+    // results") — this is a taste of the format, not a grade.
+    tab: "learn", deep: true, quiz: true, icon: GraduationCap, title: "ועכשיו — בוחן קצר על המנה שראית",
+    body: "בבוחן האמיתי עונים בכתיבה חופשית, כמו לאורח — לא צריך לדייק באיות. כתוב/כתבי מהזיכרון:",
   },
   {
     tab: "learn", icon: GraduationCap, title: "ובסוף — מבחן התפריט המלא",
@@ -168,47 +204,6 @@ const AURORA_STEPS = [
     body: "זה כל המסלול: קוראים את התפריט, מתרגלים בכרטיסיות, עוברים את הבחנים — ובסוף מבחן התפריט המלא. בהצלחה, מתחילים מהתפריט!",
   },
 ];
-
-// «רק של איך זה נראה» (Yotam, 2.9) — a staged, looks-only mock of the written quiz
-// inside the tour's quiz step. No engine, no grading: two real names from the
-// restaurant's own menu play the part of a perfect answer, so the waiter sees the
-// exact screen shape — question, typed chips, verdict, per-answer breakdown —
-// before ever opening the real thing. Pure CSS delays do the animation.
-function ExamPeek({ items }) {
-  const [run, setRun] = useState(0);
-  const pick = (() => {
-    const pool = items || [];
-    const wine = pool.filter((it) => /יין|יינ/.test(it.category || "") && !/רוזה|מבעבע/.test(it.category || ""));
-    const src = wine.length >= 2 ? wine : pool;
-    const names = src.slice(0, 2).map((it) => (it.name || "").split(" - ")[0].trim()).filter(Boolean);
-    const cat = wine.length >= 2 ? "יינות" : "מנות";
-    return { names, ask: wine.length >= 2 ? "אורח מבקש המלצה על 2 יינות — מה תציע?" : "המלץ לאורח על 2 מנות מהתפריט" , cat };
-  })();
-  if (pick.names.length < 2) return null;
-  const D = (d) => ({ animation: `tour-step 0.3s cubic-bezier(0.22,0.61,0.36,1) ${d}s both` });
-  return (
-    <div key={run} className="mt-3 rounded-xl bg-[#101216] border border-[#22c08c]/25 p-3 text-right" dir="rtl">
-      <p className="text-[10px] font-black text-[#22c08c] mb-1.5">ככה נראה הבוחן:</p>
-      <p className="text-[12px] font-black text-[#eef0f6] leading-snug" style={D(0.1)}>{pick.ask}</p>
-      <div className="flex flex-wrap gap-1.5 mt-2">
-        {pick.names.map((n, i) => (
-          <span key={n} className="px-2.5 py-1 rounded-full bg-[#20232b] border border-[#2a2e37] text-[11.5px] font-bold text-[#eef0f6]" style={D(0.7 + i * 0.55)}>
-            {n}
-          </span>
-        ))}
-      </div>
-      <div className="mt-2.5 rounded-lg px-2.5 py-1.5 bg-[rgba(34,192,140,0.13)] border border-[rgba(34,192,140,0.4)]" style={D(2.1)}>
-        <p className="text-[11.5px] font-black text-[#22c08c]">✓ המלצה נכונה</p>
-      </div>
-      <div className="space-y-0.5 mt-1.5" style={D(2.6)}>
-        {pick.names.map((n) => (
-          <p key={n} className="text-[10.5px] font-bold text-[#8a919e]">«{n}» <span className="text-[#22c08c]">✓ נספר</span></p>
-        ))}
-      </div>
-      <button onClick={() => setRun((v) => v + 1)} className="text-[10px] font-black text-[#8a8aa0] mt-2">↻ להציג שוב</button>
-    </div>
-  );
-}
 
 // The target may not exist the moment the step opens (tab switch, list still rendering),
 // so poll briefly rather than measure once.
@@ -254,6 +249,13 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
   const rect = useTargetRect(s.target, i);
 
   const firedRef = useRef(-1);
+  // The dish the waiter just rated — read off the card the moment the rating tap fires,
+  // so the written test that follows asks about the exact card they saw.
+  const [tourDish, setTourDish] = useState("");
+  const [quizAnswer, setQuizAnswer] = useState([]);
+  const vocab = useMemo(() => {
+    try { return buildVocab(menuFromCards(demoItems || [])); } catch { return []; }
+  }, [demoItems]);
   const go = useCallback((n) => {
     const back = n < i;
     // ⚠️ Going back has to land on a screen the app can actually be put back into.
@@ -294,12 +296,32 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
       const el = document.querySelector(s.target);
       if (el && (el === e.target || el.contains(e.target))) {
         firedRef.current = i;
+        if (s.captureDish) {
+          const nm = document.querySelector('[data-tour="flashcard-name"]')?.textContent?.trim();
+          if (nm) setTourDish(nm);
+        }
         setTimeout(() => go(i + 1), 40);   // let the screen change first, but barely
       }
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
   }, [s.target, i, go]);
+
+  // `skipIfMissing`: a step that only applies to some restaurants (an extra drill-down
+  // level) walks on by itself when its target is not on screen after a short grace.
+  useEffect(() => {
+    if (!s.skipIfMissing || !s.target) return;
+    const t = setTimeout(() => { if (!document.querySelector(s.target)) go(i + 1); }, 450);
+    return () => clearTimeout(t);
+  }, [s.skipIfMissing, s.target, i, go]);
+
+  // A step with `autoAfter` shows its card for a moment and then walks on by itself —
+  // used right after opening a dish, so the waiter looks before being sent to the exit.
+  useEffect(() => {
+    if (!s.autoAfter) return;
+    const t = setTimeout(() => go(i + 1), s.autoAfter);
+    return () => clearTimeout(t);
+  }, [s.autoAfter, i, go]);
 
   // Scroll the target into view — a spotlight on something below the fold is just a
   // dimmed screen with nothing to tap.
@@ -372,9 +394,23 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
           </div>
 
           <p className="text-[13px] text-[#c4c4d4] leading-relaxed">{gz(s.body)}</p>
-          {s.demo && <ExamPeek items={demoItems} />}
 
-          {s.target ? (
+          {s.quiz ? (
+            <div className="space-y-2.5" dir="rtl">
+              <p className="text-[14px] font-black text-[#eef0f6]">מה יש ב<span className="text-[#22c08c]">{tourDish || "המנה"}</span>?</p>
+              <AnswerInput vocab={vocab} values={quizAnswer} onChange={setQuizAnswer} label="מרכיבים" />
+              <button
+                disabled={quizAnswer.length === 0}
+                onClick={() => { setQuizAnswer([]); go(i + 1); }}
+                className="w-full py-3 min-h-[44px] rounded-xl font-black text-sm bg-[#22c08c] text-[#06231a] disabled:opacity-40"
+              >
+                שליחה
+              </button>
+              <p className="text-[11px] text-[#5a5a6e]">בבוחן האמיתי מקבלים תשובה על כל פריט — כאן רק מכירים את הצורה.</p>
+            </div>
+          ) : s.autoAfter ? (
+            <p className="text-[11px] font-bold text-[#5a5a6e]">רגע להסתכל — ממשיכים אוטומטית…</p>
+          ) : s.target ? (
             <>
               {/* No "next" button on purpose — the step ends when the waiter taps the real
                   thing. Reading about a screen and using it are not the same lesson. */}
