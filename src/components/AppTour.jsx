@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { BookOpen, ListChecks, GraduationCap, Wallet, Sparkles, Hand } from "lucide-react";
 import { gz } from "../lib/shiftChoice";
 import AnswerInput from "./AnswerInput";
@@ -120,7 +121,7 @@ const AURORA_STEPS = [
     // No target and no "next": the waiter looks at the dish, and after a few seconds
     // the tour itself moves on to the close button (Yotam, 3.9: "after around 3 seconds
     // it should guide you to the exit button").
-    tab: "categories", deep: true, autoAfter: 3200, icon: Sparkles, title: "ככה נראית מנה",
+    tab: "categories", deep: true, autoAfter: 3200, noDim: true, icon: Sparkles, title: "ככה נראית מנה",
     body: "התגיות הצבעוניות הן האזהרות: אדום = אלרגיות — מה שיכול לסכן אורח, והשאר מוקשים ורגישויות — דברים שאורחים מבקשים לדעת מראש. החצים למטה מעבירים למנה הבאה.",
   },
   {
@@ -158,12 +159,12 @@ const AURORA_STEPS = [
   {
     tab: "learn", deep: true, icon: Sparkles, title: "בחזית — רק שם המנה",
     body: "נסה/י להיזכר מה יש במנה הזו: מרכיבים, אלרגיות, מוקשים. כשמוכן — הופכים את הכרטיס ובודקים.",
-    target: '[data-tour="flashcard-front"]', cue: "הקש/י על הכרטיס כדי להפוך",
+    hole: '[data-tour="flashcard"]', target: '[data-tour="flashcard-front"]', cue: "הקש/י על הכרטיס כדי להפוך",
   },
   {
     tab: "learn", deep: true, icon: Sparkles, title: "בגב — התשובה. עכשיו דרג/י",
     body: "5 = ידעת הכל, 1 = בכלל לא. הדירוג קובע מה תחזור/י עליו — מנה שמקבלת 5 פעמיים ברצף יוצאת מהסבב.",
-    target: '[data-tour="flashcard-rate"]', cue: "בחר/י דירוג 1-5",
+    hole: '[data-tour="flashcard"]', target: '[data-tour="flashcard-rate"]', cue: "בחר/י דירוג 1-5",
     captureDish: true,
   },
   {
@@ -171,7 +172,7 @@ const AURORA_STEPS = [
     // Deliberately NO verdict afterwards (Yotam, 3.9: "in the test you don't show the
     // results") — this is a taste of the format, not a grade.
     tab: "learn", deep: true, quiz: true, icon: GraduationCap, title: "ועכשיו — בוחן קצר על המנה שראית",
-    body: "בבוחן האמיתי עונים בכתיבה חופשית, כמו לאורח — לא צריך לדייק באיות. כתוב/כתבי מהזיכרון:",
+    body: "בבוחן האמיתי עונים בכתיבה חופשית, כמו לאורח — לא צריך לדייק באיות. הנה תשובה מלאה לדוגמה, מוכנה מראש:",
   },
   {
     tab: "learn", icon: GraduationCap, title: "ובסוף — מבחן התפריט המלא",
@@ -246,7 +247,10 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
   const setI = onStep;
   const s = LIST[i];
   const last = i === LIST.length - 1;
-  const rect = useTargetRect(s.target, i);
+  // `hole` (optional) is what the spotlight leaves lit; `target` is what advances the
+  // step. On a flashcard the waiter must READ the whole card while the cue points at
+  // the rating row — dimming the answer they are rating defeats the step (Yotam, 3.9).
+  const rect = useTargetRect(s.hole || s.target, i);
 
   const firedRef = useRef(-1);
   // The dish the waiter just rated — read off the card the moment the rating tap fires,
@@ -298,7 +302,14 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
         firedRef.current = i;
         if (s.captureDish) {
           const nm = document.querySelector('[data-tour="flashcard-name"]')?.textContent?.trim();
-          if (nm) setTourDish(nm);
+          if (nm) {
+            setTourDish(nm);
+            // The example test comes PRE-ANSWERED with the dish's real ingredients — the
+            // waiter sees what a full answer looks like and only taps "send"
+            // (Yotam, 3.9: "תשלים לבד מה הוא צריך לכתוב ושרק ילחץ להגיש").
+            const it = (demoItems || []).find((d) => (d.name || "").trim() === nm);
+            setQuizAnswer((it?.ingredients || []).filter(Boolean).slice(0, 8));
+          }
         }
         setTimeout(() => go(i + 1), 40);   // let the screen change first, but barely
       }
@@ -362,11 +373,15 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
   // instead of stuttering one measurement at a time.
   const GLIDE = "top 110ms cubic-bezier(0.22,0.61,0.36,1), left 110ms cubic-bezier(0.22,0.61,0.36,1), width 110ms cubic-bezier(0.22,0.61,0.36,1), height 110ms cubic-bezier(0.22,0.61,0.36,1)";
   const Dim = ({ style }) => (
-    <div className="absolute bg-black/70 pointer-events-auto" style={{ transition: GLIDE, ...style }} />
+    <div className={`absolute ${s.noDim ? "bg-transparent" : "bg-black/70"} pointer-events-auto`} style={{ transition: GLIDE, touchAction: "none", overscrollBehavior: "contain", ...style }} onWheel={(e) => e.preventDefault()} />
   );
 
-  return (
-    <div className="fixed inset-0 z-[60] pointer-events-none" dir="rtl">
+  // ⚠️ Portaled to <body> at z-80. The dish view (MenuBrowser's Overlay) is itself a
+  // body portal at z-70, so a tour rendered inside MainApp — whatever its z-index —
+  // sat BELOW it: the waiter opened a dish and the tour simply vanished behind it
+  // (Yotam's screenshot, 3.9). Same stacking-context trap as the four before it.
+  return createPortal(
+    <div className="fixed inset-0 z-[80] pointer-events-none" dir="rtl">
       {/* Four rectangles around the target instead of one full-screen overlay: the hole in
           the middle is a real hole, so the tap lands on the app, not on the dimmer. */}
       {hole ? (
@@ -421,7 +436,7 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
               >
                 שליחה
               </button>
-              <p className="text-[11px] text-[#5a5a6e]">בבוחן האמיתי מקבלים תשובה על כל פריט — כאן רק מכירים את הצורה.</p>
+              <p className="text-[11px] text-[#5a5a6e]">ככה נראית תשובה טובה. בבוחן האמיתי כותבים לבד — כאן רק לוחצים שליחה.</p>
             </div>
           ) : s.autoAfter ? (
             <p className="text-[11px] font-bold text-[#5a5a6e]">רגע להסתכל — ממשיכים אוטומטית…</p>
@@ -462,5 +477,5 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
         </div>
       </div>
     </div>
-  );
+  , document.body);
 }

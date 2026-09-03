@@ -139,7 +139,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
           <p className={`w-full text-center text-[11px] font-black rounded-lg py-2 px-3 ${toast.cls}`}>{toast.txt}</p>
         )}
         {/* Keyed by dish id like Flashcards: advancing remounts un-flipped, no reverse-flip. */}
-        <div className="flip-scene w-full" key={it.id}>
+        <div className="flip-scene w-full" key={it.id} data-tour="flashcard">
           <div className={`flip-card ${revealed ? "flipped" : ""}`}>
 
             {/* front — the whole face is the tap target */}
