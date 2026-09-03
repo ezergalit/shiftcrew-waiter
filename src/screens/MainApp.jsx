@@ -806,6 +806,12 @@ export default function MainApp({ session, onSignOut }) {
           // which can be pressed from any step.
           setShowMetrics(false);
           setTab(trainee ? "learn" : tasksOff ? "categories" : "home");
+          // …and on the TOP of that screen (Yotam, 3.9: "בסוף תחזיר אותו לדף הראשי"). The
+          // tour now ends inside a flashcard session / a learn drill-down / an open
+          // menu; switching the tab alone left the waiter wherever the last step stood.
+          setMode(null); setProg(null);
+          setCatView(null); setGroupView(null);
+          setBrowseKey((k) => k + 1);
           if (session?.teamMemberId) localStorage.setItem(`${TOUR_DONE_KEY}-${session.teamMemberId}`, "1");
         }}
       />
