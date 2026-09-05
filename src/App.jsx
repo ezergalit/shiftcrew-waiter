@@ -74,9 +74,10 @@ export default function App() {
       try { sess = JSON.parse(cached); } catch { sess = null; }
       if (!sess?.teamMemberId || !sess?.restaurantId) { localStorage.removeItem(SESSION_KEY); if (alive) setPhase("login"); return; }
 
-      // TEMP DEV FALLBACK — offline sessions (see auth/TeamLogin.jsx) aren't in the DB,
-      // so skip the verification round-trip and trust the cached session as-is.
-      if (sess.offline) { if (alive) { setSession(sess); setPhase("app"); } return; }
+      // 🔴 (5.9) An `offline:true` session from the old dev fallback is not a session — it
+      // showed the hard-coded Salon demo menu to any restaurant until a manual sign-out.
+      // Drop it and ask the waiter to join again against the live database.
+      if (sess.offline) { localStorage.removeItem(SESSION_KEY); if (alive) setPhase("login"); return; }
 
       try {
         // Verify team member still exists
@@ -96,11 +97,22 @@ export default function App() {
         // One extra column on a query that already runs. If it fails, the cached flags
         // still stand — a flaky network must not silently restyle the app.
         let features = sess.features;
+        // (5.9) The restaurant's own text — name, description, cuisine, service notes — was
+        // also captured once at team_join, so an edit to «אודות המסעדה» never reached a
+        // returning waiter. Same query, five more columns (all granted to anon; the RLS
+        // policy is the session's own restaurant). If it fails, the cached values stand.
+        let restText = {};
         const { data: rest } = await db.from("restaurants")
-          .select("features").eq("id", sess.restaurantId).maybeSingle();
-        if (rest) features = rest.features || {};
-        const fresh = { ...sess, features };
-        if (JSON.stringify(features) !== JSON.stringify(sess.features)) {
+          .select("features, name, description, cuisine_types, service_style, service_notes")
+          .eq("id", sess.restaurantId).maybeSingle();
+        if (rest) {
+          features = rest.features || {};
+          restText = { restaurantName: rest.name, restaurantDescription: rest.description || "",
+            restaurantCuisineTypes: rest.cuisine_types || [], restaurantServiceStyle: rest.service_style || "",
+            restaurantServiceNotes: rest.service_notes || "" };
+        }
+        const fresh = { ...sess, features, ...restText };
+        if (JSON.stringify(fresh) !== JSON.stringify(sess)) {
           localStorage.setItem(SESSION_KEY, JSON.stringify(fresh));
         }
         if (!data.baseline_taken_at && !baselineSkipped(sess.teamMemberId)) {

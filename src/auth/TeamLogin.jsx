@@ -6,11 +6,6 @@ import { setSessionToken } from "../lib/appSession";
 const SESSION_KEY = "menu-app-team-session";
 const db = supabase.schema("menu_app");
 
-// TEMP DEV FALLBACK — Supabase's Data API has been down (PGRST002) independent of app code.
-// If the real lookup can't complete, fall back to a local-only session so the UI is still
-// testable. Uses the real Salon Yevani restaurant id so writes reconcile automatically once
-// the API is back. Remove this block once Supabase is confirmed healthy again.
-const FALLBACK_RESTAURANT_ID = "dc496522-8085-48d2-866b-db72a2e6d949";
 
 // The whole join flow — restaurant lookup, roster fuzzy-match (the "יותם עזר" vs
 // "יותם אזר" case), member creation — now runs server-side in menu_app.team_join,
@@ -79,17 +74,13 @@ export default function TeamLogin({ onGranted }) {
       const { data, error } = await join();
 
       if (error || !data) {
-        console.warn("[TeamLogin] Supabase lookup failed, using local offline session:", error);
-        const session = {
-          teamMemberId: crypto.randomUUID(),
-          name: `${first} ${last}`,
-          firstName: first, lastName: last,
-          restaurantId: FALLBACK_RESTAURANT_ID,
-          offline: true,
-          showTutorial: true,
-        };
-        localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-        onGranted(session);
+        // 🔴 No offline fallback (5.9). Until now any failure here — network, RLS, a dead
+        // database — minted an `offline:true` session that was persisted, restored on every
+        // launch without a check, and showed the hard-coded demo menu of the old Salon to
+        // every restaurant, forever, until a manual sign-out. A failed join is a failed join:
+        // say so, and let the waiter try again.
+        console.warn("[TeamLogin] team_join failed:", error);
+        setErr("אין חיבור לשרת כרגע. בדקו את האינטרנט ונסו שוב.");
         return;
       }
 

@@ -1602,3 +1602,33 @@ bg-brand-500 שלא קיים בקונפיג).
   ו-`noDim: true` על שלב המנה — שכבה **שקופה** שעדיין חוסמת הקשות וגלילה, המנה נראית.
 - **הבוחן לדוגמה מגיע מלא מראש** (יותם, 3.9): ברגע הדירוג נשמרים המרכיבים האמיתיים
   של המנה כצ'יפים ב-AnswerInput — המלצר רואה תשובה מלאה ורק לוחץ «שליחה».
+
+## 🔁 2026-09-05 — רעננות התפריט + סוף ה-fallback האופליני (ענף `fix/menu-freshness`, לא נדחף)
+
+בקשת יותם אחרי בדיקת «מנהל משנה תיאור — זה מגיע למלצר?»: לתקן באתר, לא לשלוח עדיין.
+
+1. **התפריט מתרענן בחזרה לחזית** (`MainApp.jsx`): עד עכשיו `published_menu` נטען פעם
+   אחת ב-mount, ולכן אפליקציה פתוחה (ובעיקר המעטפת הנייטיבית שלא באמת נסגרת) המשיכה
+   ללמד ולבחון על תיאור ישן. עכשיו `visibilitychange`/`focus`/`resume` ⇒ refetch,
+   **מוחל רק כשהתפריט באמת השתנה** (טביעת אצבע `source_item_id:synced_at` — הטריגר
+   מקפיץ synced_at בכל upsert), **לעולם לא באמצע סבב** (הדק מוקפא לסבב בכוונה מ-13.8 —
+   תפריט חדש נחנה ב-ref ומוחל כש-`mode` חוזר ל-null), ומוגבל לפעם ב-30 שניות.
+   אומת חי ב-preview: דיספאץ' visibilitychange ⇒ refetch אחד; שני בתוך 30ש' ⇒ 0; UPDATE
+   no-op במסד (synced_at זז) ⇒ נמשך; 0 שגיאות.
+2. 🔴 **אין יותר סשן אופליין** (`TeamLogin.jsx`, `App.jsx`): כל כשל ב-`team_join` יצר
+   סשן `offline:true` שנשמר, שוחזר בלי בדיקה בכל הפעלה, והציג לתמיד את 19 מנות
+   `MOCK_CARDS` של סלון הישן — לכל מסעדה. עכשיו: כשל = הודעה «אין חיבור לשרת כרגע»
+   ונשארים במסך הכניסה; סשן אופליין ישן ב-localStorage נזרק בשחזור. אומת חי (fetch
+   שנכשל ⇒ הודעה, בלי סשן; סשן offline מוזרק ⇒ מסך כניסה והמפתח נמחק).
+   ℹ️ ענפי `session.offline` ב-MainApp נשארו — קוד מת בטוח, לא נגענו.
+3. **טקסט המסעדה מתרענן בשחזור** (`App.jsx`): אותה שאילתה שכבר קוראת `features` קוראת
+   גם name/description/cuisine_types/service_style/service_notes ⇒ «אודות המסעדה» מתעדכן
+   גם למלצר חוזר. כל חמש העמודות עם GRANT ל-anon ו-policy `sess_select` (אומת ב-DB).
+4. **DB**: FK `menu_progress.source_item_id ⇒ published_menu(source_item_id) ON DELETE
+   CASCADE` הוחזר (מיגרציה `menu_progress_source_item_fk_cascade`, 0 יתומים לפני, אומת
+   בקריאה נפרדת). זה חי מיד — DB אינו «האפליקציה».
+
+⚠️ **נשאר ידוע ולא תוקן**: מונים ב-localStorage הממופתחים על **שם** קטגוריה/מנה
+(`menu-app-quiz-gate`, `menu-app-walks`, `menu-app-recasked`) ו-`exam_config.category_order`
+מתאפסים בשינוי שם — לקטגוריות אין id, זו מגבלה מבנית. `run: npm run check · npm run
+lint · tests/*.test.mjs` — הכל ירוק על הענף.

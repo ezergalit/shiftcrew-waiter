@@ -132,6 +132,10 @@ const loadResume = (id) => {
   } catch { return null; }
 };
 
+// Cheap identity of a loaded menu: the sync trigger bumps synced_at on every upsert, so
+// (id, synced_at) pairs change exactly when a dish changed. Used to skip no-op refreshes.
+const menuFingerprint = (rows) => rows.map((r) => `${r.source_item_id}:${r.synced_at}`).join("|");
+
 export default function MainApp({ session, onSignOut }) {
   const [tab, setTab] = useState(session?.trainee ? "learn" : session?.features?.tasks === false ? "categories" : "home");
   const [showAbout, setShowAbout] = useState(false); // "אודות המסעדה" over the menu tab
@@ -236,6 +240,10 @@ export default function MainApp({ session, onSignOut }) {
   // single category — the gate asks for study of THE category being tested. A ref, not
   // state: it changes with mode, and ticking it per-second would re-render everything.
   const studyCatRef = useRef(null);
+  // 🔁 Menu freshness (5.9): fingerprint of the loaded published_menu, time of the last
+  // fetch, a menu parked until the current round ends, and the live mode for the listener.
+  const menuFpRef = useRef(""); const lastMenuFetchRef = useRef(0); const pendingCardsRef = useRef(null);
+  const modeRef = useRef(null); modeRef.current = mode;
   // Re-running the gate from the daily tab is practice — it never rewrites the ack row.
   const [gatePractice, setGatePractice] = useState(false);
   // The staged path: what the owner configured, and which category exams this member has
@@ -351,6 +359,7 @@ export default function MainApp({ session, onSignOut }) {
         .order("menu_position", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: true }).order("source_item_id", { ascending: true });
       if (alive) setCards(withDisplayNames((data || []).map(pubToCard)));
+      menuFpRef.current = menuFingerprint(data || []); lastMenuFetchRef.current = Date.now();
       // Presence, recorded separately from progress: the owner's status board needs to
       // distinguish "opened the app and did nothing" from "never showed up". Fire-and-
       // forget — a failure here must not affect the session.
@@ -417,6 +426,49 @@ export default function MainApp({ session, onSignOut }) {
 
     return () => { alive = false; supabase.removeChannel(channel); };
   }, [session?.restaurantId, session?.teamMemberId, session?.offline]);
+
+  // 🔁 Refresh the menu whenever the app comes back to the foreground (5.9).
+  //
+  // The menu was loaded once per mount, so a manager's edit reached a waiter only on the
+  // next cold start — an open app (and the native shell, which is never really closed)
+  // kept teaching and testing the OLD description. On every return to the foreground we
+  // refetch published_menu and apply it only when it actually changed (synced_at moves
+  // on every upsert by the sync trigger). Never in the middle of a round: the deck memos
+  // are frozen per round on purpose (13.8), so a new menu is parked until `mode` returns
+  // to null. Throttled to one fetch per 30 seconds.
+  useEffect(() => {
+    if (!session?.restaurantId || session?.offline) return;
+    let alive = true;
+    const refresh = async () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastMenuFetchRef.current < 30_000) return;
+      lastMenuFetchRef.current = now;
+      const { data, error } = await db.from("published_menu").select("*")
+        .eq("restaurant_id", session.restaurantId)
+        .order("menu_position", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: true }).order("source_item_id", { ascending: true });
+      if (!alive || error || !data) return;
+      const fp = menuFingerprint(data);
+      if (fp === menuFpRef.current) return;
+      menuFpRef.current = fp;
+      const next = withDisplayNames(data.map(pubToCard));
+      if (modeRef.current) pendingCardsRef.current = next; else setCards(next);
+    };
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("resume", refresh);        // Capacitor/Cordova foreground event
+    return () => {
+      alive = false;
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("resume", refresh);
+    };
+  }, [session?.restaurantId, session?.offline]);
+  // A menu that arrived mid-round is applied the moment the round ends.
+  useEffect(() => {
+    if (!mode && pendingCardsRef.current) { setCards(pendingCardsRef.current); pendingCardsRef.current = null; }
+  }, [mode]);
 
   // rating: 1-5. Self-reported in Flashcards (the one genuinely subjective mode); every
   // other mode (Quiz/Speed/Matching/Allergens/NameCompletion) computes it itself from
