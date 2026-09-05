@@ -7,7 +7,7 @@
     "dev": "vite --port 5174",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "node tools/check-jsx-refs.mjs",
+    "check": "node tools/check-jsx-refs.mjs && node tests/judge-contract.test.mjs && node tools/check-judge-drift.mjs",
     "prebuild": "node tools/check-jsx-refs.mjs && eslint src --ext .js,.jsx",
     "lint": "eslint src --ext .js,.jsx"
   },
