@@ -10,6 +10,12 @@ import { loadLearnedAlts, withLearnedAlts, judgeAnswer, saveLearnedAlts, judgeLe
 import { gradeDescription, descAskable } from "../lib/describeLeaf";
 import { isSimple, simpleQuestions, gradeSimple } from "../lib/simpleDish";
 import { questionStyle } from "../lib/quizBank";
+import { supabase } from "../lib/supabase";
+const db = supabase.schema("menu_app");
+// זמן קריאה בין שאלות במבחן — לא נספר בשעון (יותם, 6.9)
+const REVIEW_S = 30;
+// דרגת קושי פר-מסעדה: features.exam_level = relaxed | normal | strict (יותם, 6.9)
+const PASS_MARK = { relaxed: 60, normal: 70, strict: 80 };
 import { buildSetQuestions, composeQuiz, nextSeen, scoreNamed, examPlan, suggestDish, resolveDish } from "../lib/quizBank";
 
 // ── מחזור «נשאל» (יותם, 6.9: «מלצר שנכשל לא מקבל את אותו הבוחן פעם נוספת») ──
@@ -43,6 +49,17 @@ const LVL_SCORE = [0, 50, 100];
 const rowTag = (r) => r.kind === "desc" ? "הכנה" : r.kind === "form" ? "צורה והגשה" : r.kind === "core" ? "מרכיב"
   : r.kind === "warn" ? "רגישות" : r.crit ? "בטיחות" : r.w >= 2 ? "מרכזי" : r.w < 1 ? "תיבול" : null;
 
+// «לסכם את כל מה שהוא כן צדק בו כדי לקצר את הרשימה; לחיצה מראה במה צדק» (יותם, 6.9)
+function OkSummary({ items }) {
+  const [open, setOpen] = useState(false);
+  if (!items?.length) return null;
+  return (
+    <button type="button" onClick={() => setOpen((o) => !o)} className="w-full text-right text-[11.5px] font-bold text-[#22c08c] leading-snug">
+      ✓ צדקת ב-{items.length}{items.length === 1 ? "" : ""}{open ? ":" : ` — ${items.slice(0, 3).join(" · ")}${items.length > 3 ? " …" : ""}`}{!open && <span className="text-[#5a5a6e]"> (הקש לפירוט)</span>}
+      {open && <span className="block text-[#c4c4d4] font-normal mt-0.5">{items.join(" · ")}</span>}
+    </button>
+  );
+}
 function GradeDetail({ g, unit = "המלצות", nameToks = [] }) {
   if (!g?.detail?.length && !g?.missing) return null;
   // «אנשובי» על «אנשובי במלח» — זה שם המנה, לא תשובה: אומרים את זה במקום «לא נספר» סתמי
@@ -58,7 +75,8 @@ function GradeDetail({ g, unit = "המלצות", nameToks = [] }) {
     : d.status === "unknown" ? "text-[#9b7bff]" : "text-[#f3a712]";
   return (
     <div className="space-y-1 mt-1">
-      {(g.detail || []).map((d, i) => (
+      <OkSummary items={(g.detail || []).filter((d) => d.status === "ok").map((d) => d.chip)} />
+      {(g.detail || []).filter((d) => d.status !== "ok").map((d, i) => (
         <p key={i} className="text-[11.5px] font-bold leading-snug">
           <span className="text-[#eef0f6]">«{d.chip}»</span>{" "}
           <span className={cls(d)}>{label(d)}</span>
@@ -81,7 +99,10 @@ const weightedAvg = (scores) => {
   return wsum ? Math.round(scores.reduce((a, s) => a + s.v * s.w, 0) / wsum) : 0;
 };
 
-export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId, onAnswer, onDone, onFinish, exam = null, quizOff = [], examEasy = false }) {
+export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId, teamMemberId = null, onAnswer, onDone, onFinish, exam = null, quizOff = [], examEasy = false, examLevel = "normal" }) {
+  const easy = examEasy || examLevel === "relaxed";
+  const strict = examLevel === "strict";
+  const passMark = PASS_MARK[examLevel] || 70;
   // The engine and the autocomplete both read the WHOLE restaurant, not this category:
   // grading needs the full vocabulary to tell a foreign word from a menu word, and the
   // suggestion pool must not narrow to the dishes being asked about.
@@ -202,27 +223,84 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const SECONDS_PER_DISH = 60;
   const started = deck.length >= 2;
   const [secondsLeft, setSecondsLeft] = useState(0);
-  useEffect(() => { if (started) setSecondsLeft(deck.length * SECONDS_PER_DISH); }, [started, deck.length]);
+  // מבחן: מסך הסבר לפני שהשעון מתחיל (יותם, 6.9); בוחן — מתחילים מיד
+  const [briefed, setBriefed] = useState(!exam);
+  const [blocked, setBlocked] = useState(null);   // מספר דיווחים פתוחים שחוסמים את המבחן
+  const [reviewLeft, setReviewLeft] = useState(REVIEW_S);
+  const [reporting, setReporting] = useState(null); // {text} כשכותבים דיווח על טעות
+  const [reports, setReports] = useState(0);
+  const [aborted, setAborted] = useState(false);
+  const [toast, setToast] = useState("");
+  const [qStartedAt, setQStartedAt] = useState(0);
+  const [elapsedQ, setElapsedQ] = useState(0);
+  const total = deck.length * SECONDS_PER_DISH;
+  const perQ = deck.length ? Math.round(total / deck.length) : SECONDS_PER_DISH;
+  useEffect(() => { if (started) setSecondsLeft(total); }, [started, total]);
+  // 3 דיווחים פתוחים ב-24 שעות ⇒ המבחן חסום למסעדה עד טיפול (יותם, 6.9)
   useEffect(() => {
-    if (!started || finished || secondsLeft <= 0) return;
-    const t = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
+    if (!exam || !restaurantId) return;
+    db.from("exam_reports").select("id", { count: "exact", head: true })
+      .eq("restaurant_id", restaurantId).eq("status", "open").gte("created_at", new Date(Date.now() - 864e5).toISOString())
+      .then(({ count }) => { if ((count || 0) >= 3) setBlocked(count); });
+  }, [exam, restaurantId]);
+  useEffect(() => {
+    // השעון עומד בזמן קריאת התשובה ובזמן כתיבת דיווח — לא לוקח מזמן המבחן
+    if (!started || !briefed || finished || secondsLeft <= 0 || (exam && (result || reporting))) return;
+    const t = setTimeout(() => { setSecondsLeft((s) => s - 1); setElapsedQ((e) => e + 1); }, 1000);
     return () => clearTimeout(t);
-  }, [started, finished, secondsLeft]);
+  }, [started, briefed, finished, secondsLeft, exam, result, reporting]);
+  // 30 שניות לקרוא במה טעית, ואז ממשיכים לבד (יותם, 6.9)
+  useEffect(() => {
+    if (!exam || !result || finished) return;
+    if (reporting) return;
+    if (reviewLeft <= 0) { next(); return; }
+    const t = setTimeout(() => setReviewLeft((r) => r - 1), 1000);
+    return () => clearTimeout(t);
+  }, [exam, result, finished, reviewLeft, reporting]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (started && secondsLeft === 0 && !finished && scores.length) setFinished(true); }, [started, secondsLeft, finished, scores.length]);
 
   useEffect(() => {
-    if (!finished) return;
-    const avg = weightedAvg(scores);
+    if (!finished || aborted) return;
+    const avg = weightedAvg(scores.filter((x) => !x.excluded));
     // מה שנשאל נרשם — עבר או נכשל — כדי שהישיבה הבאה תהיה אחרת (יותם, 6.9)
     for (const [cat, { asked, bank: ids }] of Object.entries(askedRef.current)) saveSeen(restaurantId, cat, nextSeen(loadSeen(restaurantId, cat), asked, ids));
-    onFinish?.({ score: avg, passed: avg >= 70, dishCount: deck.length });
-  }, [finished, scores, deck.length, onFinish, restaurantId]);
+    onFinish?.({ score: avg, passed: avg >= passMark, dishCount: deck.length });
+  }, [finished, aborted, scores, deck.length, onFinish, restaurantId, passMark]);
 
   // «נתקע במסך התשובה» (יותם, 6.9): במבחן המלא התוצאה ארוכה (שורות תיאור + ככה מתארים) וכפתור
   // «המנה הבאה» ירד מתחת לקצה המסך בטלפון — והשורש היה מסך בלי גלילה (early-return של MainApp
   // מחוץ למיכל הגולל). המיכל גולל עכשיו, והכפתור נגלל לתצוגה כשהתוצאה מופיעה.
   // ⚠️ מעל כל ה-early returns (חוקי hooks — פעם שביעית בפרויקט)
   const nextRef = useRef(null);
+  // «כל פעולה שתבצע תישלח למנהל» — לוג של כל תשובה במבחן (fire-and-forget)
+  const logAnswer = (answer, lvl) => {
+    if (!exam || !teamMemberId || !restaurantId) return;
+    const c = deck[i];
+    db.from("exam_answers").insert({ restaurant_id: restaurantId, team_member_id: teamMemberId, category: c?.cat || c?.it?.category || null,
+      dish: c?.dish || c?.set?.ask?.slice(0, 120) || c?.rec?.ask?.slice(0, 120) || null, question: c?.set ? "set" : c?.rec ? "rec" : c?.simple ? "simple" : "dish",
+      answer, lvl }).then(({ error }) => { if (error) console.error("exam_answers:", error.message); });
+  };
+  // דיווח על טעות באפליקציה (יותם, 6.9): השאלה נשלחת לבדיקה ולא נספרת — לא לטובה ולא לרעה.
+  // 3 דיווחים בישיבה ⇒ «אנחנו מטפלים, אפשר להיבחן מחר» והמבחן נחסם למסעדה (טריגר ⇒ תור המפעיל).
+  const sendReport = async () => {
+    const text = (reporting?.text || "").trim();
+    if (!text) return;
+    const c = deck[i];
+    setScores((s) => s.map((x, k) => (k === s.length - 1 ? { ...x, excluded: true } : x)));
+    const { error } = await db.from("exam_reports").insert({
+      restaurant_id: restaurantId, team_member_id: teamMemberId, dish: c?.dish || null,
+      question: c?.set?.ask || c?.rec?.ask || (c?.simple ? c.simple.map((q) => q.ask).join(" | ") : `describe:${c?.dish}`),
+      answer: result?.set ? { typed: result.set.sel } : { parts: (result?.parts || []).map((p) => ({ key: p.key, answer: p.answer ?? p.text ?? null })) },
+      verdict: result?.set ? { lvl: result.set.r.lvl } : { parts: (result?.parts || []).map((p) => ({ key: p.key, lvl: p.g?.lvl, rows: p.leaf?.rows?.map((r) => [r.canonical[0], r.status]) })) },
+      explanation: text,
+    });
+    if (error) { setToast("הדיווח לא נשלח — בדוק חיבור ונסה שוב"); console.error("exam_reports:", error.message); return; }
+    const n = reports + 1;
+    setReports(n); setReporting(null);
+    if (n >= 3) { setAborted(true); setFinished(true); return; }
+    setToast("הדיווח נשלח. השאלה הזו לא נספרת — לא לטובה ולא לרעה.");
+    setReviewLeft(REVIEW_S);
+  };
   useEffect(() => { if (result) setTimeout(() => nextRef.current?.scrollIntoView({ block: "end", behavior: "smooth" }), 50); }, [result]);
 
   if (!started) {
@@ -264,6 +342,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       const r = scoreNamed(cur.set.answer, resolved, cur.set.need ?? null);
       const v = LVL_SCORE[r.lvl];
       setResult({ parts: [], set: { q: cur.set, r, sel: setSel, resolved }, avg: v });
+      logAnswer({ typed: setSel, resolved }, r.lvl);
       setScores((s) => [...s, { v, w: cur.set.need || Math.max(2, cur.set.answer.length) }]);
       return;
     }
@@ -272,6 +351,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       const parts = [{ key: "rec", q: cur.rec, answer: recAns, g }];
       const avg = LVL_SCORE[g.lvl];
       setResult({ parts, avg });
+      logAnswer({ rec: recAns }, g.lvl);
       setScores((s) => [...s, { v: avg, w: Math.max(2, cur.rec.minOk || 1) }]);
       // שלב 2: זיהינו איזה משקה נבחר? מציעים לתאר אותו. רק על המלצות משקה,
       // ורק כשהתשובה זוכתה לפחות חלקית — אין טעם לתאר משהו שלא נבחר נכון.
@@ -293,6 +373,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       const avg = Math.round(parts.reduce((a, p) => a + LVL_SCORE[p.g.lvl], 0) / parts.length);
       const worst = Math.min(...parts.map((p) => p.g.lvl));
       setResult({ parts, avg });
+      logAnswer({ simple: simpleAns }, worst);
       setScores((s) => [...s, { v: avg, w: 1 }]);
       if (cur.it) onAnswer?.(cur.it.id, LVL_RATING[worst]);
       return;
@@ -301,9 +382,9 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       setJudging(true);
       let leaf;
       try {
-        leaf = await gradeDescription({ dish: cur.it, targets: null, text: descText, judge: judgeLeaf, easy: examEasy, mode: "desc" });
+        leaf = await gradeDescription({ dish: cur.it, targets: null, text: descText, judge: judgeLeaf, easy, strict, mode: "desc" });
       } catch {
-        leaf = await gradeDescription({ dish: cur.it, targets: null, text: descText, judge: null, easy: examEasy, mode: "desc" });   // לעולם לא נתקעים
+        leaf = await gradeDescription({ dish: cur.it, targets: null, text: descText, judge: null, easy, strict, mode: "desc" });   // לעולם לא נתקעים
       } finally {
         setJudging(false);
       }
@@ -316,6 +397,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       const avg = Math.round(parts.reduce((a, p) => a + LVL_SCORE[p.g.lvl], 0) / parts.length);
       const worst = Math.min(...parts.map((p) => p.g.lvl));
       setResult({ parts, avg });
+      logAnswer({ desc: descText, ings, alls }, worst);
       setScores((s) => [...s, { v: avg, w: 1 }]);
       if (cur.it) onAnswer?.(cur.it.id, LVL_RATING[worst]);
       return;
@@ -392,18 +474,36 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   };
 
   const next = () => {
+    setReviewLeft(REVIEW_S); setReporting(null); setToast(""); setElapsedQ(0); setQStartedAt(Date.now());
     setResult(null); setIngs([]); setAlls([]); setRecAns([]); setFlavs([]); setSetSel([]); setDescText(""); setSimpleAns([]); setStage2(null);
     if (i + 1 >= deck.length) setFinished(true); else setI(i + 1);
   };
 
   if (finished) {
-    const avg = weightedAvg(scores);
+    const avg = weightedAvg(scores.filter((x) => !x.excluded));
+    if (aborted) return (
+      <div className="h-screen overflow-y-auto max-w-md mx-auto p-6 text-center space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+        <p className="text-3xl">🛠️</p>
+        <p className="text-sm font-black text-[#eef0f6]">תודה על הדיווחים</p>
+        <p className="text-[12.5px] text-[#8a8aa0] leading-relaxed">אנחנו מטפלים בבעיות שדיווחת עליהן. המבחן הזה לא נספר, ותוכל להיבחן שוב מחר.</p>
+        <button onClick={onDone} className="px-5 py-3 rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm">סיום</button>
+      </div>
+    );
+    // מבחן: הציון לא מוצג — «בסוף המבחן המנהל יודיע לך את התוצאה» (יותם, 6.9). בוחן — כרגיל.
+    if (exam) return (
+      <div className="h-screen overflow-y-auto max-w-md mx-auto p-6 text-center space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+        <GraduationCap size={40} className="text-[#22c08c] mx-auto" />
+        <p className="text-sm font-black text-[#eef0f6]">המבחן הסתיים ונשלח למנהל</p>
+        <p className="text-[12.5px] text-[#8a8aa0] leading-relaxed">המנהל יעבור על התשובות ויודיע לך את התוצאה. תודה!</p>
+        <button onClick={onDone} className="px-5 py-3 rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm">סיום</button>
+      </div>
+    );
     return (
       <div className="h-screen overflow-y-auto max-w-md mx-auto p-6 text-center space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
-        <GraduationCap size={40} className={avg >= 70 ? "text-[#22c08c] mx-auto" : "text-[#f3a712] mx-auto"} />
+        <GraduationCap size={40} className={avg >= passMark ? "text-[#22c08c] mx-auto" : "text-[#f3a712] mx-auto"} />
         <p className="text-3xl font-black text-[#eef0f6]">{avg}%</p>
         <p className="text-sm font-bold text-[#8a8aa0]">
-          {avg >= 70 ? "עברתם את הבוחן" : "עוד לא עברתם — כדאי לחזור על הקטגוריה"}
+          {avg >= passMark ? "עברתם את הבוחן" : "עוד לא עברתם — כדאי לחזור על הקטגוריה"}
         </p>
         <button onClick={onDone} className="px-5 py-3 rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm">סיום</button>
       </div>
@@ -412,17 +512,51 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
 
   const mm = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
   const ss = String(secondsLeft % 60).padStart(2, "0");
+  const fmt = (n) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
 
+  if (exam && blocked) return (
+    <div className="h-screen overflow-y-auto max-w-md mx-auto p-6 text-center space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+      <p className="text-3xl">🛠️</p>
+      <p className="text-sm font-black text-[#eef0f6]">מבחן התפריט חסום כרגע</p>
+      <p className="text-[12.5px] text-[#8a8aa0] leading-relaxed">דווחו כמה טעויות במבחן ואנחנו מטפלים בהן. אפשר להיבחן מחר.</p>
+      <button onClick={onDone} className="px-5 py-3 rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm">חזרה</button>
+    </div>
+  );
+  // מסך ההסבר לפני המבחן — מילה במילה לפי יותם (6.9), עם המספרים האמיתיים של הישיבה
+  if (exam && !briefed) return (
+    <div className="h-screen overflow-y-auto max-w-md mx-auto p-5 space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+      <p className="text-[11px] font-black text-[#22c08c]">מבחן תפריט</p>
+      <p className="text-xl font-black text-[#eef0f6]">לפני שמתחילים</p>
+      <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4 space-y-2.5 text-[13px] text-[#c4c4d4] leading-relaxed">
+        <p>📍 נדרש לבצע את המבחן <b className="text-[#eef0f6]">במסעדה</b>, ולהודיע למנהל שאתה מתחיל אותו.</p>
+        <p>📨 כל פעולה שתבצע במבחן נשלחת למנהל.</p>
+        <p>⏱️ יש לך <b className="text-[#eef0f6]">{fmt(total)} דקות</b> ל-{deck.length} שאלות — בערך <b className="text-[#eef0f6]">{fmt(perQ)} לשאלה</b>. אם תיקח יותר על שאלה אחת, יישאר פחות לאחרות (או יותר, תלוי בעומק התשובה).</p>
+        <p>📖 בין השאלות יש <b className="text-[#eef0f6]">{REVIEW_S} שניות</b> לקרוא את התשובה ובמה טעית — הזמן הזה לא נספר.</p>
+        <p>🚩 מצאת טעות באפליקציה? יש כפתור דיווח עם הסבר. הדיווח לא לוקח מזמן המבחן, והשאלה לא נספרת.</p>
+        <p>🪑 במבחן {deck.length} שאלות — תצטרך להיות פנוי כ-<b className="text-[#eef0f6]">{Math.ceil((total + deck.length * REVIEW_S) / 60)} דקות</b> ברצף.</p>
+        <p>🏁 בסוף המבחן המנהל יודיע לך את התוצאה. בהצלחה!</p>
+      </div>
+      <button onClick={() => { setBriefed(true); setQStartedAt(Date.now()); }} className="w-full py-3 min-h-[44px] rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm">מתחילים את המבחן</button>
+      <button onClick={onDone} className="w-full py-2 text-[12px] text-[#8a8aa0]">לא עכשיו</button>
+    </div>
+  );
+
+  const overBudget = exam && !result && elapsedQ > perQ;
   return (
     <div className="h-screen overflow-y-auto max-w-md mx-auto p-4 space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
       <div className="flex items-center justify-between">
         <p className="text-[11px] font-black text-[#8a8aa0]">
           {shortCat(categoryLabel)} · {i + 1}/{deck.length}
         </p>
-        <p className={`text-[13px] font-black tabular-nums ${secondsLeft < 60 ? "text-[#e0315a]" : "text-[#8a8aa0]"}`}>
-          {mm}:{ss}
-        </p>
+        <div className="text-left">
+          <p className={`${exam ? "text-[20px]" : "text-[13px]"} font-black tabular-nums leading-none ${secondsLeft < 60 ? "text-[#e0315a]" : exam && result ? "text-[#8a8aa0]" : "text-[#eef0f6]"}`}>
+            {mm}:{ss}{exam && result ? " ⏸" : ""}
+          </p>
+          {exam && !result && <p className={`text-[10.5px] font-bold ${overBudget ? "text-[#f3a712]" : "text-[#5a5a6e]"}`}>{overBudget ? `עברת את ${fmt(perQ)} לשאלה — יישאר פחות לאחרות` : `≈ ${fmt(perQ)} לשאלה · עברו ${fmt(elapsedQ)}`}</p>}
+          {exam && result && <p className="text-[10.5px] font-bold text-[#22c08c]">{reporting ? "השעון עומד בזמן הדיווח" : `${reviewLeft} שניות לקרוא — לא נספר`}</p>}
+        </div>
       </div>
+      {toast && <p className="text-[12px] font-bold text-[#22c08c] bg-[#15302b]/60 rounded-xl px-3 py-2">{toast}</p>}
 
       <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
         <p className="text-[11px] font-black text-[#22c08c]">
@@ -540,9 +674,11 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
                 </p>
               </div>
               <div className="space-y-1">
+                <OkSummary items={result.set.sel.filter((_, k) => result.set.resolved[k] && result.set.q.answer.includes(result.set.resolved[k])).map((_, k, arr) => arr[k])} />
                 {result.set.sel.map((typed, k) => {
                   const r = result.set.resolved[k];
                   const ok = r && result.set.q.answer.includes(r);
+                  if (ok) return null;
                   return (
                     <p key={k} className="text-[11.5px] font-bold leading-snug">
                       <span className="text-[#eef0f6]">«{typed}»</span>{" "}
@@ -580,7 +716,8 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               )}
               {p.leaf && (
                 <div className="space-y-1">
-                  {p.leaf.rows.map((r) => (
+                  <OkSummary items={p.leaf.rows.filter((r) => r.status === "ok").map((r) => r.canonical[0])} />
+                  {p.leaf.rows.filter((r) => r.status !== "ok").map((r) => (
                     <p key={r.id} className="text-[11.5px] font-bold leading-snug">
                       <span className="text-[#eef0f6]">«{r.canonical[0]}»</span>{rowTag(r) && <span className="text-[#8a8aa0]"> ({rowTag(r)})</span>}{" "}
                       {r.status === "ok" ? <span className="text-[#22c08c]">✓ הוזכר{r.byJudge ? " (השופט זיהה את הניסוח)" : ""}</span>
@@ -642,12 +779,27 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               )}
             </div>
           )}
+          {exam && (reporting ? (
+            <div className="bg-[#16181c] border border-[#f3a712]/40 rounded-xl p-3 space-y-2">
+              <p className="text-[12px] font-black text-[#f3a712]">🚩 דיווח על טעות באפליקציה</p>
+              <p className="text-[11px] text-[#8a8aa0]">מה לא נכון כאן? השאלה תישלח לבדיקה ולא תיספר — לא לטובה ולא לרעה. השעון עומד.</p>
+              <textarea value={reporting.text} onChange={(e) => setReporting({ text: e.target.value })} rows={3} dir="rtl"
+                placeholder="למשל: כתבתי ״טונה״ וזה לא זיהה למרות שיש טונה במנה…"
+                className="w-full bg-[#101216] border border-[#22252b] rounded-xl p-2.5 text-[16px] text-[#eef0f6]" />
+              <div className="flex gap-2">
+                <button onClick={sendReport} disabled={!reporting.text.trim()} className="flex-1 py-2.5 min-h-[40px] rounded-xl bg-[#f3a712] text-[#2a1d00] font-black text-[12.5px] disabled:opacity-60">שליחת הדיווח</button>
+                <button onClick={() => setReporting(null)} className="py-2.5 px-3 rounded-xl bg-[#20232b] text-[#8a8aa0] font-bold text-[12.5px]">ביטול</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setReporting({ text: "" })} className="w-full py-2 text-[12px] font-bold text-[#f3a712]">🚩 מצאת טעות באפליקציה? דווח (לא לוקח מזמן המבחן)</button>
+          ))}
           <button
             ref={nextRef}
             onClick={next}
             className="w-full py-3 min-h-[44px] rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm"
           >
-            {i + 1 >= deck.length ? "לסיכום" : "המנה הבאה"}
+            {i + 1 >= deck.length ? "לסיכום" : exam ? `המנה הבאה (${reviewLeft})` : "המנה הבאה"}
           </button>
         </div>
       )}

@@ -251,7 +251,7 @@ export function markRows(rows, text) {
 
 /** ציון: כיסוי **משוקלל** (מרכזי 2 · תיבול 0.5) — 50% = מלא, 25% = חלקי; סתירה/טענה זרה מורידות
  *  (כמשקל השורה, טענה זרה = 1); כשל בטיחות = 0. easy (features.exam_easy): 40% / 20%. */
-export function scoreRows(rows, foreignCount = 0, { easy = false } = {}) {
+export function scoreRows(rows, foreignCount = 0, { easy = false, strict = false } = {}) {
   // שורת בטיחות שנאמרה («נא») היא חלק מ«מה זה» — נספרת בכיסוי; כשלא נאמרה — כשל בטיחות ממילא
   const main = rows.filter((r) => !r.crit || r.status === "ok");
   const W = (r) => (r.w ?? 1);
@@ -266,7 +266,8 @@ export function scoreRows(rows, foreignCount = 0, { easy = false } = {}) {
   // תיאור (בלי שורות מרכיבים): 50% = מלא — השורות הן «מה הכרטיס מזכיר» ולא «מה חובה לומר», ותיאור
   // טוב מכסה כחצי מהן (הבוטים, 6.9). עם שורות מרכיבים (מצב all): 60% — מרכיב מרכזי חסר אינו מלא.
   const withIngs = rows.some((r) => r.kind === "ing");
-  const [full, part] = easy ? [0.4, 0.15] : (withIngs ? [0.6, 0.25] : [0.5, 0.2]);
+  // דרגת קושי פר-מסעדה (features.exam_level, יותם 6.9): relaxed ⇒ easy · strict ⇒ סף גבוה
+  const [full, part] = easy ? [0.4, 0.15] : strict ? (withIngs ? [0.75, 0.35] : [0.7, 0.3]) : (withIngs ? [0.6, 0.25] : [0.5, 0.2]);
   // סתירה מוצהרת (אופן הכנה הפוך, טענה זרה מהשופט) — לכל היותר חלקי
   const lvl = safety ? 0 : Math.min(cover >= full ? 2 : cover >= part ? 1 : 0, foreignCount > 0 ? 1 : 2);
   return { lvl, cover, ok, wrong, n, safety };
@@ -277,10 +278,10 @@ export function scoreRows(rows, foreignCount = 0, { easy = false } = {}) {
  * `judge` = קריאה אסינכרונית ל-exam-judge v5 (null ⇒ דטרמיניסטי בלבד). נקרא רק כשיש מה
  * להכריע: שורה שלא זוהתה, או ציון לא-מלא — תיאור שכל שורותיו זוהו לא עולה כסף.
  */
-export async function gradeDescription({ dish, targets = null, text, judge = null, easy = false, mode = "all" }) {
+export async function gradeDescription({ dish, targets = null, text, judge = null, easy = false, strict = false, mode = "all" }) {
   let rows = markRows(buildRows(dish, targets, { mode }), text);
   const contra = prepContradictions(rows, text);
-  let s = scoreRows(rows, contra.length, { easy });
+  let s = scoreRows(rows, contra.length, { easy, strict });
   let note = "", foreign = [], judged = false;
   const words = toks(String(text || "")).length;
   // השופט נקרא כשיש מה להכריע: שורה שלא זוהתה, ציון לא-מלא — **או טענה שהדטרמיניסטי עיוור לה**:
@@ -301,7 +302,7 @@ export async function gradeDescription({ dish, targets = null, text, judge = nul
         rows = mergeRows(rows, verified);
         foreign = verified.foreign || [];
         note = verified.note || "";
-        s = scoreRows(rows, foreign.length + contra.length, { easy });
+        s = scoreRows(rows, foreign.length + contra.length, { easy, strict });
         judged = true;
       }
     }

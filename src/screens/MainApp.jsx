@@ -944,7 +944,8 @@ export default function MainApp({ session, onSignOut }) {
     // והכל ב-general_exam_questions. משקאות מחוץ למבחן (יש להם בחנים משלהם).
     if (openExam) return <OpenQuiz
       items={cards.filter((c) => !c.knowledge && !c.drink)} allItems={cards} quizOff={quizOff} examEasy={session?.features?.exam_easy === true}
-      restaurantId={session?.restaurantId} categoryLabel="התפריט המלא"
+      examLevel={session?.features?.exam_level || "normal"}
+      restaurantId={session?.restaurantId} teamMemberId={preview ? null : session?.teamMemberId} categoryLabel="התפריט המלא"
       exam={{ total: examConfig?.general_exam_questions || 40 }}
       onAnswer={learnItem} onDone={exitMode} onFinish={recordExam}
     />;
