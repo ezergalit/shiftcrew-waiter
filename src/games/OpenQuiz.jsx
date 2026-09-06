@@ -218,6 +218,13 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     onFinish?.({ score: avg, passed: avg >= 70, dishCount: deck.length });
   }, [finished, scores, deck.length, onFinish, restaurantId]);
 
+  // «נתקע במסך התשובה» (יותם, 6.9): במבחן המלא התוצאה ארוכה (שורות תיאור + ככה מתארים) וכפתור
+  // «המנה הבאה» ירד מתחת לקצה המסך בטלפון — והשורש היה מסך בלי גלילה (early-return של MainApp
+  // מחוץ למיכל הגולל). המיכל גולל עכשיו, והכפתור נגלל לתצוגה כשהתוצאה מופיעה.
+  // ⚠️ מעל כל ה-early returns (חוקי hooks — פעם שביעית בפרויקט)
+  const nextRef = useRef(null);
+  useEffect(() => { if (result) setTimeout(() => nextRef.current?.scrollIntoView({ block: "end", behavior: "smooth" }), 50); }, [result]);
+
   if (!started) {
     return (
       <div className="p-6 text-center space-y-3">
@@ -392,7 +399,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   if (finished) {
     const avg = weightedAvg(scores);
     return (
-      <div className="p-6 text-center space-y-4">
+      <div className="h-screen overflow-y-auto max-w-md mx-auto p-6 text-center space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
         <GraduationCap size={40} className={avg >= 70 ? "text-[#22c08c] mx-auto" : "text-[#f3a712] mx-auto"} />
         <p className="text-3xl font-black text-[#eef0f6]">{avg}%</p>
         <p className="text-sm font-bold text-[#8a8aa0]">
@@ -407,7 +414,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const ss = String(secondsLeft % 60).padStart(2, "0");
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="h-screen overflow-y-auto max-w-md mx-auto p-4 space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
       <div className="flex items-center justify-between">
         <p className="text-[11px] font-black text-[#8a8aa0]">
           {shortCat(categoryLabel)} · {i + 1}/{deck.length}
@@ -636,6 +643,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
             </div>
           )}
           <button
+            ref={nextRef}
             onClick={next}
             className="w-full py-3 min-h-[44px] rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm"
           >
