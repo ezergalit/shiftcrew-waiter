@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GraduationCap, Check, X as XIcon } from "lucide-react";
 import ExitExam from "./ExitExam";
 import AnswerInput from "../components/AnswerInput";
-import { shortCat, shuffle, ingLabel } from "./shared";
+import { shortCat, shuffle, ingLabel, ALLERGENS } from "./shared";
 import { generate, grade, setMenuVocab, norm, toks, wMatch, describeQuestionFor } from "../lib/examEngine";
 import { menuFromCards } from "../lib/examMenu";
-import { buildVocab } from "../lib/examSuggest";
+import { buildVocab, vocabFromList } from "../lib/examSuggest";
 import { loadLearnedAlts, withLearnedAlts, judgeAnswer, saveLearnedAlts, judgeLeaf } from "../lib/examJudge";
 import { gradeDescription, descAskable } from "../lib/describeLeaf";
 import { isSimple, simpleQuestions, gradeSimple } from "../lib/simpleDish";
@@ -16,6 +16,8 @@ const db = supabase.schema("menu_app");
 const REVIEW_S = 30;
 // דרגת קושי פר-מסעדה: features.exam_level = relaxed | normal | strict (יותם, 6.9)
 const PASS_MARK = { relaxed: 60, normal: 70, strict: 80 };
+// שניות לכרטיס לפי דרגת הקושי — הזמן הוא חצי מהקושי הנתפס, לא רק הסף
+const SECS_PER_DISH = { relaxed: 105, normal: 90, strict: 70 };
 import { buildSetQuestions, composeQuiz, nextSeen, scoreNamed, examPlan, suggestDish, resolveDish } from "../lib/quizBank";
 
 // ── מחזור «נשאל» (יותם, 6.9: «מלצר שנכשל לא מקבל את אותו הבוחן פעם נוספת») ──
@@ -202,6 +204,8 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const [alts, setAlts] = useState(new Map());
   useEffect(() => { loadLearnedAlts(restaurantId).then(setAlts); }, [restaurantId]);
   const [judging, setJudging] = useState(false);
+  // רשימת האלרגיות הסגורה כאוצר מילים לשדה האלרגיות בלבד — מה שאינו אלרגן לא מוצע כלל
+  const allergenVocab = useMemo(() => vocabFromList(ALLERGENS), []);
   // מזהה ישיבה אחד לכל מבחן — נכתב על כל תשובה ועל שורת התוצאה, כדי שהמנהל יראה בדיוק
   // את התשובות של המבחן הזה (ולא של ישיבה שכנה/נטושה באותו חלון זמן).
   const [sittingId] = useState(() => (globalThis.crypto?.randomUUID?.() || `s${Date.now()}${Math.round(performance.now())}`));
@@ -223,7 +227,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
 
   // 60s a dish: writing from memory is slower than recognising, and the previous typed
   // attempt's 25s was part of why it felt punitive.
-  const SECONDS_PER_DISH = 60;
+  const SECONDS_PER_DISH = SECS_PER_DISH[examLevel] || 60;
   const started = deck.length >= 2;
   const [secondsLeft, setSecondsLeft] = useState(0);
   // מבחן: מסך הסבר לפני שהשעון מתחיל (יותם, 6.9); בוחן — מתחילים מיד
@@ -234,7 +238,8 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const [reviewLeft, setReviewLeft] = useState(REVIEW_S);
   const [reporting, setReporting] = useState(null); // {text} כשכותבים דיווח על טעות
   const [reports, setReports] = useState(0);
-  const [reportedCards, setReportedCards] = useState([]);   // אינדקסים שכבר דווחו — בלי דיווח כפול
+  const [reportedCards, setReportedCards] = useState([]);
+  const [leftCount, setLeftCount] = useState(0);   // אינדקסים שכבר דווחו — בלי דיווח כפול
   const [aborted, setAborted] = useState(false);
   const [toast, setToast] = useState("");
   const [qStartedAt, setQStartedAt] = useState(0);
@@ -256,6 +261,28 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     const t = setTimeout(() => { setSecondsLeft((s) => s - 1); setElapsedQ((e) => e + 1); }, 1000);
     return () => clearTimeout(t);
   }, [started, briefed, finished, secondsLeft, exam, result, reporting, judging, stage2]);
+  // יציאה מהאפליקציה באמצע המבחן — אזהרה, ובשלישית מדווח למנהל (יותם, 6.9).
+  // ⚠️ visibilitychange הוא האות היחיד שמגיע גם כשמחליפים אפליקציה וגם כשנועלים מסך.
+  useEffect(() => {
+    if (!exam || !briefed || finished) return;
+    const onHide = () => {
+      if (!document.hidden) return;
+      setLeftCount((n) => {
+        const k = n + 1;
+        if (teamMemberId && restaurantId) {
+          db.from("exam_answers").insert({ restaurant_id: restaurantId, team_member_id: teamMemberId, sitting_id: sittingId,
+            question: "__left__", answer: { times: k, at: new Date().toISOString() }, lvl: null }).then(() => {}, () => {});
+        }
+        setToast(k >= 3
+          ? "יצאת מהאפליקציה באמצע המבחן בפעם ה-" + k + " — זה דווח למנהל."
+          : "אסור לצאת מהאפליקציה באמצע המבחן. יציאה שלישית תדווח למנהל.");
+        return k;
+      });
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => document.removeEventListener("visibilitychange", onHide);
+  }, [exam, briefed, finished, teamMemberId, restaurantId, sittingId]);
+
   // 30 שניות לקרוא במה טעית, ואז ממשיכים לבד (יותם, 6.9)
   useEffect(() => {
     if (!exam || !result || finished) return;
@@ -566,6 +593,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
         <p>⏱️ יש לך <b className="text-[#eef0f6]">{fmt(total)} דקות</b> ל-{deck.length} שאלות — בערך <b className="text-[#eef0f6]">{fmt(perQ)} לשאלה</b>. אם תיקח יותר על שאלה אחת, יישאר פחות לאחרות (או יותר, תלוי בעומק התשובה).</p>
         <p>📖 בין השאלות יש <b className="text-[#eef0f6]">{REVIEW_S} שניות</b> לקרוא את התשובה ובמה טעית — הזמן הזה לא נספר.</p>
         <p>🚩 מצאת טעות באפליקציה? יש כפתור דיווח עם הסבר. הדיווח לא לוקח מזמן המבחן, והשאלה לא נספרת.</p>
+        <p>📵 <b className="text-[#eef0f6]">אסור לצאת מהאפליקציה באמצע.</b> יציאה שלישית מדווחת למנהל.</p>
         <p>🪑 במבחן {deck.length} שאלות — תצטרך להיות פנוי כ-<b className="text-[#eef0f6]">{Math.ceil((total + deck.length * REVIEW_S) / 60)} דקות</b> ברצף.</p>
         <p>🏁 בסוף המבחן המנהל יודיע לך את התוצאה. בהצלחה!</p>
       </div>
@@ -575,7 +603,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       </>) : (
         <div className="rounded-2xl border border-[#f3a712]/50 bg-[#33290f]/60 p-4 space-y-3">
           <p className="text-[14px] font-black text-[#f3c14b]">אתה בטוח שאתה רוצה להתחיל?</p>
-          <p className="text-[12.5px] text-[#eef0f6] leading-relaxed">אי אפשר להפסיק באמצע, והמנהל יראה באיזו שעה התחלת את המבחן.</p>
+          <p className="text-[12.5px] text-[#eef0f6] leading-relaxed">אי אפשר להפסיק באמצע, אסור לצאת מהאפליקציה, והמנהל יראה באיזו שעה התחלת את המבחן.</p>
           <div className="flex gap-2">
             <button onClick={() => { const t = new Date().toISOString(); setStartedAt(t); setBriefed(true); setQStartedAt(Date.now());
               if (teamMemberId && restaurantId) db.from("exam_answers").insert({ restaurant_id: restaurantId, team_member_id: teamMemberId, sitting_id: sittingId, question: "__start__", answer: { startedAt: t }, lvl: null }).then(() => {}, () => {}); }}
@@ -619,7 +647,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
         })()}
       </div>
       <div className="flex-1 overflow-y-auto px-4 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-4">
-      {toast && <p className="text-[12px] font-bold text-[#22c08c] bg-[#15302b]/60 rounded-xl px-3 py-2">{toast}</p>}
+      {toast && <p className={`text-[12px] font-bold rounded-xl px-3 py-2 ${leftCount > 0 && toast.includes("אפליקציה") ? "text-[#ff8098] bg-[#3a1d22]/70" : "text-[#22c08c] bg-[#15302b]/60"}`}>{toast}</p>}
 
       <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
         <p className="text-[11px] font-black text-[#22c08c]">
@@ -701,7 +729,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
           )}
           {askAll && (
             <AnswerInput
-              vocab={vocab} values={alls} onChange={setAlls}
+              vocab={allergenVocab} values={alls} onChange={setAlls}
               label="אלרגיות" placeholder="כתבו אלרגיה ולחצו הוסף…"
             />
           )}
@@ -711,7 +739,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
           {(() => {
             const why = judging ? null
               : cur.set && !setSel.length ? "כתבו לפחות מנה אחת ולחצו הוסף"
-              : openDesc && toks(descText).length < 2 ? "כתבו תיאור של לפחות שתי מילים"
+              : openDesc && !descText.trim() ? "כתבו משהו על המנה — מספיקה מילה אחת"
               : cur.simple && cur.simple.some((_, k) => !(simpleAns[k] || "").trim()) ? "ענו על כל השאלות"
               : null;
             return (<>

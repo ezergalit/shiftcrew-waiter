@@ -20,7 +20,7 @@ const H2L = { "ב":"b","ג":"g","ד":"d","ז":"s","ח":"h","ט":"t","כ":"k","ל
               "ף":"p","ך":"k","ם":"m","ן":"n","ץ":"c" };
 const FOLD = { v:"b", w:"b", c:"k", q:"k", f:"p", j:"g", z:"s" };
 const fold = (t) => [...t].map((c) => FOLD[c] || c).join("");
-const skel = (w) => /[א-ת]/.test(w)
+export const skel = (w) => /[א-ת]/.test(w)
   ? fold([...w].map((c) => H2L[c] || "").join(""))
   : fold(w.toLowerCase().replace(/[aeiouwy'h]/g, ""));
 
@@ -116,3 +116,9 @@ export function suggest(vocab, query, { limit = 6, exclude = [] } = {}) {
   }
   return uniq;
 }
+
+// אוצר מילים מרשימה סגורה — לשדה האלרגיות, שבו רק שמונת הערכים שלנו מוצעים (יותם, 6.9)
+export const vocabFromList = (list) => (list || []).map((label) => {
+  const key = norm(String(label));
+  return { label, key, skel: skel(key.replace(/ /g, "")) };
+});
