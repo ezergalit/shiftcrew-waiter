@@ -8,6 +8,7 @@ import { menuFromCards } from "../lib/examMenu";
 import { buildVocab } from "../lib/examSuggest";
 import { loadLearnedAlts, withLearnedAlts, judgeAnswer, saveLearnedAlts, judgeLeaf } from "../lib/examJudge";
 import { gradeDescription } from "../lib/describeLeaf";
+import { isSimple, simpleQuestions, gradeSimple } from "../lib/simpleDish";
 import { buildSetQuestions, composeQuiz, nextSeen, scoreNamed, examPlan, suggestDish, resolveDish } from "../lib/quizBank";
 
 // ── מחזור «נשאל» (יותם, 6.9: «מלצר שנכשל לא מקבל את אותו הבוחן פעם נוספת») ──
@@ -107,7 +108,12 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       e[q.sit] = q;
       byDish.set(q.dish, e);
     }
-    const dishCard = (it) => { const e = byDish.get(it.name); return e ? { ...e, it } : null; };
+    // מנה פשוטה (יותם, 6.9: המבורגר ילדים, פסטה ילדים, בייגל…) — שואלים רק מה שרלוונטי מתוך
+    // התיאור (בלקיחת ההזמנה · כמה גרם · כמה יחידות · כמה לשולחן), במקום «תמליץ ותאר»+אלרגיות
+    const dishCard = (it) => {
+      if (isSimple(it)) { const sq = simpleQuestions(it); if (sq.length) return { dish: it.name, it, simple: sq }; }
+      const e = byDish.get(it.name); return e ? { ...e, it } : null;
+    };
     const drinkCat = !exam && food.some((i) => i.drink);
     askedRef.current = {};
 
@@ -171,6 +177,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const [flavs, setFlavs] = useState([]);
   const [setSel, setSetSel] = useState([]);   // שאלת-סט: שמות המנות שנכתבו
   const [descText, setDescText] = useState(""); // מבחן: «תאר את המנה ללקוח» — פסקה חופשית
+  const [simpleAns, setSimpleAns] = useState([]); // מנה פשוטה: תשובה קצרה לכל שאלה
   const [result, setResult] = useState(null);
   // שלב 2 (יותם, 1.9): בחרת משקה בשאלת המלצה ⇒ «עכשיו תאר אותו לאורח» — טקסט
   // חופשי, נבדק במצב-משפט ואם צריך עולה לשופט. {dish, q, text, res, judging}
@@ -249,6 +256,15 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
         const q2 = picked ? describeQuestionFor(picked) : null;
         if (q2) setStage2({ dish: picked, q: withLearnedAlts(q2, alts), text: "", res: null, judging: false });
       }
+      return;
+    }
+    if (cur.simple) {
+      const parts = cur.simple.map((q, k) => ({ key: `s${k}`, sq: q, text: simpleAns[k] || "", g: gradeSimple(q, simpleAns[k] || "") }));
+      const avg = Math.round(parts.reduce((a, p) => a + LVL_SCORE[p.g.lvl], 0) / parts.length);
+      const worst = Math.min(...parts.map((p) => p.g.lvl));
+      setResult({ parts, avg });
+      setScores((s) => [...s, { v: avg, w: 1 }]);
+      if (cur.it) onAnswer?.(cur.it.id, LVL_RATING[worst]);
       return;
     }
     if (openDesc) {
@@ -338,7 +354,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   };
 
   const next = () => {
-    setResult(null); setIngs([]); setAlls([]); setRecAns([]); setFlavs([]); setSetSel([]); setDescText(""); setStage2(null);
+    setResult(null); setIngs([]); setAlls([]); setRecAns([]); setFlavs([]); setSetSel([]); setDescText(""); setSimpleAns([]); setStage2(null);
     if (i + 1 >= deck.length) setFinished(true); else setI(i + 1);
   };
 
@@ -372,11 +388,11 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
 
       <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
         <p className="text-[11px] font-black text-[#22c08c]">
-          {cur.set || cur.rec ? "המלצה ללקוח" : cur.it?.drink ? "כתיבה מהזיכרון" : "תמליץ ותאר"}
+          {cur.set || cur.rec ? "המלצה ללקוח" : cur.simple ? "מה חשוב לדעת על המנה" : cur.it?.drink ? "כתיבה מהזיכרון" : "תמליץ ותאר"}
           {exam && cur.cat ? ` · ${shortCat(cur.cat)}` : exam && cur.it?.category ? ` · ${shortCat(cur.it.category)}` : ""}
         </p>
         <p className="text-[17px] font-black text-[#eef0f6] mt-1 leading-snug">{cur.set ? cur.set.ask : cur.rec ? cur.rec.ask : cur.dish}</p>
-        {!cur.rec && !cur.set && (
+        {!cur.rec && !cur.set && !cur.simple && (
           <p className="text-[12px] text-[#8a8aa0] mt-1">
             {openDesc ? "אורח מבקש המלצה. תאר לו את המנה במילים שלך — מה יש בה ואיך היא מוכנה — ואז סמן את האלרגיות."
               : cur.describe && cur.flavor ? "מה יש בקוקטייל, ואיך הוא בטעם?"
@@ -405,6 +421,18 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               label="ההמלצה שלך" placeholder="כתבו את שם המנה או המשקה ולחצו הוסף…"
             />
           )}
+          {cur.simple && cur.simple.map((q, k) => (
+            <div key={q.id} className="space-y-1.5">
+              <p className="text-[13px] font-black text-[#eef0f6] leading-snug">{q.ask}</p>
+              <input
+                value={simpleAns[k] || ""}
+                onChange={(e) => setSimpleAns((a) => { const n = [...a]; n[k] = e.target.value; return n; })}
+                dir="rtl"
+                placeholder={q.kind === "order" ? "מה שואלים או אומרים…" : q.kind === "per" ? "כמה, או אחד לכל כמה סועדים…" : "מספר…"}
+                className="w-full bg-[#0c0d10] border border-[#22252b] rounded-lg px-3 py-2.5 text-[16px] text-[#eef0f6] placeholder:text-[#5a5a6e] focus:outline-none focus:border-[#22c08c]/60"
+              />
+            </div>
+          ))}
           {openDesc && (
             <div className="space-y-1.5">
               <p className="text-[11px] font-black text-[#8a8aa0]">תאר את המנה ללקוח</p>
@@ -439,7 +467,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
           )}
           <button
             onClick={submit}
-            disabled={judging || (!!cur.set && !setSel.length) || (openDesc && toks(descText).length < 2)}
+            disabled={judging || (!!cur.set && !setSel.length) || (openDesc && toks(descText).length < 2) || (!!cur.simple && cur.simple.some((_, k) => !(simpleAns[k] || "").trim()))}
             className="w-full py-3 min-h-[44px] rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm disabled:opacity-60"
           >
             {judging ? "בודק…" : "שליחה"}
@@ -481,9 +509,20 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               <div className="flex items-center gap-2">
                 {p.g.lvl === 2 ? <Check size={15} className="text-[#22c08c]" /> : <XIcon size={15} className={p.leaf?.safety ? "text-[#e0315a]" : "text-[#f3a712]"} />}
                 <p className="text-[12px] font-black text-[#eef0f6]">
-                  {p.key === "desc" ? "התיאור" : p.key === "rec" ? "ההמלצה" : p.key === "flav" ? "תיאור הטעם" : p.key === "ings" ? ingLabel(cur.it) : "אלרגיות"} — {p.leaf?.safety ? "חסרה אזהרת בטיחות" : p.g.lvl === 2 ? "נכון" : p.g.lvl === 1 ? "חלקי" : "לא נכון"}
+                  {p.sq ? p.sq.ask : p.key === "desc" ? "התיאור" : p.key === "rec" ? "ההמלצה" : p.key === "flav" ? "תיאור הטעם" : p.key === "ings" ? ingLabel(cur.it) : "אלרגיות"} — {p.leaf?.safety ? "חסרה אזהרת בטיחות" : p.g.lvl === 2 ? "נכון" : p.g.lvl === 1 ? "חלקי" : "לא נכון"}
                 </p>
               </div>
+              {p.sq && (
+                <div className="space-y-1">
+                  {p.sq.kind === "order" && p.sq.atoms.map((a, k) => (
+                    <p key={a} className="text-[11.5px] font-bold">
+                      <span className={p.g.hits[k] >= 1 ? "text-[#22c08c]" : p.g.hits[k] > 0 ? "text-[#f3c14b]" : "text-[#8a8aa0]"}>{p.g.hits[k] >= 1 ? "✓" : p.g.hits[k] > 0 ? "◐" : "◌"} {a}</span>
+                    </p>
+                  ))}
+                  {p.g.note && <p className="text-[11.5px] font-bold text-[#f3c14b]">{p.g.note}</p>}
+                  <p className="text-[12px] text-[#8a8aa0] leading-relaxed">התשובה: {p.sq.answerText}</p>
+                </div>
+              )}
               {p.leaf && (
                 <div className="space-y-1">
                   {p.leaf.rows.map((r) => (
@@ -503,10 +542,10 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
                   {cur.it?.desc && <p className="text-[12px] text-[#8a8aa0] leading-relaxed">ככה מתארים אותה: {cur.it.desc}</p>}
                 </div>
               )}
-              {!p.leaf && <GradeDetail g={p.g} unit={p.key === "rec" ? "המלצות" : "פרטים"} />}
+              {!p.leaf && !p.sq && <GradeDetail g={p.g} unit={p.key === "rec" ? "המלצות" : "פרטים"} />}
               {/* The answer, always — a quiz that says "wrong" without saying what the
                   right answer was teaches nothing. */}
-              {!p.leaf && (
+              {!p.leaf && !p.sq && (
                 <p className="text-[12px] text-[#8a8aa0] leading-relaxed">
                   {p.q.targets.map((t) => t.t).join(" · ")}
                 </p>
