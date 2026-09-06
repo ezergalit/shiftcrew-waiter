@@ -37,6 +37,12 @@ const LVL_SCORE = [0, 50, 100];
 
 // «תסביר לי מה חלקי בדיוק» (user, 1.9) — the engine returns a per-chip detail;
 // this renders it: what counted, what didn't and why, and how much is missing.
+// תווית לשורת תיאור לפי סוגה — מרכיב לפי משקל, ובלי «תיבול» על שורות שאינן מרכיבים.
+// 🔴 ברמת המודול: גרסה ראשונה ישבה בתוך GradeDetail ונקראה ממסך התוצאה של OpenQuiz ⇒
+// ReferenceError בכל שליחה של כרטיס תיאור במבחן (build 51). lint לא תפס — no-undef כבוי.
+const rowTag = (r) => r.kind === "desc" ? "הכנה" : r.kind === "form" ? "צורה והגשה" : r.kind === "core" ? "מרכיב"
+  : r.kind === "warn" ? "רגישות" : r.crit ? "בטיחות" : r.w >= 2 ? "מרכזי" : r.w < 1 ? "תיבול" : null;
+
 function GradeDetail({ g, unit = "המלצות", nameToks = [] }) {
   if (!g?.detail?.length && !g?.missing) return null;
   // «אנשובי» על «אנשובי במלח» — זה שם המנה, לא תשובה: אומרים את זה במקום «לא נספר» סתמי
@@ -50,10 +56,6 @@ function GradeDetail({ g, unit = "המלצות", nameToks = [] }) {
     : "❓ לא מזוהה — נשלח לשופט";
   const cls = (d) => d.status === "ok" ? "text-[#22c08c]" : d.status === "free" ? "text-[#8a8aa0]"
     : d.status === "unknown" ? "text-[#9b7bff]" : "text-[#f3a712]";
-  // תווית לשורת תיאור לפי סוגה — מרכיב לפי משקל, ובלי «תיבול» על שורות שאינן מרכיבים
-  // (הכנה/צורה/מרכיב-משני/אזהרה נכנסו ב-6.9 והוצגו כולן בטעות כ«תיבול»)
-  const rowTag = (r) => r.kind === "desc" ? "הכנה" : r.kind === "form" ? "צורה והגשה" : r.kind === "core" ? "מרכיב"
-    : r.kind === "warn" ? "רגישות" : r.crit ? "בטיחות" : r.w >= 2 ? "מרכזי" : r.w < 1 ? "תיבול" : null;
   return (
     <div className="space-y-1 mt-1">
       {(g.detail || []).map((d, i) => (
