@@ -252,10 +252,10 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   }, [exam, restaurantId, teamMemberId]);
   useEffect(() => {
     // השעון עומד בזמן קריאת התשובה ובזמן כתיבת דיווח — לא לוקח מזמן המבחן
-    if (!started || !briefed || finished || secondsLeft <= 0 || (exam && (result || reporting || judging))) return;
+    if (!started || !briefed || finished || secondsLeft <= 0 || judging || stage2?.judging || (exam && (result || reporting))) return;
     const t = setTimeout(() => { setSecondsLeft((s) => s - 1); setElapsedQ((e) => e + 1); }, 1000);
     return () => clearTimeout(t);
-  }, [started, briefed, finished, secondsLeft, exam, result, reporting, judging]);
+  }, [started, briefed, finished, secondsLeft, exam, result, reporting, judging, stage2]);
   // 30 שניות לקרוא במה טעית, ואז ממשיכים לבד (יותם, 6.9)
   useEffect(() => {
     if (!exam || !result || finished) return;
@@ -500,7 +500,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     const v = LVL_SCORE[g.lvl];
     setScores((s) => [...s, { v, w: 1 }]);
     if (stage2.dish && onAnswer) onAnswer(stage2.dish.id ?? null, LVL_RATING[g.lvl]);
-    setStage2((s2) => ({ ...s2, res: g, judging: false }));
+    setStage2((s2) => (s2 ? { ...s2, res: g, judging: false } : null));
   };
 
   const next = () => {
@@ -589,34 +589,36 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
 
   const overBudget = exam && !result && elapsedQ > perQ;
   return (
-    <div className="h-screen pt-[calc(26px+env(safe-area-inset-top))] overflow-y-auto max-w-md mx-auto p-4 space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+    <div className="h-screen pt-[calc(26px+env(safe-area-inset-top))] max-w-md mx-auto flex flex-col">
       {/* השעון: צ'יפ גדול ומודגש, ומצב «עומד» מפורש — בזמן קריאת התשובה, דיווח, ובזמן שהשופט
           בודק (יותם, 6.9: «לא רואים אותו למעלה» + «בזמן שה-AI קורא גם לא להעביר את הזמן»). */}
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[11.5px] font-black text-[#8a8aa0] leading-snug">
+      <div className="flex items-start justify-between gap-3 px-4 pb-3 flex-shrink-0">
+        <p className="text-[11.5px] font-black text-[#8a8aa0] leading-snug min-w-0 flex-1 line-clamp-2">
           {shortCat(categoryLabel)}<br />{i + 1}/{deck.length}
         </p>
         {(() => {
-          const paused = exam && (result || reporting || judging);
+          const paused = judging || stage2?.judging || (exam && (result || reporting));
           const tone = paused ? { bg: "#15302b", bd: "#22c08c66", fg: "#22c08c" }
             : secondsLeft < 60 ? { bg: "#3a1d22", bd: "#e0315a66", fg: "#ff8098" }
             : overBudget ? { bg: "#33290f", bd: "#f3a71266", fg: "#f3c14b" }
             : { bg: "#16181c", bd: "#22252b", fg: "#eef0f6" };
-          const note = !exam ? null
-            : judging ? "השעון עומד — בודקים את התשובה"
+          const note = judging || stage2?.judging ? "השעון עומד — בודקים את התשובה"
+            : !exam ? null
             : reporting ? "השעון עומד — דיווח"
             : result ? `השעון עומד · ${reviewLeft} שניות לקרוא`
-            : overBudget ? `עברת את ${fmt(perQ)} לשאלה` : `≈ ${fmt(perQ)} לשאלה`;
+            : overBudget ? `עברת את ${fmt(perQ)} — עברו ${fmt(elapsedQ)}` : `≈ ${fmt(perQ)} לשאלה · עברו ${fmt(elapsedQ)}`;
           return (
-            <div className="rounded-2xl px-3.5 py-2 text-center min-w-[112px]" style={{ background: tone.bg, border: `1px solid ${tone.bd}` }}>
-              <p className={`${exam ? "text-[28px]" : "text-[15px]"} font-black tabular-nums leading-none`} style={{ color: tone.fg }}>
-                {paused ? "⏸ " : ""}{mm}:{ss}
+            <div className="rounded-2xl px-3.5 py-2 text-center min-w-[118px] flex-shrink-0" style={{ background: tone.bg, border: `1px solid ${tone.bd}` }}>
+              {/* ⏸ מחוץ לרצף הספרות — אימוג'י אינו ברוחב tabular ומזיז את השעון בכל שנייה */}
+              <p className={`${exam ? "text-[28px]" : "text-[15px]"} font-black leading-none flex items-center justify-center gap-1`} style={{ color: tone.fg }}>
+                {paused && <span className="text-[18px] leading-none">⏸</span>}<span className="tabular-nums">{mm}:{ss}</span>
               </p>
-              {note && <p className="text-[10.5px] font-bold mt-1 leading-tight" style={{ color: paused ? "#22c08c" : overBudget ? "#f3c14b" : "#5a5a6e" }}>{note}</p>}
+              {note && <p className="text-[10.5px] font-bold mt-1 leading-tight" style={{ color: paused ? "#22c08c" : overBudget ? "#f3c14b" : "#9aa0ad" }}>{note}</p>}
             </div>
           );
         })()}
       </div>
+      <div className="flex-1 overflow-y-auto px-4 pb-[max(2rem,env(safe-area-inset-bottom))] space-y-4">
       {toast && <p className="text-[12px] font-bold text-[#22c08c] bg-[#15302b]/60 rounded-xl px-3 py-2">{toast}</p>}
 
       <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
@@ -852,8 +854,8 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
                       className="flex-1 py-2.5 min-h-[40px] rounded-xl bg-[#22c08c] text-[#06231a] font-black text-[12.5px]">
                       {stage2.judging ? "בודק…" : "בדיקת התיאור"}
                     </button>
-                    <button onClick={() => setStage2(null)}
-                      className="py-2.5 px-3 rounded-xl bg-[#20232b] text-[#8a8aa0] font-bold text-[12.5px]">דלג</button>
+                    <button onClick={() => setStage2(null)} disabled={stage2.judging}
+                      className="py-2.5 px-3 rounded-xl bg-[#20232b] text-[#8a8aa0] font-bold text-[12.5px] disabled:opacity-50">דלג</button>
                   </div>
                 </>
               ) : (
@@ -869,6 +871,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
           <button
             ref={nextRef}
             onClick={next}
+            disabled={!!stage2?.judging}
             className="w-full py-3 min-h-[44px] rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm"
           >
             {i + 1 >= deck.length ? "לסיכום" : exam ? `המנה הבאה (${reviewLeft})` : "המנה הבאה"}
@@ -877,6 +880,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       )}
 
       <ExitExam onDone={onDone} />
+      </div>
     </div>
   );
 }
