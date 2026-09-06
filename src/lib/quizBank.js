@@ -360,3 +360,16 @@ export function nameIngredient(dish) {
   }
   return null;
 }
+
+// ── «איך מטובלת המנה?» (יותם, 6.9): כשמה שנשאר מעבר לשם הוא תיבול/רוטב/קישוט («אנשובי במלח»:
+// שמן זית, בצל, צ'ילי, צלפים) — השאלה היא איך מטבלים ומגישים, לא «מה יש בה». ─────────────
+const DRESSING = ["שמן", "לימון", "ליים", "שום", "בצל", "צ'ילי", "צילי", "צלפים", "עשבי", "פטרוזיליה", "כוסברה", "נענע", "שמיר", "בזיליקום",
+  "אורגנו", "זעתר", "סומק", "פפריקה", "כמון", "פלפל", "מלח", "חומץ", "חרדל", "סחוג", "אריסה", "צנונית", "צנוניות", "שומשום", "ג'ינג'ר",
+  "גינגר", "וסאבי", "טחינה", "יוגורט", "סויה", "פונזו", "טריאקי", "דבש", "סילאן", "רוטב", "תיבול", "תבלין", "קונפי", "לבנה", "מיונז", "איולי"].map(norm);
+const isDressing = (ing) => String(ing || "").split(/[\s,/]+/).map(norm).some((w) => DRESSING.some((d) => w === d || (d.length >= 4 && w.startsWith(d))));
+/** { nameIng, dressing } — dressing = יש מרכיב בשם וכל היעדים שנשארו הם תיבול/רוטב/קישוט */
+export function questionStyle(dish, targets = null) {
+  const nameIng = nameIngredient(dish);
+  const rest = (targets ? targets.map((t) => t.t) : (dish?.ingredients || [])).filter((x) => norm(x) !== norm(nameIng || ""));
+  return { nameIng, dressing: !!nameIng && rest.length > 0 && rest.every(isDressing) };
+}

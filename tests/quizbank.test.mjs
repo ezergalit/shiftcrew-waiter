@@ -1,6 +1,6 @@
 // ══ הרכב הבוחן (יותם, 6.9) — הכללים שאסור שיישברו ══
 //   node tests/quizbank.test.mjs
-import { quizSize, setCountFor, buildSetQuestions, composeQuiz, nextSeen, scoreSet, examPlan, catForms, veganSafe, suggestDish, resolveDish, scoreNamed, nameIngredient } from "../src/lib/quizBank.js";
+import { quizSize, setCountFor, buildSetQuestions, composeQuiz, nextSeen, scoreSet, examPlan, catForms, veganSafe, suggestDish, resolveDish, scoreNamed, nameIngredient, questionStyle } from "../src/lib/quizBank.js";
 
 let fail = 0;
 const ok = (cond, msg) => { if (!cond) { fail++; console.log("🔴", msg); } };
@@ -137,5 +137,10 @@ ok(nameIngredient({ name: "אנשובי במלח", ingredients: ["אנשובי",
 ok(nameIngredient({ name: "סשימי ילוטייל כמהין", ingredients: ["ילוטייל", "כמהין", "פונזו"] }) === "ילוטייל", "סשימי ילוטייל ⇒ ילוטייל (הראשון)");
 ok(nameIngredient({ name: "רול הבית", ingredients: ["טונה אדומה", "אבוקדו"] }) === null, "רול הבית ⇒ אין מרכיב בשם");
 ok(nameIngredient({ name: "פילה דניס – אש הים האגאי", ingredients: ["פילה דניס", "שעועית ירוקה"] }) === "פילה דניס", "פילה דניס ⇒ שני-מילים בשם");
+// «איך מטובלת המנה» — כשמה שנשאר מעבר לשם הוא תיבול/רוטב/קישוט (נתונים אמיתיים מסלון)
+ok(questionStyle({ name: "אנשובי במלח", ingredients: ["אנשובי", "שמן זית", "בצל", "צ'ילי", "צלפים"] }).dressing === true, "אנשובי במלח ⇒ «איך מטובלת»");
+ok(questionStyle({ name: "סרדינים כבושים", ingredients: ["סרדינים", "בצל ירוק", "בצל סגול", "צ'ילי", "צנוניות"] }).dressing === true, "סרדינים כבושים ⇒ «איך מטובלת»");
+ok(questionStyle({ name: "קרפצ'יו סינטה", ingredients: ["סינטה", "כמהין", "רכז רימונים", "שמן זית", "פרמז'ן"] }).dressing === false, "קרפצ'יו סינטה ⇒ מרכיבים רגילים (כמהין, פרמז'ן)");
+ok(questionStyle({ name: "טארמה", ingredients: ["ביצי דגים", "בצל קצוץ", "שמן זית"] }).dressing === false, "טארמה — אין מרכיב בשם ⇒ ניסוח רגיל");
 console.log(fail ? `\n🔴 ${fail} כשלים` : "quizbank.test: כל הבדיקות עברו");
 process.exit(fail ? 1 : 0);

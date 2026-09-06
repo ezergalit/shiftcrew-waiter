@@ -9,7 +9,7 @@ import { buildVocab } from "../lib/examSuggest";
 import { loadLearnedAlts, withLearnedAlts, judgeAnswer, saveLearnedAlts, judgeLeaf } from "../lib/examJudge";
 import { gradeDescription } from "../lib/describeLeaf";
 import { isSimple, simpleQuestions, gradeSimple } from "../lib/simpleDish";
-import { nameIngredient } from "../lib/quizBank";
+import { questionStyle } from "../lib/quizBank";
 import { buildSetQuestions, composeQuiz, nextSeen, scoreNamed, examPlan, suggestDish, resolveDish } from "../lib/quizBank";
 
 // ── מחזור «נשאל» (יותם, 6.9: «מלצר שנכשל לא מקבל את אותו הבוחן פעם נוספת») ──
@@ -232,7 +232,10 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const openDesc = !!(exam && cur?.describe && !cur.it?.drink);
   // «אנשובי במלח»: השם הוא המרכיב — השאלה אומרת את זה («מעבר לאנשובי שבשם») כדי שהמלצר
   // ידע על מה עונים, ולא יקבל «לא הצלחת» על שכתב את שם המנה (יותם, 6.9)
-  const nameIng = cur?.it && !cur.it.drink ? nameIngredient(cur.it) : null;
+  // ו«איך מטובלת המנה?» כשמה שנשאר מעבר לשם הוא תיבול/רוטב/קישוט («אנשובי במלח»: שמן זית, בצל,
+  // צ'ילי, צלפים) — זו התשובה, ולא «מה יש בה»
+  const qs = cur?.it && !cur.it.drink ? questionStyle(cur.it, cur.describe?.targets) : { nameIng: null, dressing: false };
+  const nameIng = qs.nameIng;
   const beyond = nameIng ? ` — מעבר ל${nameIng} שבשם` : "";
 
   const submit = async () => {
@@ -404,8 +407,10 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
         <p className="text-[17px] font-black text-[#eef0f6] mt-1 leading-snug">{cur.set ? cur.set.ask : cur.rec ? cur.rec.ask : cur.dish}</p>
         {!cur.rec && !cur.set && !cur.simple && (
           <p className="text-[12px] text-[#8a8aa0] mt-1">
-            {openDesc ? `תאר ללקוח את המנה ״${cur.dish}״ ואת כל המרכיבים שיש בה${beyond}, ואיך היא מוכנה — ואז סמן את האלרגיות.`
+            {openDesc && qs.dressing ? `תאר ללקוח את המנה ״${cur.dish}״ — איך היא מטובלת ומוגשת, ואיך היא מוכנה — ואז סמן את האלרגיות.`
+              : openDesc ? `תאר ללקוח את המנה ״${cur.dish}״ ואת כל המרכיבים שיש בה${beyond}, ואיך היא מוכנה — ואז סמן את האלרגיות.`
               : cur.describe && cur.flavor ? "מה יש בקוקטייל, ואיך הוא בטעם?"
+              : cur.describe && qs.dressing ? `איך מטובלת המנה ״${cur.dish}״? ציין את כל מה שמתבלים ומגישים איתה${askAll ? ", ואילו אלרגיות יש בה" : ""}.`
               : cur.describe && askAll && !cur.it?.drink ? `תאר את המנה ״${cur.dish}״ ואת כל המרכיבים שיש בה${beyond}, ואילו אלרגיות יש בה.`
               : cur.describe && !cur.it?.drink ? `תאר את המנה ״${cur.dish}״ ואת כל המרכיבים שיש בה${beyond}.`
               : cur.describe && askAll ? "מה יש במנה, ואילו אלרגיות היא נושאת?"
@@ -460,7 +465,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
           {cur.describe && !openDesc && (
             <AnswerInput
               vocab={vocab} values={ings} onChange={setIngs}
-              label={ingLabel(cur.it)}
+              label={qs.dressing ? "תיבול, רוטב ומה שמגישים איתה" : ingLabel(cur.it)}
               placeholder={cur.it?.drink ? "כתבו פרט (יבש, אדום, כשר…) ולחצו הוסף…" : "כתבו מרכיב ולחצו הוסף…"}
             />
           )}
