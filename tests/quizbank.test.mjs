@@ -1,6 +1,6 @@
 // ══ הרכב הבוחן (יותם, 6.9) — הכללים שאסור שיישברו ══
 //   node tests/quizbank.test.mjs
-import { quizSize, setCountFor, buildSetQuestions, composeQuiz, nextSeen, scoreSet, examPlan, catForms, veganSafe } from "../src/lib/quizBank.js";
+import { quizSize, setCountFor, buildSetQuestions, composeQuiz, nextSeen, scoreSet, examPlan, catForms, veganSafe, suggestDish, resolveDish, scoreNamed } from "../src/lib/quizBank.js";
 
 let fail = 0;
 const ok = (cond, msg) => { if (!cond) { fail++; console.log("🔴", msg); } };
@@ -24,12 +24,14 @@ const cat = [
 ];
 const sets = buildSetQuestions(cat, "ראשונות");
 const byId = Object.fromEntries(sets.map((q) => [q.id, q]));
-ok(byId["set:allergen-has:סויה"]?.answer.length === 3, "רגישות לסויה — לא יכול: 3");
-ok(byId["set:allergen-safe:סויה"]?.answer.join() === ["שרימפס טמפורה", "נאמס צמחוני"].join(), "רגישות לסויה — כן יכול: 2");
-ok(byId["set:pregnancy-no"]?.answer.length === 2 && byId["set:pregnancy-ok"]?.answer.length === 3, "הריון: אסור 2 / אפשר 3");
-ok(byId["set:pitfall:כוסברה"]?.answer[0] === "נאמס צמחוני", "מוקש כוסברה");
-ok(byId["set:vegan"]?.answer.join() === ["נאמס צמחוני", "אדממה"].join(), "טבעוני: נאמס + אדממה בלבד");
+// קהל רחב (יותם, 6.9): צליאק · לקטוז · טבעוני · לא/כן דג נא — ולא סויה/שומשום
+ok(!sets.some((q) => /סויה|שומשום|ביצים|רכיכות/.test(q.ask)), "אין שאלת סט על סויה/שומשום/ביצים/רכיכות");
+ok(byId["set:celiac"]?.answer.length === 4 && /צליאקי \(שלא אוכל גלוטן\)/.test(byId["set:celiac"].ask) && /ציין את כולן/.test(byId["set:celiac"].ask), "צליאק ⇒ 4 מנות בלי גלוטן, «ציין את כולן»");
+ok(byId["set:vegan"]?.answer.join() === ["נאמס צמחוני", "אדממה"].join() && /טבעוני/.test(byId["set:vegan"].ask), "טבעוני: נאמס + אדממה בלבד");
+ok(byId["set:no-raw"]?.answer.length === 3 && byId["set:raw"]?.answer.length === 2 && /שלא אוכל דג נא/.test(byId["set:no-raw"].ask) && /שרוצה דג נא/.test(byId["set:raw"].ask), "דג נא: לא אוכל 3 / רוצה 2");
+ok(!byId["set:lactose"], "אין לקטוז בקטגוריה ⇒ אין שאלת לקטוז");
 ok(!sets.some((q) => q.answer.length === cat.length || q.answer.length === 0), "אין שאלה שהתשובה שלה הכל/כלום");
+ok(sets.filter((q) => q.kind === "list").every((q) => q.need === null), "סט ≤4 ⇒ ציין את כולן (need=null)");
 // הרמז מצביע על סקוורס + סשימי ילוטייל (בנתונים האלה «אבוקדו» לבדו כבר מצמצם לשתיים — הזוג נשמר לתפריט שבו אבוקדו נפוץ)
 const hinted = sets.find((q) => q.kind === "rec" && q.answer.length === 2 && q.answer.includes("סקוורס") && q.answer.includes("סשימי ילוטייל"));
 ok(!!hinted && /אבוקדו|דג נא/.test(hinted.ask), "רמז ⇒ סקוורס + סשימי ילוטייל");
@@ -38,8 +40,10 @@ ok(catForms("Greek Oven Breads").catIn === "המנות ב״Greek Oven Breads״" 
 ok(veganSafe({ name: "טופו", ingredients: ["טופו"], allergens: [] }) === true && veganSafe({ name: "x", ingredients: [] }) === null, "גלאי טבעוני: כן / לא-ידוע");
 
 // 3. הרכבה: 12 מנות ⇒ 7 כרטיסים (5 מנות + 2 סט), המנות של הרמז נכנסות
-const twelve = Array.from({ length: 12 }, (_, i) => D(`מנה ${i + 1}`, { ingredients: [`מרכיב${i}`, "אבוקדו"], allergens: i % 2 ? ["גלוטן"] : [], pregnancy: i < 2 ? ["דג נא"] : [] }));
+const twelve = Array.from({ length: 12 }, (_, i) => D(`מנה ${i + 1}`, { ingredients: [`מרכיב${i}`, "אבוקדו"], allergens: i % 2 ? ["גלוטן"] : ["סויה"], pregnancy: i < 2 ? ["דג נא"] : [] }));
 const sets12 = buildSetQuestions(twelve, "ראשונות");
+const celiac12 = sets12.find((q) => q.id === "set:celiac");
+ok(celiac12 && celiac12.need === 3 && celiac12.answer.length === 6 && /תמליץ ללקוח צליאקי \(שלא אוכל גלוטן\) על 3 מנות מהראשונות/.test(celiac12.ask), "סט גדול ⇒ «תמליץ על 3 מנות מהראשונות»");
 const seeded = (() => { let s = 7; return () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }; })();
 const q1 = composeQuiz({ dishes: twelve.map((d) => ({ name: d.name })), sets: sets12, seen: [], rand: seeded });
 ok(q1.cards.length === 7, `12 מנות ⇒ 7 כרטיסים (יצא ${q1.cards.length})`);
@@ -61,12 +65,27 @@ ok(full.length === bankIds.length && bankIds.every((id) => full.includes(id)), "
 ok(scoreSet(["א", "ב"], ["א", "ב"]).lvl === 2, "סט מדויק ⇒ מלא");
 ok(scoreSet(["א", "ב"], ["א"]).lvl === 1, "פספוס אחד ⇒ חלקי");
 ok(scoreSet(["א", "ב"], ["א", "ב", "ג", "ד", "ה", "ו"]).lvl === 0, "לסמן הכל ⇒ 0 (בחירה שגויה יקרה)");
+// 5א. כתיבה חופשית (יותם, 6.9): השלמה רק כשקרובים למנה; פענוח סלחני לטעות אות; «3 מתוך»
+const pool = ["סשימי ילוטייל כמהין", "שרימפס טמפורה טוגראשי", "סקוורס", "נאמס צמחוני", "נאמס פרגית", "גיוזה פרגית", "אדממה"];
+ok(suggestDish(pool, "ס").length === 0 && suggestDish(pool, "סשימי").length === 0, "«ס»/«סשימי» לא משלימים לסשימי ילוטייל");
+ok(suggestDish(pool, "סשימי ילוו")[0] === "סשימי ילוטייל כמהין", "«סשימי ילוו» ⇒ סשימי ילוטייל כמהין");
+ok(suggestDish(pool, "נאמס").length === 0 && suggestDish(pool, "נאמס צמ")[0] === "נאמס צמחוני", "«נאמס» דו-משמעי ⇒ כלום; «נאמס צמ» ⇒ נאמס צמחוני");
+ok(resolveDish(pool, "ילווטייל") === "סשימי ילוטייל כמהין" && resolveDish(pool, "סקוורס") === "סקוורס" && resolveDish(pool, "שרימפס טמפורה") === "שרימפס טמפורה טוגראשי", "פענוח: מילה מהשם עם טעות אות · מדויק · בלי המילה האחרונה");
+ok(resolveDish(pool, "נאמס") === null && resolveDish(pool, "פיצה") === null, "דו-משמעי / לא קיים ⇒ null");
+ok(scoreNamed(["א", "ב", "ג", "ד", "ה"], ["א", "ב", "ג"], 3).lvl === 2, "3 מתוך 5 נכונות ⇒ מלא");
+ok(scoreNamed(["א", "ב", "ג", "ד", "ה"], ["א", "ב", null], 3).lvl === 0 && scoreNamed(["א", "ב", "ג", "ד", "ה"], ["א", "ב", "ג", "ז"], 3).lvl === 1, "שם לא מזוהה / שם מחוץ לסט מורידים");
+ok(scoreNamed(["א", "ב"], ["א", "ב"]).lvl === 2 && scoreNamed(["א", "ב"], ["א", "ב", "ב"]).lvl === 2, "ציין את כולן: מדויק ⇒ מלא, כפילות לא מענישה");
 // 6. המבחן המלא: 12 ראשונות + 6 עיקריות ⇒ פי 2, סה"כ 40
 const plan = examPlan({ "ראשונות": 12, "עיקריות": 6, "סלטים": 6, "מרקים": 4, "ווק": 4, "ילדים": 5, "מאקי": 7 }, 40);
 const tot = Object.values(plan).reduce((a, b) => a + b, 0);
 ok(tot === 40, `סה"כ 40 (יצא ${tot})`);
 ok(Math.abs(plan["ראשונות"] - 2 * plan["עיקריות"]) <= 1, `ראשונות פי 2 מעיקריות, עד עיגול (${plan["ראשונות"]} מול ${plan["עיקריות"]})`);
 ok(Object.entries(plan).every(([c, k]) => k <= ({ "ראשונות": 12, "עיקריות": 6, "סלטים": 6, "מרקים": 4, "ווק": 4, "ילדים": 5, "מאקי": 7 })[c]), "אף קטגוריה לא מקבלת יותר ממה שיש בה");
+// מכסה קשיחה: size=1 עם רמז של 2 מנות ⇒ עדיין כרטיס אחד; size=3 ⇒ בדיוק 3
+const capped = composeQuiz({ dishes: twelve.map((d) => ({ name: d.name })), sets: sets12, seen: [], rand: seeded, size: 3 });
+ok(capped.cards.length === 3, `מכסת מבחן קשיחה (size 3 ⇒ ${capped.cards.length})`);
+const one = composeQuiz({ dishes: twelve.map((d) => ({ name: d.name })), sets: sets12, seen: [], rand: seeded, size: 1 });
+ok(one.cards.length === 1, `size 1 ⇒ כרטיס אחד (יצא ${one.cards.length})`);
 const small = examPlan({ "א": 2, "ב": 2 }, 40);
 ok(small["א"] === 2 && small["ב"] === 2, "תפריט קטן ממכסה ⇒ כל המנות, לא יותר");
 

@@ -7,7 +7,7 @@ import { generate, grade, setMenuVocab, norm, toks, wMatch, describeQuestionFor 
 import { menuFromCards } from "../lib/examMenu";
 import { buildVocab } from "../lib/examSuggest";
 import { loadLearnedAlts, withLearnedAlts, judgeAnswer, saveLearnedAlts } from "../lib/examJudge";
-import { buildSetQuestions, composeQuiz, nextSeen, scoreSet, examPlan } from "../lib/quizBank";
+import { buildSetQuestions, composeQuiz, nextSeen, scoreNamed, examPlan, suggestDish, resolveDish } from "../lib/quizBank";
 
 // ── מחזור «נשאל» (יותם, 6.9: «מלצר שנכשל לא מקבל את אותו הבוחן פעם נוספת») ──
 // פר-מכשיר, פר-מסעדה, פר-קטגוריה. מה שנשאל שוקע לסוף; כשהבנק כולו נראה — סבב חדש.
@@ -73,7 +73,11 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   // The engine and the autocomplete both read the WHOLE restaurant, not this category:
   // grading needs the full vocabulary to tell a foreign word from a menu word, and the
   // suggestion pool must not narrow to the dishes being asked about.
-  const fullMenu = useMemo(() => menuFromCards(allItems?.length ? allItems : items), [allItems, items]);
+  // ⚠️ Keyed on the SOURCE array, not on `items` — MainApp re-renders every second (study
+  // clock) and passes a fresh `items` filter each time; keying on it rebuilt the whole
+  // engine (and the deck below) once a second, and the exam "kept switching questions".
+  const menuSrc = allItems?.length ? allItems : items;
+  const fullMenu = useMemo(() => menuFromCards(menuSrc), [menuSrc]);
   const vocab = useMemo(() => buildVocab(fullMenu), [fullMenu]);
 
   const bank = useMemo(() => {
@@ -89,7 +93,11 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   // המבחן המלא (`exam`) = אותם כרטיסים מכל הקטגוריות, מכסה פר-קטגוריה לפי מספר המנות.
   // ⚠️ קטגוריות משקאות שומרות את הרכב 31.8 (מעט תיאור, בעיקר המלצות).
   const askedRef = useRef({});            // cat ⇒ { asked: ids, bank: ids } — נשמר בסיום
-  const deck = useMemo(() => {
+  // 🔴 Frozen for the sitting (useState initializer, not useMemo): the composition is
+  // random, so any rebuild mid-sitting swaps the card under the waiter's hands. Yotam saw
+  // exactly that in the full exam (6.9) — `exam={{…}}` and `items={cards.filter(…)}` are new
+  // objects on every MainApp render, and a memo keyed on them rebuilt the deck every second.
+  const [deck] = useState(() => {
     const food = (items || []).filter((i) => !i.knowledge);
     const byDish = new Map();
     for (const q of bank) {
@@ -147,7 +155,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       }
     }
     return out;
-  }, [bank, items, restaurantId, exam]);
+  });
 
   // Phrasings previous waiters have had accepted. Loaded once and folded into the
   // questions, so tier 1 matches them for free and this sitting never pays for them again.
@@ -209,10 +217,12 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     const build = (key, q, answer) => ({ key, q: withLearnedAlts(q, alts), answer });
     // שאלת-סט (ציין את כולן / המלצה מרומזת): סט מדויק, בלי שופט. בחירה שגויה יקרה מפספוס.
     if (cur.set) {
-      const r = scoreSet(cur.set.answer, setSel);
+      // כתיבה חופשית (יותם, 6.9): כל שם שנכתב מפוענח למנה מהקטגוריה; לא זוהה = טעות
+      const resolved = setSel.map((t) => resolveDish(cur.pool, t));
+      const r = scoreNamed(cur.set.answer, resolved, cur.set.need ?? null);
       const v = LVL_SCORE[r.lvl];
-      setResult({ parts: [], set: { q: cur.set, r, sel: setSel }, avg: v });
-      setScores((s) => [...s, { v, w: Math.max(2, cur.set.answer.length) }]);
+      setResult({ parts: [], set: { q: cur.set, r, sel: setSel, resolved }, avg: v });
+      setScores((s) => [...s, { v, w: cur.set.need || Math.max(2, cur.set.answer.length) }]);
       return;
     }
     if (cur.rec) {
@@ -342,7 +352,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
 
       <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
         <p className="text-[11px] font-black text-[#22c08c]">
-          {cur.set ? (cur.set.kind === "rec" ? "המלצה ללקוח" : "ציין את כולן") : cur.rec ? "המלצה ללקוח" : cur.it?.drink ? "כתיבה מהזיכרון" : "תמליץ ותאר"}
+          {cur.set || cur.rec ? "המלצה ללקוח" : cur.it?.drink ? "כתיבה מהזיכרון" : "תמליץ ותאר"}
           {exam && cur.cat ? ` · ${shortCat(cur.cat)}` : exam && cur.it?.category ? ` · ${shortCat(cur.it.category)}` : ""}
         </p>
         <p className="text-[17px] font-black text-[#eef0f6] mt-1 leading-snug">{cur.set ? cur.set.ask : cur.rec ? cur.rec.ask : cur.dish}</p>
@@ -361,20 +371,12 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       {!result ? (
         <div className="space-y-4">
           {cur.set && (
-            <div className="space-y-2">
-              <p className="text-[11px] font-black text-[#8a8aa0]">סמן/י את כל המנות שמתאימות</p>
-              <div className="flex flex-wrap gap-2">
-                {cur.pool.map((name) => {
-                  const on = setSel.includes(name);
-                  return (
-                    <button key={name} type="button" onClick={() => setSetSel((s) => on ? s.filter((x) => x !== name) : [...s, name])}
-                      className={`px-3 py-2 min-h-[40px] rounded-xl text-[12.5px] font-bold border ${on ? "bg-[#22c08c] text-[#06231a] border-[#22c08c]" : "bg-[#16181c] text-[#eef0f6] border-[#2a2e36]"}`}>
-                      {name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <AnswerInput
+              vocab={[]} values={setSel} onChange={setSetSel}
+              suggester={(t, vals) => suggestDish(cur.pool, t).filter((n) => !vals.includes(n)).map((n) => ({ key: n, label: n }))}
+              label={cur.set.need ? `${cur.set.need} מנות שתמליץ עליהן` : "המנות שתמליץ עליהן — כולן"}
+              placeholder="כתבו שם מנה ולחצו הוסף…"
+            />
           )}
           {cur.rec && (
             <AnswerInput
@@ -420,16 +422,24 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
                   {result.set.r.missed ? ` · פספסת ${result.set.r.missed}` : ""}{result.set.r.wrong ? ` · ${result.set.r.wrong} לא במקומן` : ""}
                 </p>
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {cur.pool.map((name) => {
-                  const inAns = result.set.q.answer.includes(name), picked = result.set.sel.includes(name);
-                  if (!inAns && !picked) return null;
-                  const cls = inAns && picked ? "bg-[#22c08c]/20 text-[#22c08c] border-[#22c08c]/50"
-                    : inAns ? "text-[#f3c14b] border-dashed border-[#f3c14b]/60"
-                    : "text-[#e0315a] border-[#e0315a]/50 line-through";
-                  return <span key={name} className={`px-2 py-1 rounded-lg text-[11.5px] font-bold border ${cls}`} title={result.set.q.why?.[name] || ""}>{name}{result.set.q.why?.[name] ? ` — ${result.set.q.why[name]}` : ""}</span>;
+              <div className="space-y-1">
+                {result.set.sel.map((typed, k) => {
+                  const r = result.set.resolved[k];
+                  const ok = r && result.set.q.answer.includes(r);
+                  return (
+                    <p key={k} className="text-[11.5px] font-bold leading-snug">
+                      <span className="text-[#eef0f6]">«{typed}»</span>{" "}
+                      {ok ? <span className="text-[#22c08c]">✓ {r}{result.set.q.why?.[r] ? ` — ${result.set.q.why[r]}` : ""}</span>
+                        : r ? <span className="text-[#e0315a]">✗ {r} — {result.set.q.why?.[r] || "לא עונה לבקשה"}</span>
+                        : <span className="text-[#f3a712]">❓ לא זוהתה מנה כזו בקטגוריה</span>}
+                    </p>
+                  );
                 })}
               </div>
+              {/* התשובה תמיד — בוחן שאומר «לא נכון» בלי להגיד מה כן, לא מלמד כלום */}
+              <p className="text-[12px] text-[#8a8aa0] leading-relaxed">
+                {result.set.q.need ? "מתאימות: " : "כל המתאימות: "}{result.set.q.answer.join(" · ")}
+              </p>
             </div>
           )}
           {result.parts.map((p) => (

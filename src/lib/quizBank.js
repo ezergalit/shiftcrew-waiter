@@ -91,41 +91,31 @@ export function buildSetQuestions(items, catLabel) {
   const out = [];
   const partial = (S) => S.length >= 1 && S.length <= n - 1;
   const names = (S) => S.map((d) => d.name);
-  const push = (id, kind, ask, S, why) => { if (partial(S)) out.push({ id, kind, ask, answer: names(S), why }); };
+  // need: null = «ציין את כולן» (סט קטן), 3 = «תמליץ על 3» (סט גדול) — יותם: «תמליץ ללקוח על 3 ראשונות בלי לקטוז»
+  const push = (id, kind, ask, S, why, need = null) => { if (partial(S)) out.push({ id, kind, ask, answer: names(S), why, need }); };
 
-  // 1. אלרגיות — «לא יכול לאכול» (מכילה), ו«כן יכול» כשהקטגוריה מתויגת (≥70% מצהירות)
-  const allergens = [...new Set(dishes.flatMap((d) => d.allergens || []))];
+  // ── 1-4. סיטואציות לקהל הרחב (יותם, 6.9): «רוב הלקוחות לא אכפת להם מסויה ברוטב —
+  // לכוון לצליאק, לקטוז, טבעוני, ומי שלא/כן אוכל דג נא». המלצר ממליץ (הרשימה הבטוחה),
+  // חוץ מ«רוצה דג נא» שהיא הרשימה שמכילה. סט של יותר מ-4 ⇒ «תמליץ על 3», אחרת «ציין את כולן».
   const declared = dishes.filter((d) => (d.allergens || []).length).length;
-  for (const a of allergens) {
-    const has = dishes.filter((d) => (d.allergens || []).includes(a));
-    push(`set:allergen-has:${a}`, "list", `ציין את כל ${catIn} שלקוח עם רגישות ל${a} לא יכול לאכול`, has,
-      Object.fromEntries(has.map((d) => [d.name, `מכילה ${a}`])));
-    if (declared >= Math.ceil(n * 0.7)) {
-      const safe = dishes.filter((d) => !(d.allergens || []).includes(a));
-      push(`set:allergen-safe:${a}`, "list", `ציין את כל ${catIn} שלקוח עם רגישות ל${a} כן יכול לאכול`, safe,
-        Object.fromEntries(dishes.map((d) => [d.name, (d.allergens || []).includes(a) ? `מכילה ${a}` : `בלי ${a}`])));
-    }
-  }
-  // 2. הריון — אסור / אפשר (רק כשיש דגלים בקטגוריה)
-  const preg = dishes.filter((d) => (d.pregnancy || []).length);
-  if (preg.length) {
-    const whyP = Object.fromEntries(dishes.map((d) => [d.name, (d.pregnancy || []).length ? (d.pregnancy || []).join(", ") : "אין רגישות בהריון"]));
-    push("set:pregnancy-no", "list", `ציין את כל ${catIn} שאסור להגיש לאורחת בהריון`, preg, whyP);
-    push("set:pregnancy-ok", "list", `ציין את כל ${catIn} שאפשר להגיש לאורחת בהריון`, dishes.filter((d) => !(d.pregnancy || []).length), whyP);
-  }
-  // 3. מוקשים — «יש בהן X» (חריף ⇒ «חריפות»)
-  const pits = [...new Set(dishes.flatMap((d) => d.pitfalls || []))];
-  for (const p of pits) {
-    const has = dishes.filter((d) => (d.pitfalls || []).includes(p));
-    const ask = p === "חריף" ? `ציין את כל ${catIn} החריפות` : `ציין את כל ${catIn} שיש בהן ${p}`;
-    push(`set:pitfall:${p}`, "list", ask, has, Object.fromEntries(has.map((d) => [d.name, `יש ${p}`])));
-  }
-  // 4. טבעוני — רק כשלכל המנות יש מרכיבים (הגלאי לא מנחש על מנה חסרה)
+  const tagged = declared >= Math.ceil(n * 0.7);          // בלי תיוג אין «בטוח» — לא ממליצים על מנה שהאלרגיות שלה לא מולאו
+  const hasA = (d, a) => (d.allergens || []).includes(a);
+  const rawFish = (d) => (d.pregnancy || []).some((p) => /דג נא/.test(p));
   const vs = dishes.map((d) => veganSafe(d));
-  if (vs.every((v) => v !== null)) {
-    const vegan = dishes.filter((_, i) => vs[i]);
-    push("set:vegan", "list", `ציין את כל ${catIn} שלקוח טבעוני יכול לאכול`, vegan,
-      Object.fromEntries(dishes.map((d, i) => [d.name, vs[i] ? "טבעונית" : "לא טבעונית"])));
+  const AUDIENCE = [
+    { id: "celiac", who: "לקוח צליאקי (שלא אוכל גלוטן)", on: tagged && dishes.some((d) => hasA(d, "גלוטן")), ok: (d) => !hasA(d, "גלוטן"), why: (d) => (hasA(d, "גלוטן") ? "מכילה גלוטן" : "בלי גלוטן") },
+    { id: "lactose", who: "לקוח שרגיש ללקטוז", on: tagged && dishes.some((d) => hasA(d, "לקטוז")), ok: (d) => !hasA(d, "לקטוז"), why: (d) => (hasA(d, "לקטוז") ? "מכילה לקטוז" : "בלי לקטוז") },
+    { id: "vegan", who: "לקוח טבעוני", on: vs.every((v) => v !== null), ok: (_, i) => vs[i], why: (_, i) => (vs[i] ? "טבעונית" : "לא טבעונית") },
+    { id: "no-raw", who: "לקוח שלא אוכל דג נא", on: dishes.some(rawFish), ok: (d) => !rawFish(d), why: (d) => (rawFish(d) ? "יש דג נא" : "בלי דג נא") },
+    { id: "raw", who: "לקוח שרוצה דג נא", on: dishes.some(rawFish), ok: rawFish, why: (d) => (rawFish(d) ? "יש דג נא" : "אין דג נא") },
+  ];
+  for (const a of AUDIENCE) {
+    if (!a.on) continue;
+    const S = dishes.filter((d, i) => a.ok(d, i));
+    const why = Object.fromEntries(dishes.map((d, i) => [d.name, a.why(d, i)]));
+    const big = S.length > 4;
+    const ask = big ? `תמליץ ל${a.who} על 3 מנות ${catFrom}` : `אילו מנות ${catFrom} תמליץ ל${a.who}? ציין את כולן`;
+    push(`set:${a.id}`, "list", ask, S, why, big ? 3 : null);
   }
   // 5. המלצה מרומזת — מרכיב/דגל אחד או שניים שמצביעים על 1-2 מנות בלבד
   //    («לקוח רוצה דג נא ואבוקדו מהראשונות ⇒ סקוורס / סשימי ילוטייל»)
@@ -209,6 +199,15 @@ export function composeQuiz({ dishes, sets, seen = [], rand = Math.random, size 
     ...dishNames.map((name) => ({ kind: "dish", name })),
     ...chosenSets.filter((q) => q !== rec).map((q) => ({ kind: q.kind, set: q })),
   ];
+  // מכסת מבחן היא קשיחה («שהכל ייכנס ב-40»): הרמז מוסיף את המנות שלו מעבר ל-dishN, אז
+  // מורידים קודם שאלת-סט מהסוף, ואז את המנה האחרונה שאינה של הרמז
+  if (size != null) while (cards.length > N && cards.length > 1) {
+    const li = cards.map((c) => c.kind).lastIndexOf("list");
+    if (li > 0) { cards.splice(li, 1); continue; }
+    const di = cards.map((c, k) => (c.kind === "dish" && !must.includes(c.name) ? k : -1)).filter((k) => k >= 0).pop();
+    if (di == null) break;
+    cards.splice(di, 1);
+  }
   return { cards, asked: cards.map((c) => (c.kind === "dish" ? `dish:${c.name}` : c.set.id)) };
 }
 
@@ -231,4 +230,59 @@ export function scoreSet(answer, selected, FP_COST = 1.5) {
   const score = denom ? correct / denom : (S.size === 0 ? 1 : 0);
   const lvl = score >= 0.999 ? 2 : score >= 0.5 ? 1 : 0;
   return { score, lvl, correct, missed, wrong };
+}
+
+// ── שאלת-סט בכתיבה חופשית (יותם, 6.9): «הוא צריך לכתוב אותן בעצמו בחיפוש חופשי; בחיפוש
+// רק מנות מהקטגוריה, ורק אם הוא ממש קרוב למנה — «ס» לא משלים לסשימי ילוטייל, «סשימי ילוו» כן» ──
+const nk = (s) => norm(String(s || "")).replace(/[״"'׳]/g, "").replace(/\s+/g, " ").trim();
+const squash = (s) => nk(s).replace(/ /g, "");
+function lev(a, b) {
+  const m = a.length, n = b.length; if (!m) return n; if (!n) return m;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[n];
+}
+// «קרוב למנה» = תחילית (עם טעות אחת מ-8 אותיות) שמכסה לפחות חצי מהשם. פחות מ-4 אותיות ⇒ כלום.
+const closePrefix = (query, name) => {
+  const q = squash(query), nn = squash(name);
+  if (q.length < 4 || !nn) return false;
+  if (q.length / nn.length < 0.5) return false;
+  return lev(q, nn.slice(0, q.length)) <= (q.length >= 8 ? 1 : 0);
+};
+export function suggestDish(pool, query, limit = 3) {
+  return (pool || []).filter((name) => closePrefix(query, name)).slice(0, limit);
+}
+// פענוח מה שנכתב לשם מנה מהקטגוריה: מדויק ⇒ תחילית קרובה (יחידה) ⇒ מילים שלמות מתוך השם
+// (יחידה, ≥4 אותיות) ⇒ כל השם עם עד 2 טעויות. דו-משמעי או רחוק ⇒ null (נספר כטעות).
+export function resolveDish(pool, text) {
+  const names = pool || [];
+  const t = nk(text); if (!t) return null;
+  const exact = names.find((n) => nk(n) === t); if (exact) return exact;
+  const pre = names.filter((n) => closePrefix(t, n)); if (pre.length === 1) return pre[0];
+  const tw = t.split(" ").filter((w) => w.length >= 2);
+  if (tw.length && t.replace(/ /g, "").length >= 4) {
+    // מילה «דומה»: זהה · תחילית (≥4) · טעות אחת במילה של ≥5 אותיות («ילווטייל» ⇒ «ילוטייל»)
+    const similar = (x, w) => x === w || (w.length >= 4 && x.startsWith(w)) || (w.length >= 5 && lev(x, w) <= 1);
+    const inner = names.filter((n) => { const ws = nk(n).split(" "); return tw.every((w) => ws.some((x) => similar(x, w))); });
+    if (inner.length === 1) return inner[0];
+  }
+  const q = squash(text);
+  if (q.length >= 8) { const near = names.filter((n) => lev(q, squash(n)) <= 2); if (near.length === 1) return near[0]; }
+  return null;
+}
+// ניקוד: need=null ⇒ סט מדויק (scoreSet); need=3 ⇒ 3 מנות מתוך הסט — כל שם שלא מתוך הסט
+// (או שלא זוהה) מוריד כמו בחירה שגויה. שם שחוזר על עצמו נספר פעם אחת.
+export function scoreNamed(answer, resolved, need = null, FP_COST = 1.5) {
+  const S = new Set(answer);
+  const hits = [...new Set(resolved.filter((r) => r && S.has(r)))];
+  const wrong = resolved.filter((r) => !r || !S.has(r)).length;
+  const correct = need == null ? hits.length : Math.min(hits.length, need);
+  const missed = need == null ? S.size - hits.length : Math.max(0, need - hits.length);
+  const denom = correct + missed + FP_COST * wrong;
+  const score = denom ? correct / denom : 1;
+  return { score, lvl: score >= 0.999 ? 2 : score >= 0.5 ? 1 : 0, correct: hits.length, missed, wrong, need };
 }

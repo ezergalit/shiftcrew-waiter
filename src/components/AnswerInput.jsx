@@ -20,6 +20,10 @@ export default function AnswerInput({
   placeholder = "כתבו מרכיב ולחצו הוסף…",
   disabled = false,
   label,
+  // suggester(text, values) ⇒ [{key,label}] — replaces the vocabulary autocomplete. The set
+  // questions use it with a STRICT dish-name matcher (Yotam, 6.9: «ס» must not complete to
+  // סשימי ילוטייל; «סשימי ילוו» may) — see quizBank.suggestDish.
+  suggester = null,
 }) {
   const [text, setText] = useState("");
   const inputRef = useRef(null);
@@ -31,8 +35,8 @@ export default function AnswerInput({
   const justEmptied = useRef(false);
 
   const hits = useMemo(
-    () => (disabled ? [] : suggest(vocab, text, { limit: 6, exclude: values })),
-    [vocab, text, values, disabled],
+    () => (disabled ? [] : suggester ? suggester(text, values) : suggest(vocab, text, { limit: 6, exclude: values })),
+    [vocab, text, values, disabled, suggester],
   );
 
   const add = (raw) => {
