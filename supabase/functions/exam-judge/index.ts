@@ -15,7 +15,7 @@
 // exam_memory only after this verification. No key / timeout / bad JSON ⇒ the deterministic
 // verdict stands; nothing is saved.
 //
-// Deployed 6.9 as v2 of `exam-judge` in project qwgbyeapzzeybmndrszw (this file, verbatim).
+// Deployed 6.9 to project qwgbyeapzzeybmndrszw (dashboard version 4 = this file; only this comment line differs).
 // Without an OPENROUTER_API_KEY / ANTHROPIC_API_KEY secret every path returns skipped:no_key
 // and the deterministic verdict stands. Absent `v` ⇒ v4 path (live restaurants).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -68,6 +68,9 @@ const SYSTEM_V5 = `אתה עוזר-בדיקה במבחן תפריט של מסע�
 10. abusive = שפה פוגענית; offtopic = לא על המנה בכלל. כתיב/סלנג/קצר אינם offtopic.
 11. note = משפט אחד, עברית פשוטה, קול מנהל, ≤140 תווים. ריק אם אין מה.
 12. JSON בלבד לפי הסכימה. שורה שלא נגעת בה — neutral עם evidence ריק.`;
+
+// Output shape the model must return (mirrors judge-contract.js SCHEMA §3.3; sent in the user turn).
+const SCHEMA_HINT = JSON.stringify({ rows: [{ id: "<id מהרשימה>", verdict: "supports|contradicts|neutral", evidence: "<ציטוט מדויק מהתשובה או ריק>" }], foreign: [{ claim: "<מרכיב/שיטה שנטענו ואינם בכרטיס>", why: "<משפט>" }], flags: { abusive: false, offtopic: false }, note: "<משפט אחד או ריק>" });
 
 // ── minimal pure Hebrew helpers (mirror src/lib/examEngine + examNeg; kept tiny & self-contained) ─
 const NIQQUD = /[֑-ׇ]/g, RLM = /[‎‏‪-‮]/g;
@@ -185,11 +188,17 @@ Deno.serve(async (req) => {
   const answer = String(body.answer || "").slice(0, 600);
   if (!card || (!inRows.length && !unknown.length)) return json({ rows: [], foreign: [], flags: { abusive: false, offtopic: false }, note: "", skipped: "empty" });
 
-  const user = `כרטיס: ${JSON.stringify({ name: card.name, desc: card.desc, ingredients: card.ingredients, pregnancy: card.pregnancy })}\nתשובה: ${answer}\nשורות: ${JSON.stringify(inRows.map((r) => ({ id: r.id, canonical: r.canonical, alt: r.alt, crit: r.crit })))}\nצ'יפים לא מזוהים: ${JSON.stringify(unknown)}`;
+  // The schema (src/lib/judge-contract.js SCHEMA) travels in the user turn, not in SYSTEM — SYSTEM is
+  // pinned by the drift check. Without it the first live call (6.9) came back in a free shape ⇒ bad_model_json.
+  const user = `כרטיס: ${JSON.stringify({ name: card.name, desc: card.desc, ingredients: card.ingredients, pregnancy: card.pregnancy })}\nתשובה: ${answer}\nשורות: ${JSON.stringify(inRows.map((r) => ({ id: r.id, canonical: r.canonical, alt: r.alt, crit: r.crit })))}\nצ'יפים לא מזוהים: ${JSON.stringify(unknown)}\n\nהסכימה (JSON בלבד, בדיוק בצורה הזו, שורה לכל id מהרשימה):\n${SCHEMA_HINT}`;
   const r = await callModel(SYSTEM_V5, user, orKey, anthKey, modelId);
   if (r.skipped) return json({ rows: [], skipped: r.skipped });
   let reply: Reply = {};
-  try { const m = (r.text || "").match(/\{[\s\S]*\}/); reply = m ? JSON.parse(m[0]) : {}; } catch { return json({ rows: [], skipped: "bad_model_json" }); }
+  try {
+    const m = (r.text || "").match(/\{[\s\S]*\}/); const parsed = m ? JSON.parse(m[0]) : {};
+    // lenient unwrap: {result:{rows}} / {output:{rows}} ⇒ rows; a bare array of rows ⇒ {rows}
+    reply = Array.isArray(parsed) ? { rows: parsed } : (parsed?.rows ? parsed : (Object.values(parsed || {}).find((v) => v && typeof v === "object" && Array.isArray((v as Reply).rows)) as Reply) || parsed);
+  } catch { return json({ rows: [], skipped: "bad_model_json" }); }
   const verified = verifyReply(inRows, unknown, answer, reply);
   if ((verified as { skipped?: string }).skipped) return json({ rows: [], skipped: (verified as { skipped?: string }).skipped });
 
