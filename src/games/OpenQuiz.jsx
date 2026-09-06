@@ -164,7 +164,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       askedRef.current[cat] = { asked, bank: [...cards.map((c) => `dish:${c.dish}`), ...sets.map((q) => q.id)] };
       for (const c of picked) {
         if (c.kind === "dish") { const e = cards.find((x) => x.dish === c.name); if (e) out.push(e); }
-        else out.push({ set: c.set, cat, pool: shuffle(pool) });
+        else out.push({ set: c.set, cat, pool: shuffle(pool), poolDishes: catItems });
       }
     }
     return out;
@@ -243,7 +243,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     // שאלת-סט (ציין את כולן / המלצה מרומזת): סט מדויק, בלי שופט. בחירה שגויה יקרה מפספוס.
     if (cur.set) {
       // כתיבה חופשית (יותם, 6.9): כל שם שנכתב מפוענח למנה מהקטגוריה; לא זוהה = טעות
-      const resolved = setSel.map((t) => resolveDish(cur.pool, t));
+      const resolved = setSel.map((t) => resolveDish(cur.pool, t, cur.poolDishes));
       const r = scoreNamed(cur.set.answer, resolved, cur.set.need ?? null);
       const v = LVL_SCORE[r.lvl];
       setResult({ parts: [], set: { q: cur.set, r, sel: setSel, resolved }, avg: v });
@@ -532,7 +532,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
                 <div className="space-y-1">
                   {p.sq.kind === "order" && p.sq.atoms.map((a, k) => (
                     <p key={a} className="text-[11.5px] font-bold">
-                      <span className={p.g.hits[k] >= 1 ? "text-[#22c08c]" : p.g.hits[k] > 0 ? "text-[#f3c14b]" : "text-[#8a8aa0]"}>{p.g.hits[k] >= 1 ? "✓" : p.g.hits[k] > 0 ? "◐" : "◌"} {a}</span>
+                      <span className={p.g.hits[k] >= 1 ? "text-[#22c08c]" : p.g.hits[k] > 0 ? "text-[#f3c14b]" : "text-[#8a8aa0]"}>{p.g.hits[k] >= 1 ? "✓" : p.g.hits[k] > 0 ? "◐" : "◌"} {a}{p.g.said?.[k]?.length ? ` — ${p.g.said[k].join(", ")}` : ""}{k === 0 && p.sq.atoms.length > 1 ? " (העיקר)" : ""}</span>
                     </p>
                   ))}
                   {p.g.note && <p className="text-[11.5px] font-bold text-[#f3c14b]">{p.g.note}</p>}

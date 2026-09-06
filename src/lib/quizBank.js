@@ -320,9 +320,23 @@ export function suggestDish(pool, query, limit = 3) {
 }
 // פענוח מה שנכתב לשם מנה מהקטגוריה: מדויק ⇒ תחילית קרובה (יחידה) ⇒ מילים שלמות מתוך השם
 // (יחידה, ≥4 אותיות) ⇒ כל השם עם עד 2 טעויות. דו-משמעי או רחוק ⇒ null (נספר כטעות).
-export function resolveDish(pool, text) {
+export function resolveDish(pool, text, dishes = null) {
   const names = pool || [];
   const t = nk(text); if (!t) return null;
+  const byCard = () => {
+    // «פסטה שמנת» ⇒ «פסטה ילדים» (הכרטיס מונה שמנת/רוזה/עגבניות): מילה אחת מהשם + השאר מהכרטיס
+    // (יותם, 6.9: «האלגוריתם צריך לזהות תשובה דומה או משמעות»). רק כשההתאמה יחידה.
+    if (!dishes?.length) return null;
+    const tw = t.split(" ").filter((w) => w.length >= 2 && !/^(או|עם|של|את|ה)$/.test(w));
+    if (tw.length < 2) return null;
+    const sim = (a, b) => a === b || (a.length >= 4 && b.length >= 4 && (a.startsWith(b) || b.startsWith(a))) || (a.length >= 5 && b.length >= 5 && lev(a, b) <= 1);
+    const hits = dishes.filter((d) => {
+      const nw = nk(d.name).split(" ").filter(Boolean);
+      const cw = nk(`${d.desc || ""} ${(d.ingredients || []).join(" ")}`).split(" ").filter(Boolean);
+      return tw.some((w) => nw.some((n) => sim(n, w))) && tw.every((w) => nw.some((n) => sim(n, w)) || cw.some((c) => sim(c, w)));
+    });
+    return hits.length === 1 ? hits[0].name : null;
+  };
   const exact = names.find((n) => nk(n) === t); if (exact) return exact;
   const pre = names.filter((n) => closePrefix(t, n)); if (pre.length === 1) return pre[0];
   const tw = t.split(" ").filter((w) => w.length >= 2);
@@ -334,7 +348,7 @@ export function resolveDish(pool, text) {
   }
   const q = squash(text);
   if (q.length >= 8) { const near = names.filter((n) => lev(q, squash(n)) <= 2); if (near.length === 1) return near[0]; }
-  return null;
+  return byCard();
 }
 // ניקוד: need=null ⇒ סט מדויק (scoreSet); need=3 ⇒ 3 מנות מתוך הסט — כל שם שלא מתוך הסט
 // (או שלא זוהה) מוריד כמו בחירה שגויה. שם שחוזר על עצמו נספר פעם אחת.

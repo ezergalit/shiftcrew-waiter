@@ -22,11 +22,35 @@ const same = (a, b) => {
   for (const x of [norm(a), bare(a)]) for (const y of [norm(b), bare(b)]) {
     if (x === y) return true;
     if (x.length >= 4 && y.length >= 4 && (x.startsWith(y) || y.startsWith(x))) return true;
-    const sx = stem(x), sy = stem(y); if (sx.length >= 3 && sy.length >= 3 && (sx === sy || lev1(sx, sy))) return true;
+    // גזע זהה, או טעות אות אחת — רק בגזעים של 4+ («רוצה»≈«רוזה» בשלוש אותיות זיכה רוטב על «רוצה קולה»)
+    const sx = stem(x), sy = stem(y); if (sx.length >= 3 && sy.length >= 3 && (sx === sy || (sx.length >= 4 && sy.length >= 4 && lev1(sx, sy)))) return true;
   }
   return false;
 };
-const STOP = new Set(["לשאול", "לוודא", "האם", "איזה", "איזו", "אילו", "על", "את", "עם", "של", "או", "גם", "יש", "בצד", "לבחירה", "מה"].map(norm));
+const STOP = new Set(["לשאול", "לוודא", "האם", "איזה", "איזו", "אילו", "על", "את", "עם", "של", "או", "גם", "יש", "לבחירה", "מה"].map(norm));
+// נקודה כללית («רטבים», «ירקות», «איזה רוטב», «מידת עשייה») נענית גם במופע שלה — «קטשופ ומיונז»,
+// «חסה ועגבנייה», «מדיום» (יותם, 6.9). המופעים: רשימה כללית + האופציות שהכרטיס עצמו מונה
+// («פסטה שמנת / רוזה / עגבניות / ללא רוטב» ⇒ שמנת, רוזה, עגבניות עונים על «איזה רוטב»).
+const GENERIC = {
+  "רוטב": ["קטשופ", "מיונז", "איולי", "צ'ילי", "סויה", "טריאקי", "פונזו", "ברביקיו", "חרדל", "טחינה", "סחוג", "שמנת", "רוזה", "עגבניות", "פסטו", "אלפרדו", "בולונז", "טרטר", "צזיקי"],
+  "ירקות": ["חסה", "עגבנייה", "עגבניה", "עגבניות", "בצל", "מלפפון", "גזר", "פלפל", "כרוב", "סלט", "זיתים", "עלים"],
+  "תוספת": ["צ'יפס", "סלט", "אורז", "פירה", "פסטה", "תפוחי אדמה", "בטטה", "ירקות", "אנטיפסטי", "טבעות בצל"],
+  "מידת עשייה": ["מדיום", "וול דאן", "ולדאן", "רייר", "נא", "עשוי", "well", "medium", "rare", "מידת", "עשייה"],
+  "פרמז'ן": ["פרמזן", "פרמז'ן", "גבינה"],
+};
+// «רטבים» ⇔ «רוטב» הוא ויתור על ו׳, לא סיומת — לכן מילות-הראש מפורשות, לא גזע עמום
+const HEAD_ALIASES = { "רוטב": ["רוטב", "רטבים", "רטב", "רוטבים", "רטבימ"], "ירקות": ["ירקות", "ירק"], "תוספת": ["תוספת", "תוספות"], "מידת עשייה": ["עשייה", "מידת", "עשיה"], "פרמז'ן": ["פרמז'ן", "פרמזן"] };
+const headOf = (atom) => Object.keys(GENERIC).find((k) => toks(atom).some((w) => HEAD_ALIASES[k].some((a) => same(w, a))));
+// אופציות שהכרטיס מונה ליד מילת-הראש: «פסטה שמנת / רוזה / עגבניות / ללא רוטב» ⇒ [שמנת, רוזה, עגבניות]
+function dishOptions(desc, head) {
+  if (!head) return [];
+  const out = [];
+  for (const seg of String(desc || "").split(/[.:·]/)) {
+    if (!seg.includes("/") || !toks(seg).some((w) => toks(head).some((h) => same(w, h)))) continue;
+    for (const part of seg.split("/")) { const ws = toks(part.replace(/^(פסטה|רוטב)\s+/, "")); if (ws.length && ws.length <= 2) out.push(ws.join(" ")); }
+  }
+  return out;
+}
 const content = (s) => toks(s).filter((w) => !STOP.has(w) && w.length >= 2);
 
 export const isSimple = (dish) =>
@@ -61,7 +85,11 @@ export function simpleQuestions(dish) {
   const name = dish.name, desc = String(dish.desc || "");
   const out = [];
   const atoms = orderAtoms(orderStep(desc));
-  if (atoms.length) out.push({ id: `simple:order:${name}`, kind: "order", ask: `מה צריך לשאול או להגיד ללקוח בלקיחת ההזמנה של ״${name}״?`, atoms, answerText: atoms.join(" · ") });
+  if (atoms.length) {
+    // לכל נקודה: המופעים שעונים עליה (כלליים + מה שהכרטיס מונה). הנקודה הראשונה היא העיקר (80%).
+    const inst = atoms.map((a) => { const h = headOf(a); return h ? [...GENERIC[h], ...dishOptions(desc, h)] : []; });
+    out.push({ id: `simple:order:${name}`, kind: "order", ask: `מה צריך לשאול או להגיד ללקוח בלקיחת ההזמנה של ״${name}״?`, atoms, inst, answerText: atoms.map((a, i) => (inst[i].length ? `${a} (${[...new Set(inst[i].filter((x) => dishOptions(desc, headOf(a)).includes(x)))].join(", ") || "למשל " + inst[i].slice(0, 3).join(", ")})` : a)).join(" · ") });
+  }
   const grams = desc.match(/(\d+)\s*גרם\s*(?:של\s*)?([א-ת' ]{2,20})?/);
   if (grams) { const what = (grams[2] || "").trim().split(/[,.]/)[0].trim(); out.push({ id: `simple:grams:${name}`, kind: "number", n: Number(grams[1]), unit: "גרם", ask: `כמה גרם ${what || "יש"} ב״${name}״?`, answerText: `${grams[1]} גרם${what ? ` ${what}` : ""}` }); }
   const units = desc.match(/(\d+)\s*(?:יח['׳]?|יחידות)\s*([א-ת' ]{2,20})?/);
@@ -76,14 +104,18 @@ export function gradeSimple(q, text) {
   const t = String(text || "");
   if (q.kind === "order") {
     const at = toks(t);
-    const hits = q.atoms.map((a) => {
+    const said = [];                                   // אילו מופעים זוהו, להצגה («רטבים — קטשופ, מיונז»)
+    const hits = q.atoms.map((a, i) => {
+      const found = ((q.inst || [])[i] || []).filter((x) => toks(x).every((w) => at.some((y) => same(y, w))));
+      if (found.length) { said[i] = found; return 1; }        // מופע ספציפי = תשובה מלאה לנקודה
       const cw = content(a); if (!cw.length) return 0;
-      const found = cw.filter((w) => at.some((x) => same(x, w))).length;
-      return found === cw.length ? 1 : found ? 0.5 : 0;
+      const n = cw.filter((w) => at.some((x) => same(x, w))).length;
+      return n === cw.length ? 1 : n ? 0.5 : 0;
     });
-    const score = hits.reduce((s, h) => s + h, 0) / q.atoms.length;
-    // מבחן קל (יותם): נקודה אחת מתוך שלוש כבר חלקי; הכל = מלא
-    return { lvl: score >= 0.99 ? 2 : score > 0.3 ? 1 : 0, hits, note: "" };
+    // הנקודה הראשונה היא העיקר — 80% (יותם: «צריך להיות יותר ערך לתשובה ספציפית»); השאר 20%
+    const w = q.atoms.map((_, i) => (q.atoms.length < 2 ? 1 : i === 0 ? 0.8 : 0.2 / (q.atoms.length - 1)));
+    const score = hits.reduce((s, h, i) => s + h * w[i], 0);
+    return { lvl: score >= 0.8 ? 2 : score >= 0.2 ? 1 : 0, hits, said, note: "" };   // משניות בלבד = חלקי, לא אפס
   }
   const nums = numbersIn(t);
   if (q.kind === "number") {
