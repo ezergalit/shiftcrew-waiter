@@ -122,6 +122,33 @@ function Overlay({ children }) {
   );
 }
 
+// «כשלוחצים על אלרגיה — ריבוע אדום שמסביר מה זה; לוחצים עליו או על כל דבר ויוצאים» (יותם, 6.9).
+// צבע לפי הקבוצה, פורטל ל-body (backdrop-filter על הכרטיסים כולא position:fixed — ר' 29.8).
+const EXPLAIN_STYLE = {
+  allergens: { bg: "#3a1d22", fg: "#ff8098", title: "אלרגיות" },
+  pregnancy: { bg: "#2a2140", fg: "#c4b5fd", title: "רגישות בהריון" },
+  pitfalls: { bg: "#33290f", fg: "#f3c14b", title: "מוקשים והעדפות" },
+  mokshim: { bg: "#33290f", fg: "#f3c14b", title: "מוקשים 🤰" },
+};
+function ExplainBox({ groupKey, items = [], onClose }) {
+  const st = EXPLAIN_STYLE[groupKey] || EXPLAIN_STYLE.pitfalls;
+  return createPortal(
+    <div className="fixed inset-0 z-[90] bg-black/60 flex items-center justify-center p-5" dir="rtl" onClick={onClose} role="button" aria-label="סגירה">
+      <div className="w-full max-w-sm rounded-2xl p-5 space-y-2.5 shadow-2xl" style={{ background: st.bg, color: st.fg }}>
+        <p className="text-[15px] font-black">{st.title}</p>
+        <p className="text-[13px] font-bold leading-relaxed text-[#eef0f6]">{GROUP_NOTES[groupKey]}</p>
+        {items.length > 0 && (
+          <div className="space-y-1 pt-1 border-t" style={{ borderColor: `${st.fg}44` }}>
+            {items.map((x) => { const k = x.replace(/^🤰\s*/, ""); return <p key={x} className="text-[12px] leading-snug"><b>{x}</b>{ITEM_NOTES[k] ? <span className="text-[#eef0f6]"> — {ITEM_NOTES[k]}</span> : null}</p>; })}
+          </div>
+        )}
+        <p className="text-[11px] opacity-70 pt-1">הקשה בכל מקום סוגרת</p>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, aurora = false, merged = false, onDepth, examableFor, onExam, examOpenFor, walkCountFor, noteWalk }) {
   // ⚠️ Not `groups` — that name already means the restaurant's MENU groups in this file.
   const warnGroups = merged ? MERGED_GROUPS : FLAG_GROUPS;
@@ -409,24 +436,19 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
                 side in identical chips — three warnings of equal weight, which they are
                 not. "מוקש" also needs saying out loud: it is not a danger, it is the
                 thing guests ask to leave out. */}
+            {groupOpen && <ExplainBox groupKey={groupOpen} items={groupOpen === "mokshim" ? mokshimOf(d) : (d[groupOpen] || [])} onClose={() => setGroupOpen(null)} />}
             {warnGroups.map(({ key, title, note, cls }) => {
               const vals = key === "mokshim" ? mokshimOf(d) : d[key];
               return vals?.length ? (
                 <button key={key} type="button" onClick={() => setGroupOpen(groupOpen === key ? null : key)} aria-expanded={groupOpen === key}
                   className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-4 active:scale-[0.99] transition-transform">
-                  <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide flex justify-between"><span>{title}</span><span className="text-[#22c08c]">{groupOpen === key ? "▴" : "מה זה?"}</span></p>
+                  <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide">{title}</p>
                   <p className="text-[10.5px] text-[#5a5a6e] mt-0.5 mb-2.5 leading-snug">{note}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {vals.map((t) => (
                       <span key={t} className={`text-[13px] px-3 py-1.5 font-black rounded-md ${cls}`}>{t}</span>
                     ))}
                   </div>
-                  {groupOpen === key && (
-                    <div className="mt-2.5 space-y-1 border-t border-[#22252b] pt-2">
-                      <p className="text-[11px] text-[#c4c4d4] leading-snug">{GROUP_NOTES[key]}</p>
-                      {vals.map((x) => { const k = x.replace(/^🤰\s*/, ""); return <p key={x} className="text-[11px] text-[#8a8aa0] leading-snug">{x} — {ITEM_NOTES[k] || "לוודא במטבח לפני שמאשרים"}</p>; })}
-                    </div>
-                  )}
                 </button>
               ) : null;
             })}
@@ -657,19 +679,10 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
       <div className="flex flex-wrap gap-[7px]">
         {[["allergens", "red", "אלרגיות"], ...(merged ? [] : [["pregnancy", "purple", "🤰 רגישות"]]), [merged ? "mokshim" : "pitfalls", "amber", merged ? "מוקשים 🤰" : "מוקשים"]].map(([k, color, label]) => (
           <button key={k} type="button" onClick={() => setLegendOpen(legendOpen === k ? null : k)} aria-expanded={legendOpen === k}
-            className={`chip ${color}`} style={{ cursor: "pointer" }}><i className="dot" />{label}{legendOpen === k ? " ▴" : " · מה זה?"}</button>
+            className={`chip ${color}`} style={{ cursor: "pointer" }}><i className="dot" />{label}</button>
         ))}
       </div>
-      {legendOpen && (() => {
-        const vals = [...new Set((cards || []).flatMap((d) => legendOpen === "mokshim" ? mokshimOf(d) : (d[legendOpen] || [])))].slice(0, 6);
-        return (
-          <div className="glass rounded-2xl p-3 space-y-1.5" style={{ background: "rgba(22,24,28,.85)" }}>
-            <p className="text-[12px] font-bold text-[#eef0f6]">{GROUP_NOTES[legendOpen]}</p>
-            {vals.length > 0 && <p className="text-[11px] text-[#8a8aa0]">דוגמאות מהתפריט שלנו: {vals.join(" · ")}</p>}
-            {vals.map((x) => { const k = x.replace(/^🤰\s*/, ""); return ITEM_NOTES[k] ? <p key={x} className="text-[11px] text-[#c4c4d4]">{x} — {ITEM_NOTES[k]}</p> : null; })}
-          </div>
-        );
-      })()}
+      {legendOpen && <ExplainBox groupKey={legendOpen} items={[...new Set((cards || []).flatMap((d) => legendOpen === "mokshim" ? mokshimOf(d) : (d[legendOpen] || [])))].slice(0, 6)} onClose={() => setLegendOpen(null)} />}
       {!nq ? (
         // ⚠️ `flex-1` + `mt-auto` on About: with three menus the door left ~255px of dead
         // background above the tab bar (user, 30.8). Rather than stretch a tile to an
