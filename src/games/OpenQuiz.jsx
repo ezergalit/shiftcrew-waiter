@@ -9,6 +9,7 @@ import { buildVocab } from "../lib/examSuggest";
 import { loadLearnedAlts, withLearnedAlts, judgeAnswer, saveLearnedAlts, judgeLeaf } from "../lib/examJudge";
 import { gradeDescription } from "../lib/describeLeaf";
 import { isSimple, simpleQuestions, gradeSimple } from "../lib/simpleDish";
+import { nameIngredient } from "../lib/quizBank";
 import { buildSetQuestions, composeQuiz, nextSeen, scoreNamed, examPlan, suggestDish, resolveDish } from "../lib/quizBank";
 
 // ── מחזור «נשאל» (יותם, 6.9: «מלצר שנכשל לא מקבל את אותו הבוחן פעם נוספת») ──
@@ -36,11 +37,14 @@ const LVL_SCORE = [0, 50, 100];
 
 // «תסביר לי מה חלקי בדיוק» (user, 1.9) — the engine returns a per-chip detail;
 // this renders it: what counted, what didn't and why, and how much is missing.
-function GradeDetail({ g, unit = "המלצות" }) {
+function GradeDetail({ g, unit = "המלצות", nameToks = [] }) {
   if (!g?.detail?.length && !g?.missing) return null;
+  // «אנשובי» על «אנשובי במלח» — זה שם המנה, לא תשובה: אומרים את זה במקום «לא נספר» סתמי
+  const isName = (d) => nameToks.length > 0 && toks(d.chip).every((w) => nameToks.some((n) => wMatch(w, n)));
   const label = (d) =>
     d.status === "ok" ? `✓ נספר${d.credited?.length ? " — " + d.credited.join(", ") : ""}${d.leftover ? " · ⚠️ יש בו גם מילה שלא במקומה" : ""}`
     : d.contradicts ? "✗ סותר את התשובה (ההפך מהאמת)"
+    : d.status === "free" && isName(d) ? "◌ זה שם המנה — השאלה על מה שיש בתוכה"
     : d.status === "free" ? "◌ תיאור/הסבר — לא נספר ולא הוריד"
     : d.status === "wrong" ? "✗ לא עונה לבקשה — מוריד את הציון"
     : "❓ לא מזוהה — נשלח לשופט";
@@ -226,6 +230,10 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   // המבחן המלא (יותם, 6.9: «אין שאלה אחת של תיאור מנה פתוחה?»): כרטיס מנה = תיאור חופשי
   // (עלה התיאור + השופט) + אלרגיות בצ'יפים. בבחנים נשארים צ'יפי מרכיבים — אפס AI.
   const openDesc = !!(exam && cur?.describe && !cur.it?.drink);
+  // «אנשובי במלח»: השם הוא המרכיב — השאלה אומרת את זה («מעבר לאנשובי שבשם») כדי שהמלצר
+  // ידע על מה עונים, ולא יקבל «לא הצלחת» על שכתב את שם המנה (יותם, 6.9)
+  const nameIng = cur?.it && !cur.it.drink ? nameIngredient(cur.it) : null;
+  const beyond = nameIng ? ` — מעבר ל${nameIng} שבשם` : "";
 
   const submit = async () => {
     const build = (key, q, answer) => ({ key, q: withLearnedAlts(q, alts), answer });
@@ -396,9 +404,10 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
         <p className="text-[17px] font-black text-[#eef0f6] mt-1 leading-snug">{cur.set ? cur.set.ask : cur.rec ? cur.rec.ask : cur.dish}</p>
         {!cur.rec && !cur.set && !cur.simple && (
           <p className="text-[12px] text-[#8a8aa0] mt-1">
-            {openDesc ? "אורח מבקש המלצה. תאר לו את המנה במילים שלך — מה יש בה ואיך היא מוכנה — ואז סמן את האלרגיות."
+            {openDesc ? `תאר ללקוח את המנה ״${cur.dish}״ ואת כל המרכיבים שיש בה${beyond}, ואיך היא מוכנה — ואז סמן את האלרגיות.`
               : cur.describe && cur.flavor ? "מה יש בקוקטייל, ואיך הוא בטעם?"
-              : cur.describe && askAll && !cur.it?.drink ? "אורח מבקש המלצה. תמליץ על המנה ותאר אותה: מה יש בה ואילו אלרגיות."
+              : cur.describe && askAll && !cur.it?.drink ? `תאר את המנה ״${cur.dish}״ ואת כל המרכיבים שיש בה${beyond}, ואילו אלרגיות יש בה.`
+              : cur.describe && !cur.it?.drink ? `תאר את המנה ״${cur.dish}״ ואת כל המרכיבים שיש בה${beyond}.`
               : cur.describe && askAll ? "מה יש במנה, ואילו אלרגיות היא נושאת?"
               : cur.describe ? (cur.it?.drink ? "איך תתארו את המשקה?" : "מה יש במנה — מלבד מה שבשם?")
               : cur.flavor ? "איך הקוקטייל בטעם?"
@@ -544,7 +553,10 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
                   {cur.it?.desc && <p className="text-[12px] text-[#8a8aa0] leading-relaxed">ככה מתארים אותה: {cur.it.desc}</p>}
                 </div>
               )}
-              {!p.leaf && !p.sq && <GradeDetail g={p.g} unit={p.key === "rec" ? "המלצות" : "פרטים"} />}
+              {!p.leaf && !p.sq && p.key === "ings" && p.g.lvl === 0 && p.g.detail?.length > 0 && p.g.detail.every((d) => d.status === "free") && (
+                <p className="text-[12px] font-black text-[#f3c14b]">כתבת את שם המנה — השאלה היא מה יש בתוכה{nameIng ? ` מעבר ל${nameIng}` : ""}. הנה:</p>
+              )}
+              {!p.leaf && !p.sq && <GradeDetail g={p.g} unit={p.key === "rec" ? "המלצות" : "פרטים"} nameToks={p.key === "ings" ? toks(cur.dish || "") : []} />}
               {/* The answer, always — a quiz that says "wrong" without saying what the
                   right answer was teaches nothing. */}
               {!p.leaf && !p.sq && (

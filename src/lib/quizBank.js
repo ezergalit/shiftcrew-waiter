@@ -348,3 +348,15 @@ export function scoreNamed(answer, resolved, need = null, FP_COST = 1.5) {
   const score = denom ? correct / denom : 1;
   return { score, lvl: score >= 0.999 ? 2 : score >= 0.5 ? 1 : 0, correct: hits.length, missed, wrong, need };
 }
+
+// ── המרכיב שבשם המנה (יותם, 6.9): «אנשובי במלח» — אם המלצר כותב «אנשובי» ומקבל «לא הצלחת», יש
+// בעיה. השם לא מזכה ולא מוריד (free), אבל השאלה חייבת להגיד את זה בקול: «תאר את המנה ואת כל
+// המרכיבים שיש בה — מעבר לאנשובי שבשם». המרכיב הראשון שכל מילותיו יושבות בשם. ──────────────
+export function nameIngredient(dish) {
+  const nameT = new Set(String(dish?.name || "").split(/[\s,/״"']+/).map(norm).filter((w) => w.length >= 2));
+  for (const ing of dish?.ingredients || []) {
+    const ws = String(ing).split(/[\s,/]+/).map(norm).filter((w) => w.length >= 2);
+    if (ws.length && ws.every((w) => nameT.has(w) || [...nameT].some((n) => n.length >= 4 && (n.startsWith(w) || w.startsWith(n))))) return ing;
+  }
+  return null;
+}

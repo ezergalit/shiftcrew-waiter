@@ -1,6 +1,6 @@
 // ══ הרכב הבוחן (יותם, 6.9) — הכללים שאסור שיישברו ══
 //   node tests/quizbank.test.mjs
-import { quizSize, setCountFor, buildSetQuestions, composeQuiz, nextSeen, scoreSet, examPlan, catForms, veganSafe, suggestDish, resolveDish, scoreNamed } from "../src/lib/quizBank.js";
+import { quizSize, setCountFor, buildSetQuestions, composeQuiz, nextSeen, scoreSet, examPlan, catForms, veganSafe, suggestDish, resolveDish, scoreNamed, nameIngredient } from "../src/lib/quizBank.js";
 
 let fail = 0;
 const ok = (cond, msg) => { if (!cond) { fail++; console.log("🔴", msg); } };
@@ -132,5 +132,10 @@ ok(one.cards.length === 1, `size 1 ⇒ כרטיס אחד (יצא ${one.cards.len
 const small = examPlan({ "א": 2, "ב": 2 }, 40);
 ok(small["א"] === 2 && small["ב"] === 2, "תפריט קטן ממכסה ⇒ כל המנות, לא יותר");
 
+// 7. המרכיב שבשם (יותם): «אנשובי במלח» ⇒ אנשובי; «סשימי ילוטייל כמהין» ⇒ ילוטייל; «רול הבית» ⇒ אין
+ok(nameIngredient({ name: "אנשובי במלח", ingredients: ["אנשובי", "שמן זית", "לימון"] }) === "אנשובי", "אנשובי במלח ⇒ אנשובי");
+ok(nameIngredient({ name: "סשימי ילוטייל כמהין", ingredients: ["ילוטייל", "כמהין", "פונזו"] }) === "ילוטייל", "סשימי ילוטייל ⇒ ילוטייל (הראשון)");
+ok(nameIngredient({ name: "רול הבית", ingredients: ["טונה אדומה", "אבוקדו"] }) === null, "רול הבית ⇒ אין מרכיב בשם");
+ok(nameIngredient({ name: "פילה דניס – אש הים האגאי", ingredients: ["פילה דניס", "שעועית ירוקה"] }) === "פילה דניס", "פילה דניס ⇒ שני-מילים בשם");
 console.log(fail ? `\n🔴 ${fail} כשלים` : "quizbank.test: כל הבדיקות עברו");
 process.exit(fail ? 1 : 0);
