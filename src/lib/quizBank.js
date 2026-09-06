@@ -126,7 +126,14 @@ export function buildSetQuestions(items, catLabel) {
   const hasA = (d, a) => (d.allergens || []).includes(a);
   const rawFish = (d) => (d.pregnancy || []).some((p) => /דג נא/.test(p));
   const vs = dishes.map((d) => veganSafe(d));
+  // כשרות (יותם, 6.9): «תמליץ על המנות הראשונות הכשרות / על 3 עיקריות כשרות» — רק כשהקטגוריה
+  // מתויגת (≥70%) ויש בה מנה לא-כשרה; מסעדה שכולה כשרה (סלון) לא מקבלת את השאלה מעצמה.
+  const NOT_KOSHER = /לא כשר|פירות ים|בשר וחלב/;
+  const kTag = (d) => (d.kashrut || []).length > 0;
+  const kosher = (d) => kTag(d) && !(d.kashrut || []).some((k) => NOT_KOSHER.test(k));
+  const kTagged = dishes.filter(kTag).length >= Math.ceil(n * 0.7);
   const AUDIENCE = [
+    { id: "kosher", who: "לקוח ששומר כשרות", on: kTagged && dishes.some((d) => (d.kashrut || []).some((k) => NOT_KOSHER.test(k))), ok: kosher, why: (d) => (kosher(d) ? `כשרה${(d.kashrut || []).length ? ` (${(d.kashrut || []).join(", ")})` : ""}` : kTag(d) ? `לא כשרה — ${(d.kashrut || []).filter((k) => NOT_KOSHER.test(k)).join(", ")}` : "כשרות לא מסומנת") },
     { id: "celiac", who: "לקוח צליאקי (שלא אוכל גלוטן)", on: tagged && dishes.some((d) => hasA(d, "גלוטן")), ok: (d) => !hasA(d, "גלוטן"), why: (d) => (hasA(d, "גלוטן") ? "מכילה גלוטן" : "בלי גלוטן") },
     { id: "lactose", who: "לקוח שרגיש ללקטוז", on: tagged && dishes.some((d) => hasA(d, "לקטוז")), ok: (d) => !hasA(d, "לקטוז"), why: (d) => (hasA(d, "לקטוז") ? "מכילה לקטוז" : "בלי לקטוז") },
     { id: "vegan", who: "לקוח טבעוני", on: vs.every((v) => v !== null), ok: (_, i) => vs[i], why: (_, i) => (vs[i] ? "טבעונית" : "לא טבעונית") },
@@ -138,7 +145,7 @@ export function buildSetQuestions(items, catLabel) {
     const S = dishes.filter((d, i) => a.ok(d, i));
     const why = Object.fromEntries(dishes.map((d, i) => [d.name, a.why(d, i)]));
     const big = S.length > 4;
-    const ask = big ? `תמליץ ל${a.who} על 3 מנות ${catFrom}` : `אילו מנות ${catFrom} תמליץ ל${a.who}? ציין את כולן`;
+    const ask = big ? `תמליץ ל${a.who} על 3 מנות ${catFrom}` : `אילו מנות ${catFrom} תמליץ ל${a.who}? ציין את כל המנות שאתה מכיר`;
     push(`set:${a.id}`, "list", ask, S, why, big ? 3 : null);
   }
   // 5. המלצה מרומזת (יותם, 6.9): «לקוח מבקש המלצה לרול מיוחד עם טונה אדומה, או ספייסי טונה —
@@ -166,7 +173,7 @@ export function buildSetQuestions(items, catLabel) {
     if (r.S.every((d) => obvious(d, r.atom))) continue;
     if (r.S.every((d) => covered.has(d.name))) continue;
     r.S.forEach((d) => covered.add(d.name));
-    const ask = `לקוח מבקש המלצה ל${unit}${r.hot ? " חריף" : ""} עם ${r.atom} ${catFrom} — על מה תמליץ?${r.S.length >= 2 ? " ציין את כל האפשרויות" : ""}`;
+    const ask = `לקוח מבקש המלצה ל${unit}${r.hot ? " חריף" : ""} עם ${r.atom} ${catFrom} — על מה תמליץ?${r.S.length >= 2 ? " ציין את כל המנות שאתה מכיר" : ""}`;
     push(`rec:${norm(r.atom)}${r.hot ? "+חריף" : ""}`, "rec", ask, r.S, Object.fromEntries(r.S.map((d) => [d.name, `יש ${r.atom}${r.hot ? " וחריף" : ""}`])));
   }
   return out;

@@ -6,7 +6,8 @@ import { shortCat, shuffle, ingLabel } from "./shared";
 import { generate, grade, setMenuVocab, norm, toks, wMatch, describeQuestionFor } from "../lib/examEngine";
 import { menuFromCards } from "../lib/examMenu";
 import { buildVocab } from "../lib/examSuggest";
-import { loadLearnedAlts, withLearnedAlts, judgeAnswer, saveLearnedAlts } from "../lib/examJudge";
+import { loadLearnedAlts, withLearnedAlts, judgeAnswer, saveLearnedAlts, judgeLeaf } from "../lib/examJudge";
+import { gradeDescription } from "../lib/describeLeaf";
 import { buildSetQuestions, composeQuiz, nextSeen, scoreNamed, examPlan, suggestDish, resolveDish } from "../lib/quizBank";
 
 // ── מחזור «נשאל» (יותם, 6.9: «מלצר שנכשל לא מקבל את אותו הבוחן פעם נוספת») ──
@@ -168,7 +169,8 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const [alls, setAlls] = useState([]);
   const [recAns, setRecAns] = useState([]);
   const [flavs, setFlavs] = useState([]);
-  const [setSel, setSetSel] = useState([]);   // שאלת-סט: שמות המנות שסומנו
+  const [setSel, setSetSel] = useState([]);   // שאלת-סט: שמות המנות שנכתבו
+  const [descText, setDescText] = useState(""); // מבחן: «תאר את המנה ללקוח» — פסקה חופשית
   const [result, setResult] = useState(null);
   // שלב 2 (יותם, 1.9): בחרת משקה בשאלת המלצה ⇒ «עכשיו תאר אותו לאורח» — טקסט
   // חופשי, נבדק במצב-משפט ואם צריך עולה לשופט. {dish, q, text, res, judging}
@@ -178,7 +180,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
 
   // 60s a dish: writing from memory is slower than recognising, and the previous typed
   // attempt's 25s was part of why it felt punitive.
-  const SECONDS_PER_DISH = exam ? 45 : 60;
+  const SECONDS_PER_DISH = 60;
   const started = deck.length >= 2;
   const [secondsLeft, setSecondsLeft] = useState(0);
   useEffect(() => { if (started) setSecondsLeft(deck.length * SECONDS_PER_DISH); }, [started, deck.length]);
@@ -212,6 +214,9 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
 
   const cur = deck[i];
   const askAll = !!cur?.allergens;
+  // המבחן המלא (יותם, 6.9: «אין שאלה אחת של תיאור מנה פתוחה?»): כרטיס מנה = תיאור חופשי
+  // (עלה התיאור + השופט) + אלרגיות בצ'יפים. בבחנים נשארים צ'יפי מרכיבים — אפס AI.
+  const openDesc = !!(exam && cur?.describe && !cur.it?.drink);
 
   const submit = async () => {
     const build = (key, q, answer) => ({ key, q: withLearnedAlts(q, alts), answer });
@@ -246,18 +251,33 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       }
       return;
     }
+    if (openDesc) {
+      setJudging(true);
+      const leaf = await gradeDescription({ dish: cur.it, targets: withLearnedAlts(cur.describe, alts).targets, text: descText, judge: judgeLeaf });
+      setJudging(false);
+      const parts = [
+        { key: "desc", q: cur.describe, answer: [descText], g: { lvl: leaf.lvl }, leaf },
+        ...(cur.allergens ? [{ ...build("alls", cur.allergens, alls), g: grade(withLearnedAlts(cur.allergens, alts), alls) }] : []),
+      ];
+      const avg = Math.round(parts.reduce((a, p) => a + LVL_SCORE[p.g.lvl], 0) / parts.length);
+      const worst = Math.min(...parts.map((p) => p.g.lvl));
+      setResult({ parts, avg });
+      setScores((s) => [...s, { v: avg, w: 1 }]);
+      if (cur.it) onAnswer?.(cur.it.id, LVL_RATING[worst]);
+      return;
+    }
     let parts = [
       cur.describe && build("ings", cur.describe, ings),
       cur.flavor && build("flav", cur.flavor, flavs),
       cur.allergens && build("alls", cur.allergens, alls),
     ].filter(Boolean).map((p) => ({ ...p, g: grade(p.q, p.answer) }));
 
-    // ⚠️ Tier 2 runs for INGREDIENTS ONLY. Allergens are a closed list of eight values whose
+    // ⚠️ Tier 2 runs for INGREDIENTS ONLY — and only in the full exam (Yotam: quizzes = no AI). Allergens are a closed list of eight values whose
     // synonyms are already hard-coded in the engine, so there is no unusual phrasing left
     // for a model to adjudicate — and the only thing it could add is the chance of
     // crediting a waiter for an allergen they never named. That is a safety field, and it
     // stays deterministic.
-    const needsJudge = parts.find((p) => p.key === "ings" && p.g.escalate);
+    const needsJudge = exam ? parts.find((p) => p.key === "ings" && p.g.escalate) : null;
     if (needsJudge) {
       setJudging(true);
       // Only the chips tier 1 could not place. Sending the whole answer wastes tokens on
@@ -318,7 +338,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   };
 
   const next = () => {
-    setResult(null); setIngs([]); setAlls([]); setRecAns([]); setFlavs([]); setSetSel([]); setStage2(null);
+    setResult(null); setIngs([]); setAlls([]); setRecAns([]); setFlavs([]); setSetSel([]); setDescText(""); setStage2(null);
     if (i + 1 >= deck.length) setFinished(true); else setI(i + 1);
   };
 
@@ -358,7 +378,8 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
         <p className="text-[17px] font-black text-[#eef0f6] mt-1 leading-snug">{cur.set ? cur.set.ask : cur.rec ? cur.rec.ask : cur.dish}</p>
         {!cur.rec && !cur.set && (
           <p className="text-[12px] text-[#8a8aa0] mt-1">
-            {cur.describe && cur.flavor ? "מה יש בקוקטייל, ואיך הוא בטעם?"
+            {openDesc ? "אורח מבקש המלצה. תאר לו את המנה במילים שלך — מה יש בה ואיך היא מוכנה — ואז סמן את האלרגיות."
+              : cur.describe && cur.flavor ? "מה יש בקוקטייל, ואיך הוא בטעם?"
               : cur.describe && askAll && !cur.it?.drink ? "אורח מבקש המלצה. תמליץ על המנה ותאר אותה: מה יש בה ואילו אלרגיות."
               : cur.describe && askAll ? "מה יש במנה, ואילו אלרגיות היא נושאת?"
               : cur.describe ? (cur.it?.drink ? "איך תתארו את המשקה?" : "מה יש במנה — מלבד מה שבשם?")
@@ -374,7 +395,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
             <AnswerInput
               vocab={[]} values={setSel} onChange={setSetSel}
               suggester={(t, vals) => suggestDish(cur.pool, t).filter((n) => !vals.includes(n)).map((n) => ({ key: n, label: n }))}
-              label={cur.set.need ? `${cur.set.need} מנות שתמליץ עליהן` : "המנות שתמליץ עליהן — כולן"}
+              label={cur.set.need ? `${cur.set.need} מנות שתמליץ עליהן` : "המנות שתמליץ עליהן — כל מה שאתה מכיר"}
               placeholder="כתבו שם מנה ולחצו הוסף…"
             />
           )}
@@ -384,7 +405,20 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               label="ההמלצה שלך" placeholder="כתבו את שם המנה או המשקה ולחצו הוסף…"
             />
           )}
-          {cur.describe && (
+          {openDesc && (
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-black text-[#8a8aa0]">תאר את המנה ללקוח</p>
+              <textarea
+                value={descText}
+                onChange={(e) => setDescText(e.target.value)}
+                rows={4}
+                dir="rtl"
+                placeholder="כמו שהיית אומר לאורח ליד השולחן…"
+                className="w-full bg-[#0c0d10] border border-[#22252b] rounded-lg px-3 py-2.5 text-[16px] text-[#eef0f6] placeholder:text-[#5a5a6e] focus:outline-none focus:border-[#22c08c]/60"
+              />
+            </div>
+          )}
+          {cur.describe && !openDesc && (
             <AnswerInput
               vocab={vocab} values={ings} onChange={setIngs}
               label={ingLabel(cur.it)}
@@ -405,7 +439,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
           )}
           <button
             onClick={submit}
-            disabled={judging || (!!cur.set && !setSel.length)}
+            disabled={judging || (!!cur.set && !setSel.length) || (openDesc && toks(descText).length < 2)}
             className="w-full py-3 min-h-[44px] rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm disabled:opacity-60"
           >
             {judging ? "בודק…" : "שליחה"}
@@ -445,17 +479,38 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
           {result.parts.map((p) => (
             <div key={p.key} className="bg-[#16181c] border border-[#22252b] rounded-xl p-3 space-y-2">
               <div className="flex items-center gap-2">
-                {p.g.lvl === 2 ? <Check size={15} className="text-[#22c08c]" /> : <XIcon size={15} className="text-[#f3a712]" />}
+                {p.g.lvl === 2 ? <Check size={15} className="text-[#22c08c]" /> : <XIcon size={15} className={p.leaf?.safety ? "text-[#e0315a]" : "text-[#f3a712]"} />}
                 <p className="text-[12px] font-black text-[#eef0f6]">
-                  {p.key === "rec" ? "ההמלצה" : p.key === "flav" ? "תיאור הטעם" : p.key === "ings" ? ingLabel(cur.it) : "אלרגיות"} — {p.g.lvl === 2 ? "נכון" : p.g.lvl === 1 ? "חלקי" : "לא נכון"}
+                  {p.key === "desc" ? "התיאור" : p.key === "rec" ? "ההמלצה" : p.key === "flav" ? "תיאור הטעם" : p.key === "ings" ? ingLabel(cur.it) : "אלרגיות"} — {p.leaf?.safety ? "חסרה אזהרת בטיחות" : p.g.lvl === 2 ? "נכון" : p.g.lvl === 1 ? "חלקי" : "לא נכון"}
                 </p>
               </div>
-              <GradeDetail g={p.g} unit={p.key === "rec" ? "המלצות" : "פרטים"} />
+              {p.leaf && (
+                <div className="space-y-1">
+                  {p.leaf.rows.map((r) => (
+                    <p key={r.id} className="text-[11.5px] font-bold leading-snug">
+                      <span className="text-[#eef0f6]">«{r.canonical[0]}»</span>{" "}
+                      {r.status === "ok" ? <span className="text-[#22c08c]">✓ הוזכר{r.byJudge ? " (השופט זיהה את הניסוח)" : ""}</span>
+                        : r.status === "wrong" ? <span className="text-[#e0315a]">✗ {r.crit ? "אזהרה שנשללה" : "סותר את הכרטיס"}</span>
+                        : r.crit ? <span className="text-[#e0315a]">⚠️ חובה לציין — לא נאמר</span>
+                        : <span className="text-[#8a8aa0]">◌ לא הוזכר</span>}
+                    </p>
+                  ))}
+                  {p.leaf.foreign.map((f, k) => (
+                    <p key={k} className="text-[11.5px] font-bold text-[#f3a712]">✗ «{f.claim}» — לא במנה{f.why ? ` (${f.why})` : ""}</p>
+                  ))}
+                  {p.leaf.note && <p className="text-[11.5px] text-[#9b7bff] font-bold">{p.leaf.note}</p>}
+                  {/* ככה מתארים אותה — התשובה תמיד, אחרת הבוחן לא מלמד */}
+                  {cur.it?.desc && <p className="text-[12px] text-[#8a8aa0] leading-relaxed">ככה מתארים אותה: {cur.it.desc}</p>}
+                </div>
+              )}
+              {!p.leaf && <GradeDetail g={p.g} unit={p.key === "rec" ? "המלצות" : "פרטים"} />}
               {/* The answer, always — a quiz that says "wrong" without saying what the
                   right answer was teaches nothing. */}
-              <p className="text-[12px] text-[#8a8aa0] leading-relaxed">
-                {p.q.targets.map((t) => t.t).join(" · ")}
-              </p>
+              {!p.leaf && (
+                <p className="text-[12px] text-[#8a8aa0] leading-relaxed">
+                  {p.q.targets.map((t) => t.t).join(" · ")}
+                </p>
+              )}
             </div>
           ))}
           {stage2 && (

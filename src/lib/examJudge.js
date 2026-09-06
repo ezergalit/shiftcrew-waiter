@@ -69,3 +69,20 @@ export async function saveLearnedAlts(restaurantId, credited) {
   // Ignore conflicts: two waiters hitting the same phrasing at once is normal, not an error.
   await db.from("exam_alt").upsert(rows, { onConflict: "restaurant_id,target,phrase", ignoreDuplicates: true });
 }
+
+/**
+ * v5 «leaf» (CREWMENU-JUDGE-MODULE-DESIGN.md §3): the free-text description of a dish in
+ * the full exam. Returns the server-verified reply ({rows, foreign, note, …}) or null —
+ * the client re-verifies and merges (describeLeaf.js); a failure leaves tier 1's verdict.
+ */
+export async function judgeLeaf(payload) {
+  try {
+    const { data, error } = await supabase.functions.invoke("exam-judge", {
+      body: { token: getSessionToken(), v: 5, mode: "leaf", ...payload },
+    });
+    if (error || !data) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
