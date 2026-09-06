@@ -161,8 +161,12 @@ export function buildSetQuestions(items, catLabel, opts = {}) {
     { id: "no-raw", who: "לקוח שלא אוכל דג נא", on: dishes.some(rawFish), ok: (d) => !rawFish(d), why: (d) => (rawFish(d) ? "יש דג נא" : "בלי דג נא") },
     { id: "raw", who: "לקוח שרוצה דג נא", on: dishes.some(rawFish), ok: rawFish, why: (d) => (rawFish(d) ? "יש דג נא" : "אין דג נא") },
   ];
+  // ⚠️ ההתאמה למסעדה היא מהנתונים: שאלה נבנית רק כשבקטגוריה יש גם «כן» וגם «לא» (`partial`),
+  // ולכן מסעדה כשרה לא תראה שאלת כשרות ומסעדה בשרית לא תראה לקטוז — בלי הגדרה. `opts.off`
+  // (features.quiz_off) הוא המתג הידני מעל זה.
+  const off = new Set(opts.off || []);
   for (const a of AUDIENCE) {
-    if (!a.on) continue;
+    if (!a.on || off.has(a.id)) continue;
     const S = dishes.filter((d, i) => a.ok(d, i));
     const why = Object.fromEntries(dishes.map((d, i) => [d.name, a.why(d, i)]));
     const big = S.length > 4;
@@ -171,7 +175,7 @@ export function buildSetQuestions(items, catLabel, opts = {}) {
   }
   // 5. שיתוף (יותם: «בסלון יבקשו המלצה ל-5 מאזטים»): קטגוריה שנאכלת יחד ⇒ «תמליץ על 5» — כל 5
   //    מנות מהקטגוריה נכונות; הידע הוא השמות. לא עובר דרך `partial` — התשובה היא כל הקטגוריה.
-  if (/מאזט|מזה|מזטים|טאפס|לשיתוף|meze|mezze|tapas/i.test(cat) && n >= 6) {
+  if (!off.has("share") && /מאזט|מזה|מזטים|טאפס|לשיתוף|meze|mezze|tapas/i.test(cat) && n >= 6) {
     out.push({ id: "set:share5", kind: "list", ask: `שולחן מבקש שתמליץ על 5 מנות ${catFrom} — על אילו תמליץ?`, answer: names(dishes), why: Object.fromEntries(dishes.map((d) => [d.name, "מהקטגוריה"])), need: 5 });
   }
   // 6. המלצה מרומזת — משפחת חלבון / מרכיב-בקשה נפוץ, לבד או עם סגנון; 1-4 מנות (5-8 ⇒ «תמליץ על 3»)
@@ -187,7 +191,7 @@ export function buildSetQuestions(items, catLabel, opts = {}) {
   };
   const roll = /רול/.test(unit);
   // סגנון הכנה (אפוי/גריל/מטוגן/נא) רק על חלבון ורק מחוץ לרולים — «רול עם טונה מטוגן» ו«אבוקדו אפוי» אינם בקשה
-  const styleFits = (st, atom) => st.key === "חריף" || (!roll && (atom == null || PROTEIN.has(atom)));
+  const styleFits = (st, atom) => !off.has(`style:${st.key}`) && (st.key === "חריף" || (!roll && (atom == null || PROTEIN.has(atom))));
   const obviousSingle = (S, atom) => S.length === 1 && atom && norm(S[0].name).includes(norm(atom));   // «מנה עם ילוטייל» ⇒ סשימי ילוטייל
   for (const [atom, words] of [...FAMILIES, ...extra]) {
     const S = dishes.filter((d) => inFamily(d, words));

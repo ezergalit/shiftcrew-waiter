@@ -71,7 +71,7 @@ const weightedAvg = (scores) => {
   return wsum ? Math.round(scores.reduce((a, s) => a + s.v * s.w, 0) / wsum) : 0;
 };
 
-export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId, onAnswer, onDone, onFinish, exam = null }) {
+export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId, onAnswer, onDone, onFinish, exam = null, quizOff = [] }) {
   // The engine and the autocomplete both read the WHOLE restaurant, not this category:
   // grading needs the full vocabulary to tell a foreign word from a menu word, and the
   // suggestion pool must not narrow to the dishes being asked about.
@@ -150,7 +150,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       const cards = askable.get(cat) || [];
       if (!cards.length || (plan && !plan[cat])) continue;
       const catItems = food.filter((i) => i.category === cat);
-      const sets = buildSetQuestions(catItems, cat);
+      const sets = buildSetQuestions(catItems, cat, { off: quizOff });
       const pool = catItems.map((i) => i.name);
       const seen = loadSeen(restaurantId, cat);
       const { cards: picked, asked } = composeQuiz({

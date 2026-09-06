@@ -176,6 +176,10 @@ export default function MainApp({ session, onSignOut }) {
   // shift picker, brief gate) and the app becomes menu + learning — Studio's request.
   const tasksOff = trainee || session?.features?.tasks === false;
   const openExam = session?.features?.exam === "open";
+  // כיבוי מפורש של סוגי שאלות-סט למסעדה (יותם, 6.9: «מסעדה כשרה — אין שאלות כשרות; בשרית — אין
+  // לקטוז»). ברירת המחדל כבר נגזרת מהנתונים (שאלה נבנית רק כשיש בקטגוריה גם כן וגם לא); זה
+  // המתג הידני לעקיפה. ערכים: kosher · lactose · celiac · vegan · veggie · raw · no-raw · share · style:חריף
+  const quizOff = Array.isArray(session?.features?.quiz_off) ? session.features.quiz_off : [];
   // Whether pregnancy is its own warning group or folded into "מוקשים" — per restaurant.
   const mergedWarnings = session?.features?.warnings === "merged";
   // features.metrics === false removes the whole metrics screen for this restaurant
@@ -939,7 +943,7 @@ export default function MainApp({ session, onSignOut }) {
     // הקטגוריות, מכסה פר-קטגוריה לפי מספר המנות (12 ראשונות ו-6 עיקריות ⇒ פי 2),
     // והכל ב-general_exam_questions. משקאות מחוץ למבחן (יש להם בחנים משלהם).
     if (openExam) return <OpenQuiz
-      items={cards.filter((c) => !c.knowledge && !c.drink)} allItems={cards}
+      items={cards.filter((c) => !c.knowledge && !c.drink)} allItems={cards} quizOff={quizOff}
       restaurantId={session?.restaurantId} categoryLabel="התפריט המלא"
       exam={{ total: examConfig?.general_exam_questions || 40 }}
       onAnswer={learnItem} onDone={exitMode} onFinish={recordExam}
@@ -967,7 +971,7 @@ export default function MainApp({ session, onSignOut }) {
          foreign word from a menu word, and the autocomplete pool must not narrow to the
          dishes being asked about, or it would print the answer on screen. */
       ? (openExam
-          ? <OpenQuiz items={examItems} allItems={cards} restaurantId={session?.restaurantId} categoryLabel={label} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />
+          ? <OpenQuiz items={examItems} allItems={cards} restaurantId={session?.restaurantId} categoryLabel={label} quizOff={quizOff} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />
           : <CategoryExam items={examItems} categoryLabel={label} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />)
       : <QuizExam items={examItems} facets={gameFacets} categoryLabel={label} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />;
   }

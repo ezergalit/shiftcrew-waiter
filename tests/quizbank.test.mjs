@@ -72,6 +72,15 @@ ok(sets.every((q) => !q.ask.includes("הGreek")), "ניסוח");
 ok(catForms("Greek Oven Breads").catIn === "המנות ב״Greek Oven Breads״" && catForms("ראשונות").catIn === "הראשונות" && catForms("ילדים").catIn === "מנות הילדים" && catForms("אינסייד אאוט").catFrom === "מתוך ״אינסייד אאוט״", "צורות קטגוריה (שתי מילים ⇒ ציטוט)");
 ok(veganSafe({ name: "טופו", ingredients: ["טופו"], allergens: [] }) === true && veganSafe({ name: "x", ingredients: [] }) === null, "גלאי טבעוני: כן / לא-ידוע");
 
+// 2ב. התאמה למסעדה — מהנתונים, בלי הגדרה: כולה כשרה ⇒ אין שאלת כשרות; בלי לקטוז ⇒ אין לקטוז
+const kosherOnly = buildSetQuestions([
+  D("א", { ingredients: ["בקר"], allergens: ["גלוטן"], kashrut: ["בשרי"] }), D("ב", { ingredients: ["עוף"], allergens: ["שומשום"], kashrut: ["בשרי"] }),
+  D("ג", { ingredients: ["טופו"], allergens: ["סויה"], kashrut: ["פרווה"] }), D("ד", { ingredients: ["עדשים"], allergens: ["סויה"], kashrut: ["פרווה"] }),
+], "ראשונות");
+ok(!kosherOnly.some((q) => q.id === "set:kosher") && !kosherOnly.some((q) => q.id === "set:lactose"), "מסעדה כשרה ובשרית ⇒ אין שאלת כשרות ואין לקטוז (נגזר מהנתונים)");
+ok(kosherOnly.some((q) => q.id === "set:celiac"), "…אבל צליאק כן (יש גלוטן במנה אחת)");
+const forced = buildSetQuestions(cat, "ראשונות", { off: ["vegan", "raw", "no-raw", "style:חריף"] });
+ok(!forced.some((q) => ["set:vegan", "set:raw", "set:no-raw"].includes(q.id)) && !forced.some((q) => /חריף/.test(q.ask)), "features.quiz_off מכבה סוגים ידנית");
 // 3. הרכבה: 12 מנות ⇒ 7 כרטיסים (5 מנות + 2 סט), המנות של הרמז נכנסות
 const twelve = Array.from({ length: 12 }, (_, i) => D(`מנה ${i + 1}`, { ingredients: [`מרכיב${i}`, "אבוקדו"], allergens: i % 2 ? ["גלוטן"] : ["סויה"], pregnancy: i < 2 ? ["דג נא"] : [] }));
 const sets12 = buildSetQuestions(twelve, "ראשונות");
