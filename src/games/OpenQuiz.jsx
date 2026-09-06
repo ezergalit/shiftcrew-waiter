@@ -238,11 +238,12 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   useEffect(() => { if (started) setSecondsLeft(total); }, [started, total]);
   // 3 דיווחים פתוחים ב-24 שעות ⇒ המבחן חסום למסעדה עד טיפול (יותם, 6.9)
   useEffect(() => {
-    if (!exam || !restaurantId) return;
+    // תצוגת המנהל (preview) אין לה חבר צוות — לא נחסמת ולא מדווחת (ה-RLS ממילא דוחה)
+    if (!exam || !restaurantId || !teamMemberId) return;
     // ספירה דרך RPC (SECURITY DEFINER): החסימה היא ברמת המסעדה, אבל מלצר רואה רק את
     // הדיווחים שלו — קריאה ישירה לטבלה הייתה סופרת רק אותם.
     db.rpc("exam_block_count").then(({ data, error }) => { if (!error && (data || 0) >= 3) setBlocked(data); });
-  }, [exam, restaurantId]);
+  }, [exam, restaurantId, teamMemberId]);
   useEffect(() => {
     // השעון עומד בזמן קריאת התשובה ובזמן כתיבת דיווח — לא לוקח מזמן המבחן
     if (!started || !briefed || finished || secondsLeft <= 0 || (exam && (result || reporting))) return;
@@ -292,7 +293,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       question: c?.set?.ask || c?.rec?.ask || (c?.simple ? c.simple.map((q) => q.ask).join(" | ") : `describe:${c?.dish}`),
       answer: result?.set ? { typed: result.set.sel } : { parts: (result?.parts || []).map((p) => ({ key: p.key, answer: p.answer ?? p.text ?? null })) },
       verdict: result?.set ? { lvl: result.set.r.lvl } : { parts: (result?.parts || []).map((p) => ({ key: p.key, lvl: p.g?.lvl, rows: p.leaf?.rows?.map((r) => [r.canonical[0], r.status]) })) },
-      explanation: text,
+      explanation: text.slice(0, 500),
     });
     if (error) { setToast("הדיווח לא נשלח — בדוק חיבור ונסה שוב"); console.error("exam_reports:", error.message); return; }
     const n = reports + 1;
@@ -397,7 +398,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       const avg = Math.round(parts.reduce((a, p) => a + LVL_SCORE[p.g.lvl], 0) / parts.length);
       const worst = Math.min(...parts.map((p) => p.g.lvl));
       setResult({ parts, avg });
-      logAnswer({ desc: descText, ings, alls }, worst);
+      logAnswer({ desc: descText.slice(0, 1200), ings, alls }, worst);
       setScores((s) => [...s, { v: avg, w: 1 }]);
       if (cur.it) onAnswer?.(cur.it.id, LVL_RATING[worst]);
       return;
@@ -614,7 +615,8 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               <p className="text-[11px] font-black text-[#8a8aa0]">תאר את המנה ללקוח — מה היא ואיך מכינים (בלי לפרט מרכיבים כאן)</p>
               <textarea
                 value={descText}
-                onChange={(e) => setDescText(e.target.value)}
+                onChange={(e) => setDescText(e.target.value.slice(0, 1200))}
+                maxLength={1200}
                 rows={4}
                 dir="rtl"
                 placeholder="כמו שהיית אומר לאורח ליד השולחן…"
@@ -779,11 +781,11 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               )}
             </div>
           )}
-          {exam && (reporting ? (
+          {exam && teamMemberId && (reporting ? (
             <div className="bg-[#16181c] border border-[#f3a712]/40 rounded-xl p-3 space-y-2">
               <p className="text-[12px] font-black text-[#f3a712]">🚩 דיווח על טעות באפליקציה</p>
               <p className="text-[11px] text-[#8a8aa0]">מה לא נכון כאן? השאלה תישלח לבדיקה ולא תיספר — לא לטובה ולא לרעה. השעון עומד.</p>
-              <textarea value={reporting.text} onChange={(e) => setReporting({ text: e.target.value })} rows={3} dir="rtl"
+              <textarea value={reporting.text} onChange={(e) => setReporting({ text: e.target.value.slice(0, 500) })} maxLength={500} rows={3} dir="rtl"
                 placeholder="למשל: כתבתי ״טונה״ וזה לא זיהה למרות שיש טונה במנה…"
                 className="w-full bg-[#101216] border border-[#22252b] rounded-xl p-2.5 text-[16px] text-[#eef0f6]" />
               <div className="flex gap-2">
