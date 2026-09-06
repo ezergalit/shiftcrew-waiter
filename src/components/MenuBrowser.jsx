@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { ChevronRight, ChevronLeft, X } from "lucide-react";
 import { categoryVisual } from "../lib/categoryVisual";
 import { shortCat, nLabel, ingLabel } from "../games/shared";
+import { GROUP_NOTES, ITEM_NOTES } from "../games/WarningBoxes";
 
 // The menu, as a menu (user, 2026-08-20). Not progress, not exams — the thing a waiter
 // opens mid-shift to check what is actually in a dish. Three levels, the same shape the
@@ -128,6 +129,10 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   // its name, or by any dish name / ingredient inside it — a waiter looking for "כמהין"
   // should land on the categories that serve it.
   const [q, setQ] = useState("");
+  // «כשלוחצים על אלרגיות / רגישות / מוקשים — זה מראה ומסביר מה זה, עם דוגמאות» (יותם, 6.9,
+  // על הדף הראשי — לא רק על גב הכרטיסייה). המקרא בשער ומסך המנה חולקים את אותם הסברים.
+  const [legendOpen, setLegendOpen] = useState(null);
+  const [groupOpen, setGroupOpen] = useState(null);
   const [menu, setMenu] = useState(null);
   const [cat, setCat] = useState(null);
   const [idx, setIdx] = useState(null);
@@ -407,15 +412,22 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
             {warnGroups.map(({ key, title, note, cls }) => {
               const vals = key === "mokshim" ? mokshimOf(d) : d[key];
               return vals?.length ? (
-                <div key={key} className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
-                  <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide">{title}</p>
+                <button key={key} type="button" onClick={() => setGroupOpen(groupOpen === key ? null : key)} aria-expanded={groupOpen === key}
+                  className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-4 active:scale-[0.99] transition-transform">
+                  <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide flex justify-between"><span>{title}</span><span className="text-[#22c08c]">{groupOpen === key ? "▴" : "מה זה?"}</span></p>
                   <p className="text-[10.5px] text-[#5a5a6e] mt-0.5 mb-2.5 leading-snug">{note}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {vals.map((t) => (
                       <span key={t} className={`text-[13px] px-3 py-1.5 font-black rounded-md ${cls}`}>{t}</span>
                     ))}
                   </div>
-                </div>
+                  {groupOpen === key && (
+                    <div className="mt-2.5 space-y-1 border-t border-[#22252b] pt-2">
+                      <p className="text-[11px] text-[#c4c4d4] leading-snug">{GROUP_NOTES[key]}</p>
+                      {vals.map((x) => { const k = x.replace(/^🤰\s*/, ""); return <p key={x} className="text-[11px] text-[#8a8aa0] leading-snug">{x} — {ITEM_NOTES[k] || "לוודא במטבח לפני שמאשרים"}</p>; })}
+                    </div>
+                  )}
+                </button>
               ) : null;
             })}
           </div>
@@ -643,10 +655,21 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
       </label>
       {/* One chip per group, in the same colours the dish screens use. */}
       <div className="flex flex-wrap gap-[7px]">
-        <span className="chip red"><i className="dot" />אלרגיות</span>
-        {!merged && <span className="chip purple"><i className="dot" />🤰 רגישות</span>}
-        <span className="chip amber"><i className="dot" />{merged ? "מוקשים 🤰" : "מוקשים"}</span>
+        {[["allergens", "red", "אלרגיות"], ...(merged ? [] : [["pregnancy", "purple", "🤰 רגישות"]]), [merged ? "mokshim" : "pitfalls", "amber", merged ? "מוקשים 🤰" : "מוקשים"]].map(([k, color, label]) => (
+          <button key={k} type="button" onClick={() => setLegendOpen(legendOpen === k ? null : k)} aria-expanded={legendOpen === k}
+            className={`chip ${color}`} style={{ cursor: "pointer" }}><i className="dot" />{label}{legendOpen === k ? " ▴" : " · מה זה?"}</button>
+        ))}
       </div>
+      {legendOpen && (() => {
+        const vals = [...new Set((cards || []).flatMap((d) => legendOpen === "mokshim" ? mokshimOf(d) : (d[legendOpen] || [])))].slice(0, 6);
+        return (
+          <div className="glass rounded-2xl p-3 space-y-1.5" style={{ background: "rgba(22,24,28,.85)" }}>
+            <p className="text-[12px] font-bold text-[#eef0f6]">{GROUP_NOTES[legendOpen]}</p>
+            {vals.length > 0 && <p className="text-[11px] text-[#8a8aa0]">דוגמאות מהתפריט שלנו: {vals.join(" · ")}</p>}
+            {vals.map((x) => { const k = x.replace(/^🤰\s*/, ""); return ITEM_NOTES[k] ? <p key={x} className="text-[11px] text-[#c4c4d4]">{x} — {ITEM_NOTES[k]}</p> : null; })}
+          </div>
+        );
+      })()}
       {!nq ? (
         // ⚠️ `flex-1` + `mt-auto` on About: with three menus the door left ~255px of dead
         // background above the tab bar (user, 30.8). Rather than stretch a tile to an
