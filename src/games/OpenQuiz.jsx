@@ -268,14 +268,15 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   useEffect(() => {
     // 🔴 בלי השומר הזה האפקט נורה כל שנייה (onFinish הוא arrow חדש בכל רנדר של MainApp,
     // שמתרנדר כל שנייה משעון הלימוד) ⇒ שורת exam_results חדשה בכל שנייה על מסך הסיום.
-    if (!finished || aborted || reportedRef.current) return;
+    if (!finished || reportedRef.current) return;
     reportedRef.current = true;
     const avg = examAvg();
     // מה שנשאל נרשם — עבר או נכשל — כדי שהישיבה הבאה תהיה אחרת (יותם, 6.9)
     for (const [cat, { asked, bank: ids }] of Object.entries(askedRef.current)) saveSeen(restaurantId, cat, nextSeen(loadSeen(restaurantId, cat), asked, ids));
     // מבחן מלא: «עבר» נקבע ע"י המנהל בבדיקה (יותם) — נרשם false עד שהוא מאשר.
-    onFinish?.({ score: avg, passed: exam ? false : avg >= passMark, dishCount: deck.length, sittingId, pending: !!exam });
-  }, [finished, aborted, restaurantId]);   // eslint-disable-line react-hooks/exhaustive-deps
+    // גם ישיבה שהופסקה בדיווחים נרשמת (עם הדיווחים) — «3 דיווחים» אינם מחיקה של מבחן כושל
+    onFinish?.({ score: avg, passed: exam ? false : avg >= passMark, dishCount: deck.length, sittingId, pending: !!exam, reports });
+  }, [finished, restaurantId]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // «נתקע במסך התשובה» (יותם, 6.9): במבחן המלא התוצאה ארוכה (שורות תיאור + ככה מתארים) וכפתור
   // «המנה הבאה» ירד מתחת לקצה המסך בטלפון — והשורש היה מסך בלי גלילה (early-return של MainApp
