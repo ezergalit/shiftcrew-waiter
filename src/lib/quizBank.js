@@ -83,24 +83,31 @@ export function examPlan(sizes, total = 40) {
 // ── מרכיב-כותרת: מה שלקוח באמת מבקש בשולחן (יותם, 6.9) ─────────────────────────
 // דגים, בשר, עיקריים צמחיים — או מרכיב שהמסעדה עצמה שמה בשם של מנה בקטגוריה. תיבול/רוטב/
 // ציפוי לעולם לא («ספייסי מיונז» הוא המרכיב האמיתי, אבל אף אחד לא מבקש רול עם מיונז).
+// ⚠️ `norm` מקפל אותיות סופיות (ם⇒מ, ן⇒נ) — לכן כל הרשימות עוברות דרכו, אחרת «קרם» לא תופס «קרמ».
 const HEADLINE = ["טונה", "סלמון", "ילוטייל", "המאצ", "לברק", "דניס", "מוסר", "דג לבן", "שרימפס", "קלמארי", "תמנון", "סרטן", "צלופח",
   "אונאגי", "סקאלופ", "צדפ", "עוף", "פרגית", "בקר", "סינטה", "אנטריקוט", "פילה", "טלה", "כבש", "אסאדו", "ברווז", "המבורגר", "כבד",
   "טופו", "אבוקדו", "פטרי", "שיטאקי", "חציל", "בטטה", "כמהין", "ארטישוק", "קינואה", "עדשים", "חומוס", "גבינ", "פטה", "בוראטה",
-  "מוצרלה", "חלומי", "ביצה", "מנגו", "אננס", "תות", "שוקולד"];
-const HEADLINE_EXACT = ["בס"];
-const CONDIMENT = /מיונז|רוטב|סויה|טריאקי|פונזו|שומשום|שמן|מלח|פלפל|סוכר|לימון|ליים|בצל|שום|ג'ינג'ר|גינגר|וסאבי|כוסברה|פטרוזיליה|נענע|אורז|אצה|נורי|טמפורה|שבבי|קראמבל|ציפוי|רסק|חמאה|שמנת|קרם|סילאן|דבש|חרדל|קטשופ|צ'ילי|צילי|יוזו|טוביקו|מסאגו|איקורה|תבלין|עשבי/;
-function isHeadline(ing, nameText) {
-  const k = norm(String(ing || "")); if (k.length < 3 || CONDIMENT.test(k)) return false;
-  const words = k.split(" ").filter(Boolean);
-  if (words.some((w) => HEADLINE.some((h) => w.startsWith(h)) || HEADLINE_EXACT.includes(w))) return true;
-  return nameText.includes(k);                                  // «טונה אדומה» בשם מנה ⇒ כותרת
+  "מוצרלה", "חלומי", "ביצה", "אננס", "תות", "שוקולד", "נודלס", "אטריות", "ראמן",
+  "עגל", "ניוקי", "ריזוטו", "שעועית", "יוגורט", "אנשובי", "סרדינ", "קדאיף", "פיסטוק"].map(norm);
+// מילה שלמה בלבד: «בס» (בסיס/בסגנון), «כבד» (כבדי = וויסקי כבד), «מנגו» (מנגולד)
+const HEADLINE_EXACT = ["בס", "כבד", "מנגו"].map(norm);
+const CONDIMENT_WORDS = ["מיונז", "רוטב", "סויה", "טריאקי", "פונזו", "שומשום", "שמן", "מלח", "פלפל", "סוכר", "לימון", "ליים", "בצל", "שום",
+  "ג'ינג'ר", "גינגר", "וסאבי", "כוסברה", "פטרוזיליה", "נענע", "אורז", "אצה", "נורי", "טמפורה", "שבבי", "קראמבל", "ציפוי", "רסק", "חמאה",
+  "שמנת", "קרם", "סילאן", "דבש", "חרדל", "קטשופ", "צ'ילי", "צילי", "יוזו", "טוביקו", "מסאגו", "איקורה", "תבלין", "עשבי", "ציר", "בסיס", "אבקת"].map(norm);
+const isCondiment = (k) => CONDIMENT_WORDS.some((c) => k === c || k.startsWith(c + " ") || k.endsWith(" " + c) || k.includes(" " + c + " ") || k.startsWith(c) && c.length >= 4);
+const headlineWord = (w) => HEADLINE.some((h) => w.startsWith(h)) || HEADLINE_EXACT.includes(w);
+function isHeadline(ing) {
+  const raw = String(ing || ""); if (/[()]|אופצי/.test(raw)) return false;          // «שרימפס בטמפורה (אופציה)»
+  const k = norm(raw); if (k.length < 3 || isCondiment(k)) return false;
+  return k.split(" ").filter(Boolean).some(headlineWord);
 }
 
 // ── בנק שאלות-סט לקטגוריה (בלי AI) ──────────────────────────────────────────
 // כל שאלה: { id, kind: "list"|"rec", ask, answer: string[] (שמות מנות), why: {name: reason} }
 // נבנית רק כשהתשובה היא **חלק** מהקטגוריה (לא כולן ולא אף אחת) — אחרת אין מה לדעת.
 export function buildSetQuestions(items, catLabel) {
-  const dishes = (items || []).filter((d) => !d.knowledge && d.name);
+  // כרטיסי ידע ומסלולי אירוע (המרכיבים שלהם הם מנות) אינם מנות — אין עליהם שאלות-סט
+  const dishes = (items || []).filter((d) => !d.knowledge && !d.event && d.name);
   const n = dishes.length;
   if (n < 2) return [];
   const cat = String(catLabel || dishes[0].category || "").trim() || "המנות";
@@ -138,9 +145,8 @@ export function buildSetQuestions(items, catLabel) {
   //    אף אחד לא יבקש רול עם טונה וספייסי מיונז». רמז = **מרכיב-כותרת אחד** (דג/בשר/עיקרי, או
   //    מרכיב שמופיע בשם של מנה בקטגוריה) שמצביע על 1-4 מנות. רוטב/תיבול לעולם לא רמז, שני
   //    מרכיבים לעולם לא. «חריף» מצטרף רק כדי לצמצם רמז רחב מדי («רול חריף עם סלמון»).
-  const unit = /מיוחד/.test(cat) ? "רול מיוחד" : /רול|מאקי|אינסייד/.test(cat) ? "רול" : "מנה";
-  const nameText = dishes.map((d) => norm(d.name)).join(" | ");
-  const headlineOf = (d) => askableIngredients(d).filter((x) => isHeadline(x, nameText));
+  const unit = /קוקטייל/.test(cat) ? "קוקטייל" : /מיוחד/.test(cat) ? "רול מיוחד" : /רול|מאקי|אינסייד/.test(cat) ? "רול" : "מנה";
+  const headlineOf = (d) => askableIngredients(d).filter(isHeadline);
   const index = new Map();                                     // atomKey → { label, set: dish[] }
   dishes.forEach((d) => { for (const x of headlineOf(d)) { const k = norm(x); const e = index.get(k) || { label: x, set: [] }; if (!e.set.includes(d)) e.set.push(d); index.set(k, e); } });
   const recs = [];
@@ -149,11 +155,15 @@ export function buildSetQuestions(items, catLabel) {
     const hot = e.set.filter((d) => (d.pitfalls || []).includes("חריף"));
     if (hot.length >= 1 && hot.length <= 4) recs.push({ atom: e.label, S: hot, hot: true });
   }
-  // עדיפות לרמז שמכסה מנה שעוד לא כוסתה; עד 8 לקטגוריה
+  // רמז ששם המנה מסגיר («ילוטייל» ⇒ סשימי ילוטייל) אינו ידע — נשמר רק כשלפחות מנה אחת
+  // בסט לא נושאת אותו בשם. סטים גדולים קודם (2 מנות > מנה אחת), ורק רמז שמכסה מנה חדשה; עד 8.
+  // מסגיר = השם מכיל את הרמז, או את מילת-הכותרת שבו («פילה סלמון» ⇒ «סלמון מיסו» מסגיר)
+  const obvious = (d, atom) => { const n = norm(d.name); const a = norm(atom); return n.includes(a) || a.split(" ").some((w) => headlineWord(w) && n.split(" ").some((nw) => nw.startsWith(w) || w.startsWith(nw) && nw.length >= 3)); };
   const covered = new Set();
-  recs.sort((a, b) => a.S.length - b.S.length);
+  recs.sort((a, b) => b.S.length - a.S.length);
   for (const r of recs) {
     if (out.filter((q) => q.kind === "rec").length >= 8) break;
+    if (r.S.every((d) => obvious(d, r.atom))) continue;
     if (r.S.every((d) => covered.has(d.name))) continue;
     r.S.forEach((d) => covered.add(d.name));
     const ask = `לקוח מבקש המלצה ל${unit}${r.hot ? " חריף" : ""} עם ${r.atom} ${catFrom} — על מה תמליץ?${r.S.length >= 2 ? " ציין את כל האפשרויות" : ""}`;

@@ -37,16 +37,18 @@ const hinted = sets.find((q) => q.kind === "rec" && q.answer.length === 2 && q.a
 ok(!!hinted && hinted.ask === "לקוח מבקש המלצה למנה עם אבוקדו מהראשונות — על מה תמליץ? ציין את כל האפשרויות", `רמז ⇒ סקוורס + סשימי ילוטייל, ניסוח לקוח (${hinted?.ask})`);
 // רמז = מרכיב-כותרת אחד (יותם): לא רוטב, לא צמד מרכיבים
 ok(!sets.some((q) => q.kind === "rec" && /פונזו|איולי|טוביקו|מיונז| ו[א-ת]/.test(q.ask.replace(/ על מה תמליץ.*/, ""))), "אין רמז על רוטב ואין רמז של שני מרכיבים");
-ok(sets.some((q) => q.id === "rec:שרימפס") && sets.some((q) => q.id === "rec:ילוטייל"), "שרימפס וילוטייל הם רמזים (מרכיבי כותרת)");
+ok(!sets.some((q) => q.id === "rec:שרימפס") && !sets.some((q) => q.id === "rec:ילוטייל"), "רמז ששם המנה מסגיר («ילוטייל» ⇒ סשימי ילוטייל) לא נשאל");
 const rolls = buildSetQuestions([
-  D("ספייסי טונה", { category: "רולים מיוחדים", ingredients: ["טונה אדומה", "ספייסי מיונז", "מלפפון"], allergens: ["ביצים"], pitfalls: ["חריף"] }),
-  D("טונה אבוקדו", { category: "רולים מיוחדים", ingredients: ["טונה אדומה", "אבוקדו"], allergens: [] }),
+  D("רול וולקנו", { category: "רולים מיוחדים", ingredients: ["טונה אדומה", "ספייסי מיונז", "מלפפון"], allergens: ["ביצים"], pitfalls: ["חריף"] }),
+  D("רול הבית", { category: "רולים מיוחדים", ingredients: ["טונה אדומה", "אבוקדו"], allergens: [] }),
+  D("ספייסי טונה רול", { category: "רולים מיוחדים", ingredients: ["ספייסי טונה", "מלפפון"], allergens: [] }),
   D("סלמון קריספי", { category: "רולים מיוחדים", ingredients: ["סלמון", "שבבי טמפורה", "ספייסי מיונז"], allergens: ["גלוטן", "ביצים"] }),
   D("ירקות", { category: "רולים מיוחדים", ingredients: ["מלפפון", "גזר", "אבוקדו"], allergens: [] }),
 ], "רולים מיוחדים");
 const tuna = rolls.find((q) => q.id === "rec:טונה אדומה");
 ok(tuna && tuna.answer.length === 2 && tuna.ask === "לקוח מבקש המלצה לרול מיוחד עם טונה אדומה מתוך ״רולים מיוחדים״ — על מה תמליץ? ציין את כל האפשרויות", `«רול מיוחד עם טונה אדומה» ⇒ 2 רולים (${tuna?.ask})`);
 ok(!rolls.some((q) => /מיונז|מלפפון|טמפורה/.test(q.ask)), "מיונז/מלפפון/טמפורה לעולם לא רמז");
+ok(!rolls.some((q) => q.id === "rec:ספייסי טונה"), "«ספייסי טונה» ⇒ «ספייסי טונה רול» — השם מסגיר, לא נשאל");
 ok(sets.every((q) => !q.ask.includes("הGreek")), "ניסוח");
 ok(catForms("Greek Oven Breads").catIn === "המנות ב״Greek Oven Breads״" && catForms("ראשונות").catIn === "הראשונות" && catForms("ילדים").catIn === "מנות הילדים" && catForms("אינסייד אאוט").catFrom === "מתוך ״אינסייד אאוט״", "צורות קטגוריה (שתי מילים ⇒ ציטוט)");
 ok(veganSafe({ name: "טופו", ingredients: ["טופו"], allergens: [] }) === true && veganSafe({ name: "x", ingredients: [] }) === null, "גלאי טבעוני: כן / לא-ידוע");
