@@ -4,6 +4,7 @@ import { dishLabel } from "../lib/questionEngine";
 import { countLabel, nLabel, mokshim, wineParts, ingLabel } from "./shared";
 import { categoryVisual } from "../lib/categoryVisual";
 import { gz } from "../lib/shiftChoice";
+import WarningBoxes from "./WarningBoxes";
 
 // A real card that flips (2026-08-13). The reveal used to swap content in place, which
 // read as a page change, not a card. rotateX (vertical) rather than rotateY: a horizontal
@@ -11,7 +12,7 @@ import { gz } from "../lib/shiftChoice";
 //
 // The card is keyed by dish id: advancing remounts it un-flipped, so the next card never
 // plays a reverse-flip animation on its way in.
-export default function Flashcards({ items, session, quick, onRate, onDone, slim = false }) {
+export default function Flashcards({ items, session, quick, onRate, onDone, slim = false, merged = false }) {
   const [i, setI] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [zoom, setZoom] = useState(null); // full-screen dish photo, or null
@@ -87,7 +88,7 @@ export default function Flashcards({ items, session, quick, onRate, onDone, slim
                             : it.event ? countLabel(it.ingredients, "מנה", "מנות")
                             : countLabel(it.ingredients, "מרכיב", "מרכיבים"),
                     countLabel(it.allergens, "אלרגיה", "אלרגיות"),
-                    ...(slim ? [countLabel(mokshim(it), "מוקש", "מוקשים")]
+                    ...(slim && merged ? [countLabel(mokshim(it), "מוקש", "מוקשים")]
                              : [countLabel(it.pregnancy, "רגישות בהריון", "רגישויות בהריון"), countLabel(it.pitfalls, "מוקש", "מוקשים")]),
                   ].filter(Boolean).join(" · ")}
                 </p>
@@ -122,8 +123,7 @@ export default function Flashcards({ items, session, quick, onRate, onDone, slim
                   {w.notes && <p className="text-sm text-[#c4c4d4] leading-relaxed text-right">{w.notes}</p>}
                   {w.opening && <div className="bg-[#1d2a24] p-2 rounded-lg"><p className="text-xs font-bold text-[#22c08c] text-right">איך פותחים: {w.opening}</p></div>}
                 </> : null; })()}
-                {it.allergens?.length > 0 && <div className="bg-[#3a1d22] p-2 rounded-lg"><p className="text-xs font-bold text-[#e0315a]">אלרגיות: {it.allergens.join(", ")}</p></div>}
-                {mokshim(it).length > 0 && <div className="bg-[#3a2f1d] p-2 rounded-lg"><p className="text-xs font-bold text-[#f3c14b]">מוקשים: {mokshim(it).join(", ")}</p></div>}
+                <WarningBoxes it={it} merged={merged} />
               </> : <>
                 {it.desc && <p className="text-sm text-[#c4c4d4] leading-relaxed">{it.desc}</p>}
                 {it.ingredients?.length > 0 && <p className="text-xs text-[#8a8aa0]">{ingLabel(it)}: {it.ingredients.join(", ")}</p>}

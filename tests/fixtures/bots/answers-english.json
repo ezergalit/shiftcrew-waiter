@@ -1,0 +1,1179 @@
+{
+ "persona": "מלצר שמערבב אנגלית ותעתיק",
+ "answers": [
+  {
+   "code": "S26TLV",
+   "dish": "סשימי ילוטייל כמהין",
+   "desc": "raw דג לבן פרוס דק (ילוטייל), עם קרם avocado כמהין מעל, עשבי תיבול, ליים ורוטב yuzu-פונזו. חריף קליל מהצ'ילי הירוק. הדג לגמרי raw, לא מבושל בכלל.",
+   "ings": [
+    "yellowtail",
+    "avocado",
+    "yuzu",
+    "chili ירוק",
+    "cucumber",
+    "עשבי תיבול",
+    "פונזו",
+    "ליים"
+   ],
+   "alls": [
+    "soy",
+    "gluten"
+   ],
+   "bad": {
+    "desc": "המנה מגיעה מבושלת בטמפורה, דג לבן קריספי עם avocado וchili.",
+    "ings": [
+     "rice",
+     "nori"
+    ],
+    "why": "כתבתי שהדג מטוגן/קריספי, בפועל זה סשימי — raw לגמרי, בלי טיגון"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "אינדו סינטה",
+   "desc": "sirloin בקר tataki — צרוב מבחוץ, medium בפנים (נא), ברוטב טופי אינדונזי מתוק, עם potato gratin ועירית. לא כשר כי יש גם בשר וגם dairy באותה מנה.",
+   "ings": [
+    "sirloin",
+    "טופי sauce",
+    "potato gratin",
+    "cornflour",
+    "עירית"
+   ],
+   "alls": [
+    "dairy",
+    "gluten",
+    "soy"
+   ],
+   "bad": {
+    "desc": "הבשר מגיע well done, מבושל לגמרי בלי צריבה בכלל.",
+    "ings": [
+     "mushrooms"
+    ],
+    "why": "כתבתי well done, בפועל זה tataki — צרוב מבחוץ ונא/medium בפנים"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "ספייסי טופו",
+   "desc": "קוביות tofu בטמפורה קריספי, ברוטב ספייסי של פלפלים וginger, הרוטב מגיע חם בצד. vegan לגמרי, אין בשר או דגים במנה.",
+   "ings": [
+    "tofu",
+    "tempura",
+    "פלפלים sauce",
+    "ginger",
+    "עירית"
+   ],
+   "alls": [
+    "soy",
+    "gluten",
+    "sesame"
+   ],
+   "bad": {
+    "desc": "יש chicken וtofu ביחד במנה, וזה לא ממש חריף.",
+    "ings": [
+     "chicken"
+    ],
+    "why": "כתבתי שיש chicken, זו מנה טבעונית לגמרי בלי בשר; והמנה כן חריפה"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "גיוזה פרגית",
+   "desc": "4 gyoza — כיסונים ממולאים בchicken (פרגית), צרובים מצד אחד crispy ומאודים מהצד השני, עם רוטב סויה-ponzu, ginger ושומשום קלוי מעל.",
+   "ings": [
+    "dumpling",
+    "chicken",
+    "כרישה",
+    "ginger",
+    "בצל ירוק",
+    "sesame oil",
+    "soy sauce",
+    "כוסברה",
+    "שום"
+   ],
+   "alls": [
+    "gluten",
+    "sesame",
+    "soy",
+    "peanuts"
+   ],
+   "bad": {
+    "desc": "הgyoza מוגשת deep fried בשמן עמוק, בלי אידוי בכלל.",
+    "ings": [
+     "shrimp"
+    ],
+    "why": "כתבתי deep fried וshrimp, בפועל זה chicken וטכניקת pan-sear+steam"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "סלט בוראטה",
+   "desc": "burrata רכה עם tomato, בצל סגול, chili, קרם בזיליקום, parmesan, פיסטוק קלוי וcapers, ברוטב בלסמי לבן. הgבינה לא מפוסטרת.",
+   "ings": [
+    "burrata",
+    "tomato",
+    "onion סגול",
+    "chili",
+    "בזיליקום קרם",
+    "parmesan",
+    "pistachio",
+    "capers"
+   ],
+   "alls": [
+    "dairy",
+    "nuts",
+    "gluten"
+   ],
+   "bad": {
+    "desc": "הסלט בלי גבינה בכלל, רק ירקות ורוטב.",
+    "ings": [
+     "mozzarella"
+    ],
+    "why": "כתבתי בלי גבינה עם mozzarella, בפועל יש burrata שהיא הבסיס של המנה"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "סלט בס טמפורה",
+   "desc": "פילה sea bass בטמפורה fried, על ירקות קריספי (kohlrabi, radish, שאלוט), נענע ובזיליקום, ברוטב yuzu-oyster וכוסברה. לא כשר בגלל רוטב הצדפות.",
+   "ings": [
+    "sea bass",
+    "tempura",
+    "mint",
+    "בזיליקום",
+    "cherry tomato",
+    "kohlrabi",
+    "radish",
+    "shallot",
+    "pak choi",
+    "yuzu oyster sauce",
+    "כוסברה"
+   ],
+   "alls": [
+    "gluten",
+    "sesame",
+    "soy"
+   ],
+   "bad": {
+    "desc": "הדג מגיע raw בתוך הסלט, בכלל לא מבושל.",
+    "ings": [
+     "salmon"
+    ],
+    "why": "כתבתי raw וsalmon, זה דג bass מטוגן בטמפורה, לא raw"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "סלט קיסר",
+   "desc": "caesar salad קלאסי — חסה iceberg, cherry tomato, קרוטונים, parmesan, בצל סגול וטוויל parmesan, ברוטב caesar (יש בו anchovy, סויה וparmesan). אפשר להוסיף chicken בתוספת.",
+   "ings": [
+    "lettuce",
+    "cherry tomato",
+    "croutons",
+    "parmesan",
+    "onion סגול",
+    "טוויל parmesan",
+    "caesar sauce",
+    "anchovy"
+   ],
+   "alls": [
+    "dairy",
+    "gluten",
+    "soy",
+    "eggs"
+   ],
+   "bad": {
+    "desc": "הרוטב הוא רוטב יוגורט, בלי anchovy בכלל.",
+    "ings": [
+     "yogurt"
+    ],
+    "why": "כתבתי רוטב יוגורט, זה בעצם caesar sauce עם anchovy"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "מרק קרם תירס יפני",
+   "desc": "corn cream soup יפני, עם חמאה, כפיר ליים, lemongrass, ופירורי טורטייה מעל. עשיר וקצת מתוק, מנה אישית שלא ממש מתאימה לחלוקה.",
+   "ings": [
+    "corn",
+    "cream",
+    "butter",
+    "כפיר ליים",
+    "lemongrass",
+    "טורטייה שברים"
+   ],
+   "alls": [
+    "dairy",
+    "gluten"
+   ],
+   "bad": {
+    "desc": "מרק צלול לגמרי בלי dairy, מתאים לטבעונים.",
+    "ings": [
+     "coconut milk"
+    ],
+    "why": "כתבתי שאין dairy, המרק על בסיס שמנת וחמאה"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "מרק מיסו לבן",
+   "desc": "miso soup לבן — עם tofu, בצל ירוק ואצות wakame. יש בו dashi (שבבי דגים) אז זה לא מרק vegetarian למרות שנראה ככה.",
+   "ings": [
+    "miso paste",
+    "dashi",
+    "soy לבנה",
+    "onion ירוק",
+    "tofu",
+    "wakame"
+   ],
+   "alls": [
+    "soy",
+    "gluten"
+   ],
+   "bad": {
+    "desc": "מרק vegetarian לגמרי, בלי שום מרכיב מן החי.",
+    "ings": [
+     "chicken broth"
+    ],
+    "why": "כתבתי vegetarian, המרק מכיל dashi שהוא מדגים"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "מרק טום יאם",
+   "desc": "tom yum soup תאילנדי חריף — coconut milk, lemongrass, cherry tomato, mushrooms, בצל ירוק, glass noodles וכוסברה. אפשר להוסיף shrimp, chicken או tofu. המחית מכילה anchovy אז אף פעם לא vegetarian לגמרי.",
+   "ings": [
+    "coconut milk",
+    "lemongrass",
+    "tomato",
+    "mushrooms",
+    "onion ירוק",
+    "glass noodles",
+    "כוסברה",
+    "tom yum paste",
+    "anchovy"
+   ],
+   "alls": [],
+   "bad": {
+    "desc": "מרק vegan לגמרי וללא דגים, בסיס ירקות בלבד.",
+    "ings": [
+     "shellfish paste"
+    ],
+    "why": "כתבתי vegan לגמרי, המחית מכילה תמיד anchovy"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "מרק פו",
+   "desc": "pho ויאטנמי — chicken broth, כיסוני chicken, rice noodles, נבטים, בצל, כוסברה, chili אדום ולימון בצד. אפשר בלי כיסונים ואז זה gluten free.",
+   "ings": [
+    "chicken broth",
+    "chicken dumplings",
+    "rice noodles",
+    "sprouts",
+    "onion",
+    "כוסברה",
+    "chili",
+    "lemon"
+   ],
+   "alls": [
+    "gluten"
+   ],
+   "bad": {
+    "desc": "המרק מוגש רק עם beef, אין אפשרות chicken.",
+    "ings": [
+     "beef"
+    ],
+    "why": "כתבתי beef, זה מרק chicken (chicken pho), אין beef בתפריט"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "צ'יקן/טופו קשיו",
+   "desc": "chicken (או tofu) בציפוי panko fried, עם cashew, בצל, פלפלים וברוקולי ברוטב ginger-garlic-soy, מוגש עם אורז. מתוק וקצת חריף.",
+   "ings": [
+    "chicken",
+    "panko",
+    "cashew",
+    "onion",
+    "peppers",
+    "broccoli",
+    "ginger",
+    "garlic",
+    "soy sauce",
+    "rice"
+   ],
+   "alls": [
+    "nuts",
+    "gluten",
+    "soy"
+   ],
+   "bad": {
+    "desc": "המנה מוגשת raw, בלי טיגון בכלל.",
+    "ings": [
+     "peanuts"
+    ],
+    "why": "כתבתי raw, זה chicken מטוגן עמוק (deep fried) עם ירקות מוקפצים"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "בנגקוק פאד תאי",
+   "desc": "pad thai — rice noodles עם chicken/tofu/shrimp/סינטה, egg, נבטים, כרוב, peanuts, בצל ירוק וכוסברה, ברוטב tamarind וfish sauce. הגרסה ה-gluten free לא כשרה כי יש בה רוטב צדפות.",
+   "ings": [
+    "rice noodles",
+    "egg",
+    "sprouts",
+    "cabbage",
+    "peanuts",
+    "onion ירוק",
+    "כוסברה",
+    "tamarind sauce",
+    "fish sauce"
+   ],
+   "alls": [
+    "peanuts",
+    "eggs",
+    "gluten",
+    "soy",
+    "sesame"
+   ],
+   "bad": {
+    "desc": "המנה לא מכילה בכלל דגים, בטוחה לגמרי לרגישי fish.",
+    "ings": [
+     "milk"
+    ],
+    "why": "כתבתי שאין דגים, יש fish sauce ברוטב תמיד"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "פאד סיו",
+   "desc": "pad see ew — rice noodles רחבות בסויה שחורה, עם tofu/chicken/סינטה, ברוקולי, mushrooms, egg, כוסברה, שבבי קוקוס וpeanuts. הרוטב vegan אבל יש בו גלוטן ושומשום.",
+   "ings": [
+    "rice noodles",
+    "black soy sauce",
+    "broccoli",
+    "mushrooms",
+    "egg",
+    "כוסברה",
+    "coconut chips",
+    "peanuts"
+   ],
+   "alls": [
+    "gluten",
+    "soy",
+    "eggs",
+    "peanuts",
+    "sesame"
+   ],
+   "bad": {
+    "desc": "מוגש רק עם beef, בלי אופציה vegan.",
+    "ings": [
+     "beef"
+    ],
+    "why": "כתבתי beef, המנה עם tofu/chicken/סינטה — הרוטב עצמו vegan"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "גרין תאי",
+   "desc": "green curry תאילנדי — spinach noodles, ברוקולי, זוקיני, שקדים, ברוטב curry ירוק עם coconut cream. אפשר להוסיף chicken/shrimp/סינטה/tofu. חריף.",
+   "ings": [
+    "spinach noodles",
+    "broccoli",
+    "zucchini",
+    "almonds",
+    "green curry",
+    "coconut cream",
+    "peanuts",
+    "כוסברה"
+   ],
+   "alls": [
+    "nuts",
+    "peanuts",
+    "gluten"
+   ],
+   "bad": {
+    "desc": "מנה בלי curry בכלל, רק ירקות ברוטב cream רגיל.",
+    "ings": [
+     "cream"
+    ],
+    "why": "כתבתי בלי curry, זה בדיוק curry ירוק עם coconut cream"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "פיש אנד צ'יפס",
+   "desc": "דניס בטמפורת בירה יפנית fried, קריספי, עם togarashi, מוגש עם fries, סלט ירוק ורוטב tartar. חריף קליל מה-togarashi. אין אפשרות לשנות תוספת.",
+   "ings": [
+    "dennis fish",
+    "beer batter",
+    "togarashi",
+    "fries",
+    "salad",
+    "tartar sauce"
+   ],
+   "alls": [
+    "gluten",
+    "eggs"
+   ],
+   "bad": {
+    "desc": "הדג מגיע grilled על האש, בלי בלילה בכלל.",
+    "ings": [
+     "salmon"
+    ],
+    "why": "כתבתי grilled וsalmon, זה דניס בטמפורת בירה — מטוגן, לא grilled"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "שניצל בפנקו",
+   "desc": "שניצל chicken breast בציפוי panko קריספי, עם תיבול קוריאני וחרדל. מוגש עם פירה ותוספת לבחירה — לשאול אם הפירה dairy.",
+   "ings": [
+    "chicken breast",
+    "korean seasoning",
+    "mustard",
+    "garlic",
+    "tempura flour",
+    "breadcrumbs",
+    "panko"
+   ],
+   "alls": [
+    "gluten",
+    "sesame"
+   ],
+   "bad": {
+    "desc": "שניצל בלי ציפוי בכלל, מוגש grilled בלי פירורי לחם.",
+    "ings": [
+     "cream"
+    ],
+    "why": "כתבתי בלי ציפוי, השניצל בפנקו וגריסיני — קריספי ומטוגן"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "צ'יזבורגר / המבורגר / רידיפיין מיט",
+   "desc": "180 גרם beef patty, על bun רכה עם lettuce, tomato, מלפפון חמוץ, בצל סגול ורוטב blondie (קטשופ+מיונז+חרדל). אפשר medium (בשר לא מבושל לגמרי). בcheeseburger יש גם גבינת gouda.",
+   "ings": [
+    "beef patty",
+    "lettuce",
+    "tomato",
+    "pickle",
+    "onion",
+    "bun",
+    "blondie sauce"
+   ],
+   "alls": [
+    "gluten",
+    "eggs",
+    "soy",
+    "dairy"
+   ],
+   "bad": {
+    "desc": "הבשר תמיד מגיע well done, אין אפשרות medium בכלל.",
+    "ings": [
+     "bacon"
+    ],
+    "why": "כתבתי well done בלבד, אפשר medium rare; ואין bacon בתפריט"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "פסטה שימג'י",
+   "desc": "פסטה בcream ומushrooms, עם ציר beef, parmesan ותרד. לא כשר כי יש ציר בקר יחד עם שמנת — אפשר לבקש בלי ציר בקר ואז זה כשר.",
+   "ings": [
+    "pasta",
+    "cream",
+    "mushrooms",
+    "beef stock",
+    "parmesan",
+    "spinach"
+   ],
+   "alls": [
+    "gluten",
+    "dairy",
+    "eggs"
+   ],
+   "bad": {
+    "desc": "המנה תמיד כשרה, אין שום בעיה.",
+    "ings": [
+     "chicken"
+    ],
+    "why": "כתבתי שהיא תמיד כשרה, ציר הbeef עם השמנת הופך אותה ללא כשרה אלא אם מבקשים בלי"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "רול אאוט אוף קונטרול",
+   "desc": "8 יח' inside out — spicy tuna, avocado ותempura crunch בציפוי, ומעל עוד avocado, tuna וtempura flakes. חריף. הtuna raw.",
+   "ings": [
+    "spicy tuna",
+    "avocado",
+    "tempura crunch",
+    "tuna"
+   ],
+   "alls": [
+    "gluten",
+    "eggs",
+    "soy"
+   ],
+   "bad": {
+    "desc": "המנה בלי tuna בכלל, רק avocado וtempura.",
+    "ings": [
+     "salmon"
+    ],
+    "why": "כתבתי בלי tuna עם salmon, זה בעצם spicy tuna roll"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "סאקנה רול",
+   "desc": "8 יח' inside out — shrimp tempura ומלפפון בפנים, ומעל salmon, לימון וtuna tataki. לא כשר בגלל הshrimp.",
+   "ings": [
+    "shrimp",
+    "tempura",
+    "cucumber",
+    "salmon",
+    "lemon",
+    "tuna"
+   ],
+   "alls": [
+    "gluten",
+    "soy",
+    "shellfish"
+   ],
+   "bad": {
+    "desc": "המנה כשרה, בלי פירות ים בכלל.",
+    "ings": [
+     "chicken"
+    ],
+    "why": "כתבתי כשר, יש shrimp במנה שהופך אותה ללא כשרה"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "קראנץ' רול",
+   "desc": "8 יח' inside out — spicy tuna, avocado וtempura flakes בפנים, ומעל עוד spicy tuna וtobiko (ביצי דגים). חריף.",
+   "ings": [
+    "spicy tuna",
+    "avocado",
+    "tempura flakes",
+    "tobiko"
+   ],
+   "alls": [
+    "gluten",
+    "eggs",
+    "soy"
+   ],
+   "bad": {
+    "desc": "המנה בלי tobiko, רק avocado מעל.",
+    "ings": [
+     "cream cheese"
+    ],
+    "why": "כתבתי בלי tobiko, זה בדיוק המרכיב שמעל הרול"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "קרייזי רול",
+   "desc": "8 יח' inside out — salmon, avocado, cream cheese ובצל ירוק בפנים, ומעל עוד salmon וtempura flakes. אפשר גם salmon אפוי או צרוב במקום raw.",
+   "ings": [
+    "salmon",
+    "avocado",
+    "cream cheese",
+    "onion ירוק",
+    "tempura flakes"
+   ],
+   "alls": [
+    "dairy",
+    "gluten"
+   ],
+   "bad": {
+    "desc": "המנה בלי salmon בכלל, רק avocado וגבינה.",
+    "ings": [
+     "tuna"
+    ],
+    "why": "כתבתי בלי salmon עם tuna, המנה כולה עם salmon"
+   }
+  },
+  {
+   "code": "S26TLV",
+   "dish": "פיש אנד צ'יפס רול",
+   "desc": "8 יח' — bass בטמפורה (אפוי), spicy מיונז, מלפפון ובצל ירוק בפנים, ומעל שבבי בטטה קריספי. מוגש עם tartar sauce.",
+   "ings": [
+    "bass",
+    "tempura",
+    "spicy mayo",
+    "cucumber",
+    "onion ירוק",
+    "sweet potato chips",
+    "tartar sauce"
+   ],
+   "alls": [
+    "gluten",
+    "eggs",
+    "sesame"
+   ],
+   "bad": {
+    "desc": "הדג בתוך הרול raw לגמרי.",
+    "ings": [
+     "salmon"
+    ],
+    "why": "כתבתי raw עם salmon, זה bass בטמפורה אפוי, לא raw"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "צזיקי קלאסי",
+   "desc": "tzatziki קלאסי — יוגורט יווני עם cucumber, שום, בצל ירוק, שמיר ונענע. קריר ורענן, garlic חזק במנה.",
+   "ings": [
+    "greek yogurt",
+    "cucumber",
+    "garlic",
+    "onion ירוק",
+    "שמיר",
+    "mint"
+   ],
+   "alls": [
+    "dairy"
+   ],
+   "bad": {
+    "desc": "המנה בלי garlic בכלל, טעם עדין ורך.",
+    "ings": [
+     "feta"
+    ],
+    "why": "כתבתי בלי garlic, זה בדיוק אחד הטעמים הדומיננטיים; ואין feta בצזיקי"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "מלנציאנה",
+   "desc": "חציל צלוי על פחמים (smoky), עם onion, garlic ולימון, ונגיעת feta מעל. קרם עשיר וקצת מעושן.",
+   "ings": [
+    "eggplant",
+    "onion",
+    "garlic",
+    "lemon",
+    "feta"
+   ],
+   "alls": [
+    "dairy"
+   ],
+   "bad": {
+    "desc": "החציל מבושל במים, בלי עישון בכלל.",
+    "ings": [
+     "tomato"
+    ],
+    "why": "כתבתי מבושל במים, המנה צלויה על פחמים ומעושנת"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "פאנזרו סלאטה",
+   "desc": "קרם beets מתוק עם דבש, על בסיס יוגורט יווני, ונגיעת feta מלוחה מעל. מתוק-מלוח.",
+   "ings": [
+    "greek yogurt",
+    "beets",
+    "honey",
+    "feta"
+   ],
+   "alls": [
+    "dairy"
+   ],
+   "bad": {
+    "desc": "מנה חריפה עם chili, בלי דבש בכלל.",
+    "ings": [
+     "chili"
+    ],
+    "why": "כתבתי חריפה עם chili, המנה מתוקה מהדבש ואין בה שום חריפות"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "פלפל שושקה",
+   "desc": "peppers צלויים על פחמים, עם feta, שמיר, garlic קונפי (מבושל לאט בשמן) ושמן זית.",
+   "ings": [
+    "roasted pepper",
+    "feta",
+    "שמיר",
+    "garlic קונפי",
+    "olive oil"
+   ],
+   "alls": [
+    "dairy"
+   ],
+   "bad": {
+    "desc": "המנה מוגשת raw, פלפל חי בלי צלייה.",
+    "ings": [
+     "cucumber"
+    ],
+    "why": "כתבתי raw, הפלפל צלוי על פחמים ולא חי"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "קלאסיקה יוונית",
+   "desc": "greek salad קלאסי — cucumber, tomato, peppers, צנוניות, rocket, onion סגול, olives ונתח feta גדול, בשמן זית, capers, אורגנו ולימון.",
+   "ings": [
+    "cucumber",
+    "tomato",
+    "peppers",
+    "rocket",
+    "onion",
+    "olives",
+    "feta",
+    "capers",
+    "oregano"
+   ],
+   "alls": [
+    "dairy"
+   ],
+   "bad": {
+    "desc": "הסלט בלי feta בכלל, רק ירקות.",
+    "ings": [
+     "halloumi"
+    ],
+    "why": "כתבתי בלי feta עם halloumi, בפועל יש נתח feta נדיב ואין halloumi בסלט הזה"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "Helios",
+   "desc": "tomato ומיקס cherry על labneh, זעתר טרי, onion סגול, chili, olives וsumac, בשמן זית ולימון.",
+   "ings": [
+    "tomato",
+    "cherry tomato",
+    "labneh",
+    "זעתר",
+    "onion",
+    "chili",
+    "olives",
+    "sumac"
+   ],
+   "alls": [
+    "dairy",
+    "sesame"
+   ],
+   "bad": {
+    "desc": "המנה בלי labneh בכלל, רק ירקות ולימון.",
+    "ings": [
+     "feta"
+    ],
+    "why": "כתבתי בלי labneh עם feta, בפועל הסלט על labneh ולא feta"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "סלט חלומי קפריסאי",
+   "desc": "קוביות halloumi פריכות (fried), על מיקס lettuce, peppers צלויים, שקדים ואגוזי walnut, בvinaigrette הדרים.",
+   "ings": [
+    "halloumi",
+    "lettuce",
+    "roasted peppers",
+    "almonds",
+    "walnuts",
+    "citrus vinaigrette"
+   ],
+   "alls": [
+    "dairy",
+    "nuts"
+   ],
+   "bad": {
+    "desc": "המנה בלי אגוזים בכלל, בטוחה לרגישי nuts.",
+    "ings": [
+     "feta"
+    ],
+    "why": "כתבתי בלי אגוזים עם feta, המנה עם halloumi ויש בה גם שקדים וגם אגוזי walnut"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "פפריס טיגניאטיס",
+   "desc": "peppers פדרון מטוגנים (fried), על קרם feta, אורגנו, לימון ומלח ים.",
+   "ings": [
+    "peppers",
+    "feta cream",
+    "oregano",
+    "lemon",
+    "sea salt"
+   ],
+   "alls": [
+    "dairy"
+   ],
+   "bad": {
+    "desc": "הpeppers מוגשים raw, בלי טיגון בכלל.",
+    "ings": [
+     "cucumber"
+    ],
+    "why": "כתבתי raw, הpeppers בעצם מטוגנים (fried)"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "דולמאדס",
+   "desc": "עלי גפן ממולאים באורז עגול, מוגשים על tzatziki, רוטב רימונים ולימון כבוש. טעם לימוני.",
+   "ings": [
+    "grape leaves",
+    "rice",
+    "tzatziki",
+    "pomegranate sauce",
+    "preserved lemon"
+   ],
+   "alls": [
+    "dairy"
+   ],
+   "bad": {
+    "desc": "המנה ממולאת בבשר, בלי אורז בכלל.",
+    "ings": [
+     "ground beef"
+    ],
+    "why": "כתבתי ממולא בבשר, המילוי הוא אורז עגול בלבד"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "קפטדס",
+   "desc": "לביבות (fritters) של כרישה וzucchini, על קרם feta.",
+   "ings": [
+    "leek",
+    "zucchini",
+    "feta cream"
+   ],
+   "alls": [
+    "dairy"
+   ],
+   "bad": {
+    "desc": "המנה בלי feta, מוגשת עם רוטב tomato.",
+    "ings": [
+     "tomato sauce"
+    ],
+    "why": "כתבתי עם רוטב tomato, המנה מוגשת על קרם feta"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "פטאטס טיגניאטיס",
+   "desc": "פלחי potato עבים fried, קריספי, עם אורגנו, garlic ולימון, וfeta מפוררת מעל.",
+   "ings": [
+    "potato",
+    "oregano",
+    "garlic",
+    "lemon",
+    "feta"
+   ],
+   "alls": [
+    "dairy"
+   ],
+   "bad": {
+    "desc": "המנה בלי feta בכלל.",
+    "ings": [
+     "parmesan"
+    ],
+    "why": "כתבתי parmesan, במנה יש feta ולא parmesan"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "Mykonos Tuna",
+   "desc": "pasta ברוטב חמאת לימון, capers, olives, עשבי תיבול, וtuna אדומה צרובה קלות (raw בפנים). על קרם יוגורט יווני. עתירת כספית — לשאול לגבי הריון.",
+   "ings": [
+    "pasta",
+    "lemon butter",
+    "capers",
+    "olives",
+    "tuna",
+    "greek yogurt cream"
+   ],
+   "alls": [
+    "gluten",
+    "dairy"
+   ],
+   "bad": {
+    "desc": "הtuna מוגשת well done, מבושלת לגמרי.",
+    "ings": [
+     "salmon"
+    ],
+    "why": "כתבתי well done עם salmon, זו tuna אדומה צרובה קלות — raw בפנים"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "Greek Pomodoro",
+   "desc": "pasta רחבה ברוטב tomato עשיר, garlic, בזיליקום, olives, cherry קונפי, אורגנו ושבבי feta מעל.",
+   "ings": [
+    "pasta",
+    "tomato sauce",
+    "garlic",
+    "basil",
+    "olives",
+    "cherry tomato",
+    "feta"
+   ],
+   "alls": [
+    "gluten",
+    "dairy"
+   ],
+   "bad": {
+    "desc": "רוטב cream לבן, בלי tomato בכלל.",
+    "ings": [
+     "cream"
+    ],
+    "why": "כתבתי רוטב cream, זה רוטב tomato עשיר"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "Spanakopita Pasta",
+   "desc": "pasta פנה עם spinach, מנגולד, onion מטוגן, parmesan, feta וחמאת אורגנו.",
+   "ings": [
+    "pasta penne",
+    "spinach",
+    "chard",
+    "fried onion",
+    "parmesan",
+    "feta"
+   ],
+   "alls": [
+    "gluten",
+    "dairy"
+   ],
+   "bad": {
+    "desc": "המנה בלי feta או parmesan, רק ירקות.",
+    "ings": [
+     "mozzarella"
+    ],
+    "why": "כתבתי mozzarella, במנה יש parmesan וfeta, לא mozzarella"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "לברק שלם",
+   "desc": "דג לברק שלם, צלוי על פחמים (grilled), על קרם tomato שרופות ותפוח אדמה יווני, בשמן זית ואורגנו.",
+   "ings": [
+    "sea bream",
+    "burnt tomato cream",
+    "greek potato",
+    "olive oil",
+    "oregano"
+   ],
+   "alls": [],
+   "bad": {
+    "desc": "הדג מוגש raw, לא צלוי בכלל.",
+    "ings": [
+     "salmon"
+    ],
+    "why": "כתבתי raw עם salmon, זה לברק שלם צלוי לגמרי על פחמים"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "Souvlaki Mare –מוסר ים",
+   "desc": "נתחי dory fish וירקות על שיפוד, grilled על פחמים, על pita יוונית, ירקות גריל, tzatziki ולימון.",
+   "ings": [
+    "dory fish",
+    "grilled vegetables",
+    "pita",
+    "tzatziki",
+    "lemon"
+   ],
+   "alls": [
+    "gluten",
+    "dairy"
+   ],
+   "bad": {
+    "desc": "המנה מוגשת בלי pita, רק דג עם rice.",
+    "ings": [
+     "rice"
+    ],
+    "why": "כתבתי עם rice, המנה מוגשת על pita יוונית ולא rice"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "גירוס דייגים יווני",
+   "desc": "נתחי דג ים, onion ופלפלים grilled, על pita יוונית, tahini וירקות על האש.",
+   "ings": [
+    "fish",
+    "onion",
+    "peppers",
+    "pita",
+    "tahini",
+    "grilled vegetables"
+   ],
+   "alls": [
+    "gluten",
+    "sesame"
+   ],
+   "bad": {
+    "desc": "המנה בלי tahini, רוטב tzatziki בלבד.",
+    "ings": [
+     "yogurt sauce"
+    ],
+    "why": "כתבתי רוטב yogurt, זה בעצם tahini"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "קבב דגים יווני",
+   "desc": "דג ים קצוץ עם עשבי תיבול, grilled על פחמים, עם ירקות גריל, תפוח אדמה יווני, תבשיל mangold-תרד-onion, על tahini הר ברכה.",
+   "ings": [
+    "chopped fish",
+    "herbs",
+    "grilled vegetables",
+    "greek potato",
+    "chard",
+    "spinach",
+    "onion",
+    "tahini"
+   ],
+   "alls": [
+    "sesame"
+   ],
+   "bad": {
+    "desc": "המנה מוגשת בלי tahini, בלי שומשום בכלל.",
+    "ings": [
+     "cream sauce"
+    ],
+    "why": "כתבתי בלי tahini, המנה מוגשת על tahini הר ברכה"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "סנטוריני סביצ׳ה",
+   "desc": "פילה fish קצוץ raw, כוסברה, onion ירוק וסגול, chili, סלרי, שמן זית ומלח ים, על קרם לימון בלאדי. הדג לגמרי raw.",
+   "ings": [
+    "chopped fish",
+    "cilantro",
+    "onion",
+    "chili",
+    "celery",
+    "olive oil",
+    "lemon cream"
+   ],
+   "alls": [],
+   "bad": {
+    "desc": "הדג מבושל, לא raw.",
+    "ings": [
+     "cooked shrimp"
+    ],
+    "why": "כתבתי מבושל עם shrimp, זה סביצ'ה — דג raw קצוץ"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "מיקונוס רוסט טונה",
+   "desc": "tuna אדומה ופלפל גרוס בצריבה קלה (raw בפנים), שמן זית, aioli דיז'ון, radish, קורנישונים וchili. עתיר כספית.",
+   "ings": [
+    "tuna",
+    "crushed pepper",
+    "olive oil",
+    "aioli",
+    "radish",
+    "gherkins",
+    "chili"
+   ],
+   "alls": [
+    "eggs"
+   ],
+   "bad": {
+    "desc": "הtuna מבושלת לגמרי, well done.",
+    "ings": [
+     "salmon"
+    ],
+    "why": "כתבתי well done עם salmon, זו tuna אדומה בצריבה קלה, raw בפנים"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "סלמון אתונה",
+   "desc": "salmon כבוש (cured) בהדרים, על קרם feta, onion, שמיר, zest לימון, olives ושמן זית. הדג לא מבושל, כבוש בלבד.",
+   "ings": [
+    "salmon",
+    "feta cream",
+    "onion",
+    "dill",
+    "lemon zest",
+    "olives",
+    "olive oil"
+   ],
+   "alls": [
+    "dairy"
+   ],
+   "bad": {
+    "desc": "הsalmon מבושל בתנור, לא כבוש.",
+    "ings": [
+     "tuna"
+    ],
+    "why": "כתבתי מבושל בתנור עם tuna, זה salmon כבוש בהדרים, לא אפוי"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "קרודו קורפו סטייל",
+   "desc": "פרוסות fish raw, על תפוחי עץ גרנד, סלרי, כוסברה, onion ירוק וchili. רענן וחמצמץ.",
+   "ings": [
+    "raw fish",
+    "apple",
+    "celery",
+    "cilantro",
+    "onion",
+    "chili"
+   ],
+   "alls": [],
+   "bad": {
+    "desc": "הדג fried, מוגש חם.",
+    "ings": [
+     "shrimp"
+    ],
+    "why": "כתבתי fried עם shrimp, זה crudo — פרוסות דג raw קרות"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "גינת הלימונים בלסבוס",
+   "desc": "קרם lemon, מרנג איטלקי שרוף (torched), שטרוייזל עוגיות קריספי ורוטב פירות יער.",
+   "ings": [
+    "lemon cream",
+    "meringue",
+    "streusel cookies",
+    "berry sauce"
+   ],
+   "alls": [
+    "gluten",
+    "eggs"
+   ],
+   "bad": {
+    "desc": "הקינוח בלי lemon בכלל, טעם chocolate.",
+    "ings": [
+     "chocolate"
+    ],
+    "why": "כתבתי טעם chocolate, הקינוח כולו על בסיס lemon"
+   }
+  },
+  {
+   "code": "95F245",
+   "dish": "Greek Summer Pavlova",
+   "desc": "שכבות meringue קראנצ'י, יוגורט יווני, דבש, קרם וניל, ריבת ענבים ואניס.",
+   "ings": [
+    "meringue",
+    "greek yogurt",
+    "honey",
+    "vanilla cream",
+    "grape jam",
+    "anise"
+   ],
+   "alls": [
+    "eggs",
+    "dairy"
+   ],
+   "bad": {
+    "desc": "הקינוח בלי meringue, רק קרם וניל.",
+    "ings": [
+     "chocolate"
+    ],
+    "why": "כתבתי בלי meringue, זה pavlova — הבסיס הוא meringue קראנצ'י"
+   }
+  }
+ ]
+}

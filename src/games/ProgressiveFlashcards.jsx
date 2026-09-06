@@ -7,6 +7,7 @@ import { categoryVisual } from "../lib/categoryVisual";
 import { pickNext, isUnderstood } from "../lib/progressiveSession";
 import { nextConsecutiveFives } from "../lib/studySession";
 import { gz } from "../lib/shiftChoice";
+import WarningBoxes from "./WarningBoxes";
 
 // The continuous flashcard session behind the menu tab's drill-down (2026-08-19).
 // Visually it IS Flashcards — same card, same flip, same 1-5 rating — but rating a card
@@ -18,7 +19,7 @@ import { gz } from "../lib/shiftChoice";
 // exam?" instead. Declining the exam buys ten more refresh cards, then it asks again.
 const CHECKPOINT_EVERY = 10;
 
-export default function ProgressiveFlashcards({ items, label, firstId, initialProgress, onRate, onDone, onExam, examReady, slim = false }) {
+export default function ProgressiveFlashcards({ items, label, firstId, initialProgress, onRate, onDone, onExam, examReady, slim = false, merged = false }) {
   // Live local copy of the progress map: the parent's state update is async, and the very
   // next pick must already see the rating that was just given.
   const progRef = useRef({ ...(initialProgress || {}) });
@@ -169,7 +170,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
                             : it.event ? countLabel(it.ingredients, "מנה", "מנות")
                             : countLabel(it.ingredients, "מרכיב", "מרכיבים"),
                     countLabel(it.allergens, "אלרגיה", "אלרגיות"),
-                    ...(slim ? [countLabel(mokshim(it), "מוקש", "מוקשים")]
+                    ...(slim && merged ? [countLabel(mokshim(it), "מוקש", "מוקשים")]
                              : [countLabel(it.pregnancy, "רגישות בהריון", "רגישויות בהריון"), countLabel(it.pitfalls, "מוקש", "מוקשים")]),
                   ].filter(Boolean).join(" · ")}
                 </p>
@@ -204,8 +205,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
                   {w.notes && <p className="text-sm text-[#c4c4d4] leading-relaxed text-right">{w.notes}</p>}
                   {w.opening && <div className="bg-[#1d2a24] p-2 rounded-lg"><p className="text-xs font-bold text-[#22c08c] text-right">איך פותחים: {w.opening}</p></div>}
                 </> : null; })()}
-                {it.allergens?.length > 0 && <div className="bg-[#3a1d22] p-2 rounded-lg"><p className="text-xs font-bold text-[#e0315a]">אלרגיות: {it.allergens.join(", ")}</p></div>}
-                {mokshim(it).length > 0 && <div className="bg-[#3a2f1d] p-2 rounded-lg"><p className="text-xs font-bold text-[#f3c14b]">מוקשים: {mokshim(it).join(", ")}</p></div>}
+                <WarningBoxes it={it} merged={merged} />
               </> : <>
                 {it.desc && <p className="text-sm text-[#c4c4d4] leading-relaxed">{it.desc}</p>}
                 {it.ingredients?.length > 0 && <p className="text-xs text-[#8a8aa0]">{ingLabel(it)}: {it.ingredients.join(", ")}</p>}

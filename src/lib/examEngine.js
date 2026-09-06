@@ -37,6 +37,8 @@
 //     every tier-2 verdict writes its phrasing back into `alt`  → tier-2 rate decays.
 
 
+import { ingredientKeys, isNonKey, isModifier } from "./ingredientKeys.js";
+
 /* ══ Hebrew fuzzy matcher — the same engine the exam page runs ══ */
 export const norm = w => w.toLowerCase()
   .replace(/['׳״"”“]/g, "").replace(/[־\-–—]/g, " ")
@@ -45,7 +47,9 @@ export const norm = w => w.toLowerCase()
 // מילות סרק — כולל מילות משפט טבעי (יותם, 1.9: «האלגוריתם במבחן החי לא משהו» —
 // מלצר כותב «אני ממליץ על תה קר», «מאוד מתוק», והמילים האלה אסור שיפריעו).
 const STOP = new Set(["עמ","של","את","על","או","גמ","זה","זו","יש","הוא","היא","עוד","כל","עם","גם","וגם","אבל","רק","כי","מה","בו","בה","מנה","מוגש","מוגשת",
-  "אני","ממליצ","ממליצה","אמליצ","הייתי","מציע","מציעה","כדאי","אפשר","שווה","הכי","מאוד","ממש","קצת","טיפה","די","נורא","יותר","פחות","המונ","הרבה","כזה","כזאת","בערכ","אולי","להמליצ","לקחת","לוקח","לוקחת","אקח","ניקח","למשל","נניח","וגמ","וזה","שהוא","שהיא","לו","לה","להמ"]);
+  "אני","ממליצ","ממליצה","אמליצ","הייתי","מציע","מציעה","כדאי","אפשר","שווה","הכי","מאוד","ממש","קצת","טיפה","די","נורא","יותר","פחות","המונ","הרבה","כזה","כזאת","בערכ","אולי","להמליצ","לקחת","לוקח","לוקחת","אקח","ניקח","למשל","נניח","וגמ","וזה","שהוא","שהיא","לו","לה","להמ",
+  // מילות קישור באנגלית — מלצר שכותב «tuna and avocado with chili» (יותם: תרגום אינו טעות)
+  "and","with","of","the","an","on","in","or","some","it","is","its","has","very","also"]);
 export const toks = s => norm(s).split(" ").filter(w => (w.length > 1 || /\d/.test(w)) && !STOP.has(w));
 function lev(a, b) {
   if (Math.abs(a.length - b.length) > 2) return 9;
@@ -55,16 +59,31 @@ function lev(a, b) {
     d[i][j] = Math.min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1] + (a[i-1] === b[j-1] ? 0 : 1));
   return d[a.length][b.length];
 }
-const pvars = w => {
+// קיפול רבים/סמיכות (בלי קילוף אות-שימוש)
+const folds = w => {
   const out = [w];
-  if (w.length >= 3 && "ובהלמשכ".includes(w[0])) out.push(w.slice(1));
   if (w.length >= 5 && (w.endsWith("ימ") || w.endsWith("ות"))) out.push(w.slice(0, -2)); // plural fold
+  if (w.length >= 4 && w.endsWith("י") && !isModifier(w)) out.push(w.slice(0, -1));      // סמיכות: «זיתי» ⇒ זית, «אגוזי» ⇒ אגוז (לא «קרמי»/«יפני»)
   return out;
 };
-function wBase(a, b) {
+// כל הצורות: {v, pre} — pre = אחרי קילוף ו׳/ב׳/ה׳/ל׳/מ׳/ש׳/כ׳. ⚠️ קילוף **משני הצדדים** אסור:
+// «מבושל»⇒«בושל» ≈ «כבוש»⇒«בוש» (תחילית) זיכה «מבושל» כ«כבוש» — ודג מבושל עבר כדג כבוש (=נא).
+const pvarsX = w => {
+  const out = folds(w).map((v) => ({ v, pre: false }));
+  if (w.length >= 3 && "ובהלמשכ".includes(w[0])) out.push(...folds(w.slice(1)).map((v) => ({ v, pre: true })));
+  return out;
+};
+const pvars = w => pvarsX(w).map((x) => x.v);
+// תחילית: «עגבני» ⇄ «עגבנייה», «בצל» ⇄ «בצלים». ⚠️ במילה של 3 אותיות הפרש של עד 2 בלבד —
+// «שום» היה תחילית של «שומשום» (הפרש 3) וצ'יפ «שומשום» זיכה את השום (נתפס בבודק, 6.9).
+const prefixEq = (a, b) => {
   if (a === b) return true;
   const L = Math.min(a.length, b.length);
-  if (L >= 3 && (a.startsWith(b) || b.startsWith(a)) && Math.abs(a.length - b.length) <= 3) return true;
+  return L >= 3 && (a.startsWith(b) || b.startsWith(a)) && Math.abs(a.length - b.length) <= (L <= 3 ? 2 : 3);
+};
+function wBase(a, b) {
+  if (prefixEq(a, b)) return true;
+  const L = Math.min(a.length, b.length);
   return lev(a, b) <= (L <= 3 ? 0 : L <= 5 ? 1 : 2);
 }
 // consonant-skeleton transliteration: Hebrew "דיאבלו" ⇒ dbl, Latin "diablo" ⇒ dbl.
@@ -73,15 +92,78 @@ const H2L = { "ב":"b","ג":"g","ד":"d","ז":"z","ח":"h","ט":"t","כ":"k","ל
 const skel = w => /[א-ת]/.test(w)
   ? [...w].map(c => H2L[c] || "").join("")
   : w.replace(/[aeiouwy'h]/g, "");
+// ⚠️ שלד של 2-3 עיצורים תואם חצי תפריט (avocado⇒«vcd» ≈ כל מילה עם v/k/d) — ולכן מילה באנגלית
+// נחשבה «שגויה בביטחון» כי התאימה למשהו באוצר המילים. שלד ≥3, וטעות-אות רק בשלד של ≥5.
 function translitEq(a, b) {
   const sa = skel(a), sb = skel(b);
-  return sa.length >= 2 && sb.length >= 2 && lev(sa, sb) <= 1;
+  return sa.length >= 3 && sb.length >= 3 && lev(sa, sb) <= (Math.min(sa.length, sb.length) >= 5 ? 1 : 0);
 }
+// מילון אנגלית⇒עברית למילות אוכל שמלצר מקליד (יותם, 1.9: «ספייסי לא שווה חריף, spicy לא שווה
+// חריף» — תרגום אינו טעות כתיב). מוחל על **התשובה בלבד** לפני ההתאמה; צירופים של שתי מילים קודם.
+export const EN_HE = {
+  "cherry tomato": "עגבניות שרי", "cherry tomatoes": "עגבניות שרי", "rice noodles": "אטריות אורז", "glass noodles": "אטריות זכוכית",
+  "green curry": "קארי ירוק", "red curry": "קארי אדום", "tartar sauce": "רוטב טרטר", "beer batter": "בלילת בירה", "sea bream": "דניס",
+  "sea bass": "בס", "grape leaves": "עלי גפן", "preserved lemon": "לימון כבוש", "olive oil": "שמן זית", "sesame oil": "שמן שומשום",
+  "cream cheese": "גבינת שמנת", "greek yogurt": "יוגורט יווני", "sweet potato": "בטטה", "spring roll": "ספרינג רול", "passion fruit": "פסיפלורה",
+  "soy sauce": "רוטב סויה", "spicy mayo": "ספייסי מיונז", "spicy tuna": "ספייסי טונה", "spicy salmon": "ספייסי סלמון", "red onion": "בצל סגול",
+  "green onion": "בצל ירוק", "spring onion": "בצל ירוק", "bell pepper": "פלפל", "bell peppers": "פלפלים", "pine nuts": "צנוברים",
+  "lemon butter": "חמאת לימון", "tomato sauce": "רוטב עגבניות", "fish sauce": "פיש סוס", "tempura flour": "קמח טמפורה", "fried onion": "בצל מטוגן",
+  "raw fish": "דג נא", "raw meat": "בשר נא", "raw egg": "ביצה חיה", "cream": "שמנת", "sour cream": "שמנת חמוצה",
+  tuna: "טונה", salmon: "סלמון", yellowtail: "ילוטייל", hamachi: "המאצ'י", avocado: "אבוקדו", cucumber: "מלפפון", feta: "פטה", olives: "זיתים", olive: "זית",
+  chili: "צ'ילי", chilli: "צ'ילי", ginger: "ג'ינג'ר", sesame: "שומשום", shrimp: "שרימפס", shrimps: "שרימפס", prawns: "שרימפס", lettuce: "חסה",
+  tomato: "עגבנייה", tomatoes: "עגבניות", onion: "בצל", onions: "בצל", mushroom: "פטריות", mushrooms: "פטריות", noodles: "אטריות", rice: "אורז",
+  cheese: "גבינה", butter: "חמאה", egg: "ביצה", eggs: "ביצים", garlic: "שום", mint: "נענע", basil: "בזיליקום", parsley: "פטרוזיליה", cilantro: "כוסברה",
+  coriander: "כוסברה", dill: "שמיר", oregano: "אורגנו", thyme: "טימין", rosemary: "רוזמרין", lemon: "לימון", lime: "ליים", honey: "דבש",
+  peanuts: "בוטנים", peanut: "בוטנים", nuts: "אגוזים", almonds: "שקדים", walnuts: "אגוזי מלך", pistachio: "פיסטוק", pistachios: "פיסטוק", cashew: "קשיו",
+  cashews: "קשיו", capers: "צלפים", anchovy: "אנשובי", anchovies: "אנשובי", corn: "תירס", sprouts: "נבטים", tofu: "טופו", chicken: "עוף", beef: "בקר",
+  lamb: "טלה", fish: "דג", sirloin: "סינטה", entrecote: "אנטריקוט", pickle: "מלפפון חמוץ", pickles: "מלפפון חמוץ", fries: "צ'יפס", chips: "צ'יפס",
+  sauce: "רוטב", mayo: "מיונז", mayonnaise: "מיונז", teriyaki: "טריאקי", soy: "סויה", gluten: "גלוטן", dairy: "לקטוז", milk: "חלב", wheat: "חיטה",
+  shellfish: "רכיכות", seafood: "פירות ים", yogurt: "יוגורט", yoghurt: "יוגורט", tahini: "טחינה", hummus: "חומוס", eggplant: "חציל", aubergine: "חציל",
+  zucchini: "זוקיני", potato: "תפוח אדמה", potatoes: "תפוחי אדמה", cabbage: "כרוב", carrot: "גזר", carrots: "גזר", radish: "צנונית", radishes: "צנוניות",
+  curry: "קארי", coconut: "קוקוס", mango: "מנגו", berries: "פירות יער", chocolate: "שוקולד", vanilla: "וניל", caramel: "קרמל", sugar: "סוכר",
+  flour: "קמח", bread: "לחם", bun: "לחמנייה", pita: "פיתה", batter: "בלילה", tempura: "טמפורה", panko: "פנקו", crispy: "קריספי", fried: "מטוגן",
+  baked: "אפוי", grilled: "בגריל", raw: "נא", steamed: "מאודה", smoked: "מעושן", spicy: "חריף", sweet: "מתוק", sour: "חמוץ", creamy: "קרמי",
+  tobiko: "טוביקו", nori: "נורי", seaweed: "אצות", miso: "מיסו", wasabi: "וסאבי", ponzu: "פונזו", truffle: "כמהין", truffles: "כמהין", herbs: "עשבי תיבול",
+  peppers: "פלפלים", pepper: "פלפל", croutons: "קרוטונים", parmesan: "פרמז'ן", mozzarella: "מוצרלה", halloumi: "חלומי", burrata: "בוראטה", dumplings: "כיסונים",
+  dumpling: "כיסונים", salad: "סלט", soup: "מרק", roll: "רול", jam: "ריבה", vinaigrette: "ויניגרט", crab: "סרטן", squid: "קלמארי", calamari: "קלמארי",
+  octopus: "תמנון", scallops: "צדפות", salt: "מלח", vinegar: "חומץ", lemongrass: "למון גראס", cinnamon: "קינמון", cumin: "כמון", paprika: "פפריקה",
+  "sea salt": "מלח ים", "beer batter": "טמפורת בירה", "miso paste": "מחית מיסו", "chicken broth": "ציר עוף", "coconut chips": "שבבי קוקוס",
+  "greek potato": "תפוח אדמה יווני", "greek potatoes": "תפוח אדמה יווני", "beef patty": "קציצת בקר", "kalamata olives": "זיתי קלמטה", "bok choy": "בוק צ'וי",
+  broth: "ציר", stock: "ציר", blondie: "בלונדי", "blondie sauce": "רוטב בלונדי", beets: "סלק", beet: "סלק", beetroot: "סלק", omelet: "חביתה", omelette: "חביתה", bass: "בס", seabass: "בס", dennis: "דניס",
+  patty: "קציצה", togarashi: "טוגראשי", sumac: "סומק", labneh: "לאבנה", furikake: "פוריקקה", kanpyo: "קנפיו", edamame: "אדממה", wakame: "וואקמה",
+  shiitake: "שיטאקי", shimeji: "שימג'י", enoki: "אנוקי", tzatziki: "צזיקי", kalamata: "קלמטה", dashi: "דאשי", gyoza: "גיוזה", sashimi: "סשימי",
+  nigiri: "ניגירי", tartare: "טרטר", carpaccio: "קרפצ'יו", ceviche: "סביצ'ה", crudo: "קרודו", aioli: "איולי", pesto: "פסטו", feta: "פטה",
+  spinach: "תרד", leek: "כרישה", leeks: "כרישה", celery: "סלרי", fennel: "שומר", arugula: "רוקט", rocket: "רוקט", kale: "קייל", pumpkin: "דלעת",
+  apple: "תפוח", pear: "אגס", strawberry: "תות", strawberries: "תותים", raspberry: "פטל", blueberries: "אוכמניות", grapes: "ענבים", pomegranate: "רימון",
+  peach: "אפרסק", fig: "תאנה", figs: "תאנים", dates: "תמרים", walnut: "אגוזי מלך", hazelnut: "לוז", hazelnuts: "לוז", chestnut: "ערמונים",
+};
+const EN_PAIRS = Object.keys(EN_HE).filter((k) => k.includes(" "));
+// תרגום צד-התשובה: טוקנים באנגלית ⇒ הטוקנים העבריים (זוגות קודם, אחר כך מילים בודדות)
+export const enToHe = (tokens) => {
+  const out = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (!/^[a-z]/.test(t)) { out.push(t); continue; }
+    const pair = tokens[i + 1] && EN_PAIRS.find((k) => k === `${t} ${tokens[i + 1]}`);
+    if (pair) { out.push(...toks(EN_HE[pair])); i++; continue; }
+    if (EN_HE[t]) out.push(...toks(EN_HE[t])); else out.push(t);
+  }
+  return out;
+};
 export const wMatch = (a, b) => {
-  for (const va of pvars(a)) for (const vb of pvars(b)) if (wBase(va, vb)) return true;
+  // הצורות המקוריות — עם סובלנות לטעות אות
+  if (wBase(a, b)) return true;
+  // אחרי קילוף ו'/ב'/ל'/ה' או קיפול רבים/סמיכות — זהות או תחילית בלבד. 🔴 קילוף + טעות-אות
+  // ביחד זיכו «כמון» כ«לימון» (כמונ⇒מונ≈ימונ) ו«לימון» כ«רימונים» — מרכיבים שונים לגמרי
+  // (נתפס בבודק התשובות על סלון, 6.9).
+  for (const va of pvarsX(a)) for (const vb of pvarsX(b)) if ((va.v !== a || vb.v !== b) && !(va.pre && vb.pre) && prefixEq(va.v, vb.v)) return true;
   if (/[a-z]/.test(a) !== /[a-z]/.test(b)) return translitEq(a, b);
   return false;
 };
+// זהות של ממש (אחרי קילוף/קיפול) — לא טעות אות ולא תחילית. «אטריות» ≠ «פטריות», «קרם» ≠ «קרמל».
+export const wExact = (a, b) => { const vb = pvarsX(b); return pvarsX(a).some((va) => vb.some((x) => x.v === va.v && !(va.pre && x.pre))); };
+// התאמה למילת מפתח של מרכיב: זהות, או טעות אות/תחילית רק כששתי המילים ארוכות (≥4)
+export const keyMatch = (w, k) => wExact(w, k) || (Math.min(w.length, k.length) >= 4 && wBase(w, k));
 export const inToks = (word, tokens) => tokens.some(t => wMatch(t, norm(word)));
 export const entryOk = (entry, tokens) => { const ws = toks(entry); return ws.length > 0 && ws.every(w => inToks(w, tokens)); };
 
@@ -220,7 +302,8 @@ export function parseUnits(d) {
 const isVegan = d => /טבעוני/.test(d.desc || "") && !/אינו צמחוני|לא צמחוני/.test(d.desc || "");
 // free = the dish's whole vocabulary: name + description + ingredient phrasing. Anything
 // the dish's own page says is at worst neutral — never an "invention".
-const freeFor = d => [...new Set([...nameToks(d), ...toks(d.desc || ""), ...(d.ingredients || []).flatMap(i => toks(i))])];
+// «עוף» על גיוזה פרגית: השם הכללי של המרכיב-שבשם ניטרלי כמוהו (המופעים/הכינויים של כל מרכיב)
+const freeFor = d => [...new Set([...nameToks(d), ...toks(d.desc || ""), ...(d.ingredients || []).flatMap(i => [...toks(i), ...genericAlt(i).flatMap((a) => toks(a))])])];
 // מרכיב כללי בכרטיס («ירקות», «רטבים», «עשבי תיבול») מזוכה גם במופע שלו: «חסה» ⇒ ירקות,
 // «קטשופ» ⇒ רטבים (יותם, 6.9: «כתבתי קטשופ ומיונז וזה שלל לי — למרות שאלו הרטבים»).
 export const GENERIC_ALT = {
@@ -233,8 +316,14 @@ export const GENERIC_ALT = {
   "אגוזים": ["שקדים", "אגוזי מלך", "פיסטוק", "קשיו", "לוז", "פקאן", "אגוז"],
   "תוספת": ["צ'יפס", "סלט", "אורז", "פירה", "פסטה", "תפוחי אדמה", "בטטה", "ירקות", "אנטיפסטי"],
   "תוספת לבחירה": ["צ'יפס", "סלט", "אורז", "פירה", "פסטה", "תפוחי אדמה", "בטטה", "ירקות", "אנטיפסטי"],
+  // ההפך: יעד ספציפי שהתשובה קוראת לו בשמו הכללי («עוף» על פרגית, «צ'ילי» על פלפל חריף)
+  "פרגית": ["עוף", "פרגיות"], "פרגיות": ["עוף"], "פלפל חריף": ["צ'ילי", "צילי", "chili"], "פלפל צ'ילי": ["צ'ילי", "צילי"],
+  "חזה עוף": ["עוף"], "בשר בקר": ["בשר", "בקר"], "פילה בקר": ["בקר"], "אנטריקוט": ["בקר", "סטייק"], "סינטה": ["בקר", "סטייק"],
+  "חביתה": ["ביצה", "ביצים", "ביצת"],
 };
-const genericAlt = (t) => GENERIC_ALT[norm(String(t))] || [];
+// ⚠️ המפתחות מנורמלים — «פלפל חריף» עם פ׳ סופית לא נמצא אחרי norm (נתפס ע"י הבוטים, 6.9)
+const GENERIC_ALT_N = Object.fromEntries(Object.entries(GENERIC_ALT).map(([k, v]) => [norm(k), v]));
+export const genericAlt = (t) => GENERIC_ALT_N[norm(String(t))] || [];
 // «לחם» בפינרלי, «אורז ואצה» בסושי — ברור שהם שם וזה לא הקונספט של השאלה (יותם, 6.9):
 // בסיס/נושא/תיבול יסודי לא מזכה ולא מוריד, בכל מנה בכל מסעדה. חל דרך freeWord על כל שאלה.
 export const BASE_FREE = ["לחם", "לחמנייה", "לחמניה", "לחמים", "בצק", "מאפה", "פיתה", "פיתות", "אורז", "אורז סושי", "אצה", "אצות", "נורי",
@@ -924,6 +1013,7 @@ export function describeQuestionFor(d) {
 }
 
 /* ══ Grader — tier 1 deterministic, with the uncertainty gate for tier 2 ══ */
+const targetKeys = (target) => target.keys || (target.keys = ingredientKeys(target.t));
 function chipScore(cw, target) {
   const tw = toks(target.t);
   if (!cw.length || !tw.length) return -1;
@@ -934,16 +1024,27 @@ function chipScore(cw, target) {
     // are target words; the remainder must be a sub-phrase of the ingredient
     const core = cw.filter(w => tw.some(t => wMatch(w, t)) || !(target.ctx || []).some(f => wMatch(w, norm(f))));
     keyed = core.length > 0 && core.every(w => tw.some(t => wMatch(w, t)));
+    // מילת מפתח חייבת להיות בין ההתאמות (יותם, 6.9): «טונה» עונה על «טונה אדומה», אבל «אדומה»
+    // לבדה — או «קרם» לבדו על «קרם אבוקדו» — אינן ידע על המנה. יעד שכולו תארים/חלקים
+    // («רוטב חריף») נשאר כמו שהיה: כל מילותיו.
+    const keys = targetKeys(target);
+    const req = keys.length ? keys : tw.filter((w) => !isModifier(w));        // «פיתה יוונית» ⇒ הפיתה חייבת; «יוונית» לבדה לא
+    if (keyed && req.length && !core.some(w => req.some(k => keyMatch(w, k)))) keyed = false;
   }
   if (!keyed && target.alt && target.alt.some(a => entryOk(a, cw))) keyed = true;
   if (!keyed) return -1;
   if (target.not && target.not.some(nw => inToks(nw, cw))) return -1;
-  let ov = 0; for (const w of tw) if (inToks(w, cw)) ov++;
+  let ov = 0, exact = 0, raw = 0;
+  for (const w of tw) { if (inToks(w, cw)) ov++; if (cw.some((c) => wExact(c, w))) exact++; if (cw.includes(w)) raw++; }
   // כיסוי מלא גובר על יעד ארוך יותר: הצ'יפ «בלוודיר» חייב לתפוס את «בלוודיר»
   // ולא את «בלוודר 10» — הניקוד לפי אורך היעד לבדו נתן את הצ'יפ המדויק ליעד
   // השכן והשאיר את «בלוודר 10» עצמו בלי התאמה (נתפס בשער האמת אחרי איחוד
   // וודקה-וג'ין, כש«10» הפך משותף עם טנקרי 10).
-  return (ov === tw.length ? 1000 : 0) + tw.length * 10 + ov;
+  // וזהות של ממש גוברת על עמומה: «אטריות» שייך ל«אטריות זכוכית» ולא ל«פטריות» (טעות אות),
+  // «זיתים» ל«זיתי קלמטה» ולא ל«שמן זית», «קרמל» ל«קרמל אגוזים» ולא ל«קרם וניל» (הבודק, 6.9).
+  // סדר העדיפות: המילה כמו שהיא («זיתי» ⇒ זיתי קלמטה, לא שמן זית) ⇒ זהות אחרי קילוף/קיפול
+  // («זיתים» ⇒ זיתי קלמטה) ⇒ כיסוי מלא של יעד עמום («אטריות» על «פטריות» רק כשאין אטריות במנה).
+  return raw * 2000 + exact * 1000 + (ov === tw.length ? 500 : 0) + tw.length * 10 + ov;
 }
 
 // מצב משפט (יותם, 1.9): «מתוק וחמצמץ ומאוד פירותי» מגיע כצ'יפ אחד, וההתאמה
@@ -1017,13 +1118,15 @@ export function grade(q, answer) {
     // נרשם מה קרה איתו, והצרכנים (האפליקציה, הדמואים) מציגים את זה כמו שהוא.
     const detail = [];
     for (const c of chips) {
-      const cw = toks(c); total += cw.length;
+      const cw = enToHe(toks(c)); total += cw.length;
       const d = { chip: c, credited: [], status: "" };
       detail.push(d);
       // בסיס («אורז», «לחם», «פיתה») נסגר כאן, לפני ההתאמה העמומה: אחרת «פיתה» זיכה «פילה»
       // ו«אורז» זיכה «כבד אווז» (טעות אות אחת). רק יעד שהוא בדיוק המילה עדיין נספר.
       const baseSet = new Set(BASE_FREE.map(norm));
-      if (cw.length && cw.every((w) => baseSet.has(w)) && !q.targets.some((t, ti) => !matched.has(ti) && norm(t.t) === norm(c))) { d.status = "free"; continue; }
+      // חריג: יעד שהוא בדיוק המילה, או שמילת-בסיס היא מפתח שלו («פלפל» ⇒ «פלפלים קלויים»)
+      const baseIsTarget = q.targets.some((t, ti) => !matched.has(ti) && (norm(t.t) === norm(c) || (cw.length === 1 && targetKeys(t).some((k) => wExact(k, cw[0])))));
+      if (cw.length && cw.every((w) => baseSet.has(w)) && !baseIsTarget) { d.status = "free"; continue; }
       // ניגוד לאמת = טעות בטוחה, גם כשהיא רוכבת על צ'יפ שחציו נכון («מתוק מר»
       // מזוכה על המתוק — וה«מר» היה עובר חינם).
       if (truthCanons.size && cw.some(contradicts)) { wrongFar++; d.contradicts = true; }
@@ -1053,6 +1156,8 @@ export function grade(q, answer) {
         d.credited = credited.map((ti) => q.targets[ti].t);
         return true; })()) { /* מצב משפט — זיכה כמה יעדים */ }
       else if (cw.length && cw.every(w => freeWord(w, q))) { d.status = "free"; }
+      // תואר/חלק כללי לבדו («אדום», «ירוק», «קרם», «פילה») — לא ידע ולא טעות: ניטרלי
+      else if (cw.length && cw.every(w => isNonKey(w) || freeWord(w, q))) { d.status = "free"; }
       else {
         inv++;
         const u = cw.filter(w => !vocab.some(v => wMatch(w, v)));
@@ -1080,7 +1185,7 @@ export function grade(q, answer) {
     // ⚠️ `inv > wrongFar`: don't buy a judgment on a chip we already know is wrong.
     if (lvl < 2 && inv > wrongFar && got >= q.minOk - 1) foreignW = Math.max(foreignW, 2, Math.ceil(total * 0.4));
   } else if (q.k === "fact") {
-    const tokens = toks(String(answer)); total = tokens.length;
+    const tokens = enToHe(toks(String(answer))); total = tokens.length;
     for (const g of q.req) addVocab(...g);
     addVocab(...(q.half || []).flat(), ...(q.free || []), ...BASE_FREE);
     const hit = q.req.filter(g => g.some(v => entryOk(v, tokens))).length;
@@ -1090,7 +1195,7 @@ export function grade(q, answer) {
     const u = tokens.filter(w => !vocab.some(v => wMatch(w, v)));
     unknown = u.length; foreignW = u.filter(w => !inMenuVocab(w)).length;
   } else if (q.k === "brief") {
-    const tokens = toks(String(answer)); total = tokens.length;
+    const tokens = enToHe(toks(String(answer))); total = tokens.length;
     for (const sec of q.sections) addVocab(...sec.entries);
     addVocab(...(q.bad || []));
     const secs = q.sections.map(sec => ({ ok: sec.entries.filter(e => entryOk(e, tokens)).length >= sec.min }));

@@ -5,7 +5,9 @@ const ok = (c, m) => { if (!c) { fail++; console.log("🔴", m); } };
 const shrimp = { name: "שרימפס טמפורה טוגראשי", desc: "שרימפס בציפוי טמפורה פריך עם איולי חריף", ingredients: ["שרימפס", "טמפורה", "איולי"], pregnancy: [] };
 const rows = buildRows(shrimp);
 ok(rows.some((r) => r.id === "ing:טמפורה") && !rows.some((r) => r.id === "desc:טמפורה"), "מרכיב שהוא גם הכנה — שורה אחת");
-ok(rows.some((r) => r.id === "desc:חריף") && !rows.some((r) => r.id === "desc:קריספי"), "«חריף» מהתיאור ⇒ שורה; «פריך» אינו «קריספי» (זיהוי לפי המילה עצמה)");
+ok(rows.some((r) => r.id === "desc:חריף") && rows.some((r) => r.id === "desc:קריספי" && r.w === 0.5), "«חריף» מהתיאור ⇒ שורה; «פריך» = «קריספי» (נטייה של אותו מושג, משקל 0.5)");
+ok(!buildRows({ name: "x", desc: "חלומי פריכות על חסה", ingredients: ["חלומי"], pregnancy: [] }, null, { mode: "desc" }).some((r) => r.id === "form:פרוסות"), "«פריכות» אינו יוצר שורת «פרוסות» (יצירת שורה בזהות בלבד, בלי טעות-אות)");
+ok(!buildRows({ name: "x", desc: "180 גרם בשר, לא מבושל לגמרי", ingredients: ["בשר בקר"], pregnancy: [] }, null, { mode: "desc" }).some((r) => r.id === "desc:מבושל"), "מילה שהכרטיס שולל («לא מבושל») אינה שורה");
 const nems = buildRows({ name: "נאמס פרגית", desc: "ספרינג רול מטוגן בשמן עמוק במילוי פרגית", ingredients: ["דפי אורז", "פרגית"], pregnancy: [] });
 ok(nems.some((r) => r.id === "desc:מטוגן") && !nems.some((r) => r.id === "desc:טמפורה"), "«מטוגן» בתיאור ⇒ שורת מטוגן, לא שורת טמפורה (נתפס חי)");
 const good = scoreRows(markRows(rows, "שרימפס מטוגנים בציפוי פריך, מוגש עם רוטב איולי קצת חריף"));
@@ -30,6 +32,12 @@ ok(scoreRows(markRows(sr, "פרוסות דקות של ילוטייל עם רוט
 ok(scoreRows(markRows(sr, "ילוטייל נא בפרוסות דקות עם פונזו")).lvl === 2, "עם «נא» ⇒ מלא");
 ok(scoreRows(markRows(sr, "ילוטייל לא נא, מבושל, עם פונזו")).safety === true, "«לא נא» ⇒ כשל בטיחות (שלילה)");
 ok(scoreRows(markRows(sr, "דג לא מבושל עם פונזו")).safety === false, "«לא מבושל» מזכה את הבטיחות (שולל בתוך הניסוח עצמו)");
+// דגלי הריון שאינם נא: מזכים כשנאמרים, לא מאפסים כשלא (הבוטים, 6.9)
+const kashio = { name: "צ'יקן קשיו", desc: "נתחי חזה עוף בציפוי פנקו מוקפצים עם קשיו, ברוקולי ונבטים מעל", ingredients: ["חזה עוף", "פנקו", "קשיו", "ברוקולי", "נבטים"], pregnancy: ["נבטים חיים"] };
+const kr = buildRows(kashio, null, { mode: "desc" });
+ok(!kr.some((r) => r.crit) && kr.some((r) => r.id === "warn:נבטים חיים"), "«נבטים חיים» = שורת ידע (warn), לא בטיחות");
+ok(scoreRows(markRows(kr, "עוף מוקפץ בציפוי פנקו פריך עם קשיו וברוקולי")).safety === false, "תיאור בלי נבטים ⇒ לא כשל בטיחות");
+ok(!buildRows({ name: "x", desc: "טונה צרובה", ingredients: ["טונה"], pregnancy: ["דג נא", "דגים עתירי כספית"] }).some((r) => /כספית/.test(r.id)), "«דגים עתירי כספית» אינו שורה");
 // השופט: supports מרים miss, contradicts מפיל, crit לא נוגעים
 const fakeJudge = async ({ rows: rr }) => ({ rows: rr.map((r) => r.id === "ing:איולי" ? { id: r.id, verdict: "supports", evidence: "רוטב שום קרמי" } : r.id === "ing:טמפורה" ? { id: r.id, verdict: "contradicts", evidence: "אפויים בתנור" } : { id: r.id, verdict: "neutral", evidence: "" }), foreign: [{ claim: "טחינה", why: "לא בכרטיס" }], flags: { abusive: false, offtopic: false }, note: "בתפריט זה טמפורה, לא אפוי" });
 const j = await gradeDescription({ dish: shrimp, text: "שרימפס אפויים בתנור עם רוטב שום קרמי וטחינה", judge: fakeJudge });
@@ -38,5 +46,11 @@ const jc = await gradeDescription({ dish: sashimi, text: "ילוטייל מבו�
 ok(jc.safety === true && jc.lvl === 0, "השופט «תומך» בשורת בטיחות ⇒ מתעלמים — הכשל נשאר");
 const noJudge = await gradeDescription({ dish: shrimp, text: "שרימפס מטוגנים בציפוי פריך, מוגש עם רוטב איולי קצת חריף", judge: async () => { throw new Error("must not be called"); } });
 ok(noJudge.lvl === 2 && !noJudge.judged, "תיאור שכל שורותיו זוהו לא קורא לשופט");
+// תיאור ≠ מרכיבים (יותם, 6.9): mode "desc" בוחן «מה המנה» — צורה/הכנה/הגשה — בלי שורות מרכיבים
+const nems2 = { name: "נאמס פרגית", desc: "2 יח' ספרינג רול ויאטנמי במילוי אטריות זכוכית, ירקות ופרגית. מוגש לצד ליים וחסה. ספרינג רול מהמטבח הויאטנמי, מטוגן בשמן עמוק. מנת שרינג מושלמת. אכילה עם הידיים.", ingredients: ["דפי אורז", "פרגית", "אטריות זכוכית", "ירקות", "ליים"], pregnancy: [] };
+const dr = buildRows(nems2, null, { mode: "desc" });
+ok(!dr.some((r) => r.kind === "ing") && dr.some((r) => r.id === "form:ספרינג רול") && dr.some((r) => r.id === "desc:מטוגן") && dr.some((r) => r.id === "form:שרינג") && dr.some((r) => r.id === "form:אכילה עם הידיים"), `desc-mode: ספרינג רול · מטוגן · שרינג · בידיים, בלי מרכיבים (${dr.map((r) => r.id).join(", ")})`);
+ok(scoreRows(markRows(dr, "ספרינג רולים ויאטנמיים מטוגנים, מנה לשיתוף שאוכלים בידיים עם חסה")).lvl === 2, "תיאור מצוין בלי אף מרכיב ⇒ מלא (המרכיבים נבחנים בנפרד)");
+ok(scoreRows(markRows(dr, "פרגית, אטריות זכוכית, ירקות, ליים")).lvl === 0, "רשימת מרכיבים בלבד אינה תיאור ⇒ 0 בחלק התיאור");
 console.log(fail ? `\n🔴 ${fail} כשלים` : "describeLeaf.test: כל הבדיקות עברו");
 process.exit(fail ? 1 : 0);

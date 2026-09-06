@@ -7,7 +7,7 @@ import { generate, grade, setMenuVocab, norm, toks, wMatch, describeQuestionFor 
 import { menuFromCards } from "../lib/examMenu";
 import { buildVocab } from "../lib/examSuggest";
 import { loadLearnedAlts, withLearnedAlts, judgeAnswer, saveLearnedAlts, judgeLeaf } from "../lib/examJudge";
-import { gradeDescription } from "../lib/describeLeaf";
+import { gradeDescription, descAskable } from "../lib/describeLeaf";
 import { isSimple, simpleQuestions, gradeSimple } from "../lib/simpleDish";
 import { questionStyle } from "../lib/quizBank";
 import { buildSetQuestions, composeQuiz, nextSeen, scoreNamed, examPlan, suggestDish, resolveDish } from "../lib/quizBank";
@@ -50,6 +50,10 @@ function GradeDetail({ g, unit = "המלצות", nameToks = [] }) {
     : "❓ לא מזוהה — נשלח לשופט";
   const cls = (d) => d.status === "ok" ? "text-[#22c08c]" : d.status === "free" ? "text-[#8a8aa0]"
     : d.status === "unknown" ? "text-[#9b7bff]" : "text-[#f3a712]";
+  // תווית לשורת תיאור לפי סוגה — מרכיב לפי משקל, ובלי «תיבול» על שורות שאינן מרכיבים
+  // (הכנה/צורה/מרכיב-משני/אזהרה נכנסו ב-6.9 והוצגו כולן בטעות כ«תיבול»)
+  const rowTag = (r) => r.kind === "desc" ? "הכנה" : r.kind === "form" ? "צורה והגשה" : r.kind === "core" ? "מרכיב"
+    : r.kind === "warn" ? "רגישות" : r.crit ? "בטיחות" : r.w >= 2 ? "מרכזי" : r.w < 1 ? "תיבול" : null;
   return (
     <div className="space-y-1 mt-1">
       {(g.detail || []).map((d, i) => (
@@ -229,7 +233,11 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const askAll = !!cur?.allergens;
   // המבחן המלא (יותם, 6.9: «אין שאלה אחת של תיאור מנה פתוחה?»): כרטיס מנה = תיאור חופשי
   // (עלה התיאור + השופט) + אלרגיות בצ'יפים. בבחנים נשארים צ'יפי מרכיבים — אפס AI.
-  const openDesc = !!(exam && cur?.describe && !cur.it?.drink);
+  // תיאור ≠ מרכיבים (יותם, 6.9): במבחן, כרטיס מנה = תיאור חופשי (נבחן על «מה המנה» — הכנה/צורה/
+  // הגשה/בטיחות, עם השופט) **וגם** מרכיבים בצ'יפים **וגם** אלרגיות — שלושה פסקים נפרדים. תיאור
+  // חופשי מוצג רק כשלכרטיס יש מה לבחון בו (שורות תיאור/בטיחות); אחרת צ'יפים בלבד.
+  // שאלת תיאור רק כשיש מה לתאר (צורה/הכנה/עיקר במשקל ≥2, או בטיחות) — «מוגש לצד» לבדו אינו שאלה
+  const openDesc = !!(exam && cur?.describe && !cur.it?.drink && descAskable(cur.it));
   // «אנשובי במלח»: השם הוא המרכיב — השאלה אומרת את זה («מעבר לאנשובי שבשם») כדי שהמלצר
   // ידע על מה עונים, ולא יקבל «לא הצלחת» על שכתב את שם המנה (יותם, 6.9)
   // ו«איך מטובלת המנה?» כשמה שנשאר מעבר לשם הוא תיבול/רוטב/קישוט («אנשובי במלח»: שמן זית, בצל,
@@ -282,10 +290,18 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     }
     if (openDesc) {
       setJudging(true);
-      const leaf = await gradeDescription({ dish: cur.it, targets: withLearnedAlts(cur.describe, alts).targets, text: descText, judge: judgeLeaf, easy: examEasy });
-      setJudging(false);
+      let leaf;
+      try {
+        leaf = await gradeDescription({ dish: cur.it, targets: null, text: descText, judge: judgeLeaf, easy: examEasy, mode: "desc" });
+      } catch {
+        leaf = await gradeDescription({ dish: cur.it, targets: null, text: descText, judge: null, easy: examEasy, mode: "desc" });   // לעולם לא נתקעים
+      } finally {
+        setJudging(false);
+      }
+      const ingQ = withLearnedAlts(cur.describe, alts);
       const parts = [
         { key: "desc", q: cur.describe, answer: [descText], g: { lvl: leaf.lvl }, leaf },
+        { ...build("ings", ingQ, ings), g: grade(ingQ, ings) },
         ...(cur.allergens ? [{ ...build("alls", cur.allergens, alls), g: grade(withLearnedAlts(cur.allergens, alts), alls) }] : []),
       ];
       const avg = Math.round(parts.reduce((a, p) => a + LVL_SCORE[p.g.lvl], 0) / parts.length);
@@ -407,12 +423,13 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
         <p className="text-[17px] font-black text-[#eef0f6] mt-1 leading-snug">{cur.set ? cur.set.ask : cur.rec ? cur.rec.ask : cur.dish}</p>
         {!cur.rec && !cur.set && !cur.simple && (
           <p className="text-[12px] text-[#8a8aa0] mt-1">
-            {openDesc && qs.dressing ? `תאר ללקוח את המנה ״${cur.dish}״ — איך היא מטובלת ומוגשת, ואיך היא מוכנה — ואז סמן את האלרגיות.`
-              : openDesc ? `תאר ללקוח את המנה ״${cur.dish}״ ואת כל המרכיבים שיש בה${beyond}, ואיך היא מוכנה — ואז סמן את האלרגיות.`
+            {openDesc ? `תאר ללקוח את המנה ״${cur.dish}״ — מה היא, איך מכינים ואיך מגישים. אחר כך: המרכיבים${beyond} והאלרגיות, בנפרד.`
               : cur.describe && cur.flavor ? "מה יש בקוקטייל, ואיך הוא בטעם?"
               : cur.describe && qs.dressing ? `איך מטובלת המנה ״${cur.dish}״? ציין את כל מה שמתבלים ומגישים איתה${askAll ? ", ואילו אלרגיות יש בה" : ""}.`
-              : cur.describe && askAll && !cur.it?.drink ? `תאר את המנה ״${cur.dish}״ ואת כל המרכיבים שיש בה${beyond}, ואילו אלרגיות יש בה.`
-              : cur.describe && !cur.it?.drink ? `תאר את המנה ״${cur.dish}״ ואת כל המרכיבים שיש בה${beyond}.`
+              // צ'יפים בלבד — בלי טקסט פתוח — לא «תאר את המנה» (יותם, 6.9: «אם יש טקסט פתוח שיהיה כתוב
+              // תתאר, אבל במקרים כאלו צריך רק: תאר את המרכיבים והאלרגיות של המנה»)
+              : cur.describe && askAll && !cur.it?.drink ? `תאר את המרכיבים והאלרגיות של המנה ״${cur.dish}״${beyond}.`
+              : cur.describe && !cur.it?.drink ? `תאר את המרכיבים של המנה ״${cur.dish}״${beyond}.`
               : cur.describe && askAll ? "מה יש במנה, ואילו אלרגיות היא נושאת?"
               : cur.describe ? (cur.it?.drink ? "איך תתארו את המשקה?" : "מה יש במנה — מלבד מה שבשם?")
               : cur.flavor ? "איך הקוקטייל בטעם?"
@@ -451,7 +468,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
           ))}
           {openDesc && (
             <div className="space-y-1.5">
-              <p className="text-[11px] font-black text-[#8a8aa0]">תאר את המנה ללקוח</p>
+              <p className="text-[11px] font-black text-[#8a8aa0]">תאר את המנה ללקוח — מה היא ואיך מכינים (בלי לפרט מרכיבים כאן)</p>
               <textarea
                 value={descText}
                 onChange={(e) => setDescText(e.target.value)}
@@ -462,7 +479,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               />
             </div>
           )}
-          {cur.describe && !openDesc && (
+          {cur.describe && (
             <AnswerInput
               vocab={vocab} values={ings} onChange={setIngs}
               label={qs.dressing ? "תיבול, רוטב ומה שמגישים איתה" : ingLabel(cur.it)}
@@ -483,7 +500,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
           )}
           <button
             onClick={submit}
-            disabled={judging || (!!cur.set && !setSel.length) || (openDesc && toks(descText).length < 2) || (!!cur.simple && cur.simple.some((_, k) => !(simpleAns[k] || "").trim()))}
+            disabled={judging || (!!cur.set && !setSel.length) || (openDesc && toks(descText).length < 2) || (openDesc && !ings.length) || (!!cur.simple && cur.simple.some((_, k) => !(simpleAns[k] || "").trim()))}
             className="w-full py-3 min-h-[44px] rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm disabled:opacity-60"
           >
             {judging ? "בודק…" : "שליחה"}
@@ -543,10 +560,11 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
                 <div className="space-y-1">
                   {p.leaf.rows.map((r) => (
                     <p key={r.id} className="text-[11.5px] font-bold leading-snug">
-                      <span className="text-[#eef0f6]">«{r.canonical[0]}»</span>{r.w >= 2 ? <span className="text-[#8a8aa0]"> (מרכזי)</span> : r.w < 1 ? <span className="text-[#8a8aa0]"> (תיבול)</span> : null}{" "}
+                      <span className="text-[#eef0f6]">«{r.canonical[0]}»</span>{rowTag(r) && <span className="text-[#8a8aa0]"> ({rowTag(r)})</span>}{" "}
                       {r.status === "ok" ? <span className="text-[#22c08c]">✓ הוזכר{r.byJudge ? " (השופט זיהה את הניסוח)" : ""}</span>
                         : r.status === "wrong" ? <span className="text-[#e0315a]">✗ {r.crit ? "אזהרה שנשללה" : "סותר את הכרטיס"}</span>
                         : r.crit ? <span className="text-[#e0315a]">⚠️ חובה לציין — לא נאמר</span>
+                        : r.kind === "warn" ? <span className="text-[#f3a712]">◌ כדאי להזהיר — לא נאמר</span>
                         : <span className="text-[#8a8aa0]">◌ לא הוזכר</span>}
                     </p>
                   ))}

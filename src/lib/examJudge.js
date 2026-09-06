@@ -44,11 +44,16 @@ export function withLearnedAlts(q, altMap) {
  * Ask the judge whether anything the waiter wrote means one of the expected items.
  * Returns [{said, means}] — always safe to ignore; a failure just leaves tier 1's verdict.
  */
+// 🔴 A judge call that never returns froze the exam card on «בודק…» (Yotam, 6.9). Every call
+// races an 8 s timeout; the deterministic verdict stands when the judge is late or fails.
+const JUDGE_TIMEOUT_MS = 8000;
+const withTimeout = (p, fallback) => Promise.race([p, new Promise((res) => setTimeout(() => res(fallback), JUDGE_TIMEOUT_MS))]);
+
 export async function judgeAnswer({ ask, expected, said }) {
   try {
-    const { data, error } = await supabase.functions.invoke("exam-judge", {
+    const { data, error } = await withTimeout(supabase.functions.invoke("exam-judge", {
       body: { token: getSessionToken(), ask, expected, said },
-    });
+    }), { data: null, error: "timeout" });
     if (error || !data?.credited) return [];
     return data.credited;
   } catch {
@@ -77,9 +82,9 @@ export async function saveLearnedAlts(restaurantId, credited) {
  */
 export async function judgeLeaf(payload) {
   try {
-    const { data, error } = await supabase.functions.invoke("exam-judge", {
+    const { data, error } = await withTimeout(supabase.functions.invoke("exam-judge", {
       body: { token: getSessionToken(), v: 5, mode: "leaf", ...payload },
-    });
+    }), { data: null, error: "timeout" });
     if (error || !data) return null;
     return data;
   } catch {

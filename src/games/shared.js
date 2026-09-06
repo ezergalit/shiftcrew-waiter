@@ -85,6 +85,13 @@ export const mokshim = (it) => [...new Set([
   ...(it?.pregnancy || []).filter((m) => !MOKSHIM_SKIP.has(m)).map((m) => `🤰 ${m}`),
   ...(it?.kashrut || []).filter((k) => KASHRUT_WARN.has(k)),
 ])].filter((m) => !MOKSHIM_SKIP.has(m));
+// ⚠️ המיזוג הוא פר-מסעדה (יותם, 6.9: «בסטודיו אין רגישות — זה נכנס במוקשים, תפריד»): מסעדה
+// שאינה `features.warnings === "merged"` מציגה בגב הכרטיס רגישות בהריון בנפרד מהמוקשים.
+export const pregnancyOnly = (it) => (it?.pregnancy || []).filter((m) => !MOKSHIM_SKIP.has(m));
+export const pitfallsOnly = (it) => [...new Set([
+  ...(it?.pitfalls || []),
+  ...(it?.kashrut || []).filter((k) => KASHRUT_WARN.has(k)),
+])];
 
 // A wine's description follows one fixed shape we author ourselves:
 // "<סוג> · <מוצא>. <אופי וטעמים>. זנים: … פתיחה: <הוראות>".

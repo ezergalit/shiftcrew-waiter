@@ -114,6 +114,14 @@ export default function AnswerInput({
         </button>
       </div>
 
+      {/* יותם (6.9): «צריך להדגיש שצריך להקיש על כפתור הוסף על מנת שזה יוסף לאחת מהאופציות» —
+          מה שנשאר בתיבה ולא נוסף אינו נבדק. הרמז נעלם אחרי הצ'יפ הראשון. */}
+      {!disabled && values.length === 0 && (
+        <p className="text-[11px] text-[#8a8aa0] leading-snug">
+          כותבים פריט אחד ולוחצים <b className="text-[#22c08c]">הוסף</b> — ואז את הבא. רק מה שנוסף כצ׳יפ נבדק.
+        </p>
+      )}
+
       {hits.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {hits.map((h) => (
