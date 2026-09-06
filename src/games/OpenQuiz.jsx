@@ -75,7 +75,7 @@ const weightedAvg = (scores) => {
   return wsum ? Math.round(scores.reduce((a, s) => a + s.v * s.w, 0) / wsum) : 0;
 };
 
-export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId, onAnswer, onDone, onFinish, exam = null, quizOff = [] }) {
+export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId, onAnswer, onDone, onFinish, exam = null, quizOff = [], examEasy = false }) {
   // The engine and the autocomplete both read the WHOLE restaurant, not this category:
   // grading needs the full vocabulary to tell a foreign word from a menu word, and the
   // suggestion pool must not narrow to the dishes being asked about.
@@ -282,7 +282,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     }
     if (openDesc) {
       setJudging(true);
-      const leaf = await gradeDescription({ dish: cur.it, targets: withLearnedAlts(cur.describe, alts).targets, text: descText, judge: judgeLeaf });
+      const leaf = await gradeDescription({ dish: cur.it, targets: withLearnedAlts(cur.describe, alts).targets, text: descText, judge: judgeLeaf, easy: examEasy });
       setJudging(false);
       const parts = [
         { key: "desc", q: cur.describe, answer: [descText], g: { lvl: leaf.lvl }, leaf },
@@ -543,7 +543,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
                 <div className="space-y-1">
                   {p.leaf.rows.map((r) => (
                     <p key={r.id} className="text-[11.5px] font-bold leading-snug">
-                      <span className="text-[#eef0f6]">«{r.canonical[0]}»</span>{" "}
+                      <span className="text-[#eef0f6]">«{r.canonical[0]}»</span>{r.w >= 2 ? <span className="text-[#8a8aa0]"> (מרכזי)</span> : r.w < 1 ? <span className="text-[#8a8aa0]"> (תיבול)</span> : null}{" "}
                       {r.status === "ok" ? <span className="text-[#22c08c]">✓ הוזכר{r.byJudge ? " (השופט זיהה את הניסוח)" : ""}</span>
                         : r.status === "wrong" ? <span className="text-[#e0315a]">✗ {r.crit ? "אזהרה שנשללה" : "סותר את הכרטיס"}</span>
                         : r.crit ? <span className="text-[#e0315a]">⚠️ חובה לציין — לא נאמר</span>

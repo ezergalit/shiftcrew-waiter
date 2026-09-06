@@ -11,9 +11,17 @@ ok(nems.some((r) => r.id === "desc:מטוגן") && !nems.some((r) => r.id === "d
 const good = scoreRows(markRows(rows, "שרימפס מטוגנים בציפוי פריך, מוגש עם רוטב איולי קצת חריף"));
 ok(good.lvl === 2 && good.ok === good.n, `תיאור נכון בפרפרזה («מטוגנים» = טמפורה) ⇒ מלא (${good.ok}/${good.n})`);
 const bad = scoreRows(markRows(rows, "שרימפס אפויים בתנור עם רוטב טחינה"));
-ok(bad.lvl === 0, `תיאור שגוי ⇒ 0 (כיסוי ${bad.cover.toFixed(2)})`);
+ok(bad.lvl <= 1, `תיאור שגוי — הדטרמיניסטי לבדו: לכל היותר חלקי (השופט מוסיף סתירות ⇒ 0) (כיסוי ${bad.cover.toFixed(2)})`);
 const partial = scoreRows(markRows(rows, "שרימפס עם איולי"));
-ok(partial.lvl === 1, `שני מרכיבים מתוך חמש שורות ⇒ חלקי (${partial.cover.toFixed(2)})`);
+ok(partial.lvl === 1, `שרימפס ואיולי בלי הטמפורה (מרכזית) ⇒ חלקי (${partial.cover.toFixed(2)})`);
+ok(scoreRows(markRows(rows, "שרימפס בטמפורה עם איולי")).lvl === 2, "שרימפס + טמפורה + איולי, בלי «חריף» ⇒ מלא (התיבול/אופי לא מפיל)");
+// משקל (יותם): «תיאור טוב לא ייכשל על תיבול» — מרכזי 2, תיבול 0.5
+const greek = { name: "פילה דניס", desc: "פילה דניס צלוי עם שעועית ירוקה, שמן זית, לימון ושום", ingredients: ["פילה דניס", "שעועית ירוקה", "שמן זית", "לימון", "שום"], pregnancy: [] };
+const gr = buildRows(greek);
+ok(gr.find((r) => r.id === "ing:פילה דניס").w === 2 && gr.find((r) => r.id === "ing:שמן זית").w === 0.5 && gr.find((r) => r.id === "ing:שום").w === 0.5, "משקלים: פילה דניס=2 · שמן זית/שום=0.5");
+ok(scoreRows(markRows(gr, "דניס צלוי עם שעועית ירוקה")).lvl === 2, "העיקר בלי התיבול ⇒ מלא");
+ok(scoreRows(markRows(gr, "שמן זית, לימון ושום")).lvl === 1, "רק התיבול ⇒ חלקי");
+ok(scoreRows(markRows(gr, "שמן זית, לימון ושום"), 0, { easy: true }).lvl === 1 && scoreRows(markRows(gr, "דניס עם לימון"), 0, { easy: true }).lvl === 2, "מצב קל (features.exam_easy): ספים נמוכים יותר");
 // בטיחות: מנה נאה חייבת «נא»; שלילה = כשל; השופט לא יכול לבטל
 const sashimi = { name: "סשימי ילוטייל", desc: "פרוסות ילוטייל נא עם פונזו", ingredients: ["ילוטייל", "פונזו"], pregnancy: ["דג נא"] };
 const sr = buildRows(sashimi);

@@ -943,7 +943,7 @@ export default function MainApp({ session, onSignOut }) {
     // הקטגוריות, מכסה פר-קטגוריה לפי מספר המנות (12 ראשונות ו-6 עיקריות ⇒ פי 2),
     // והכל ב-general_exam_questions. משקאות מחוץ למבחן (יש להם בחנים משלהם).
     if (openExam) return <OpenQuiz
-      items={cards.filter((c) => !c.knowledge && !c.drink)} allItems={cards} quizOff={quizOff}
+      items={cards.filter((c) => !c.knowledge && !c.drink)} allItems={cards} quizOff={quizOff} examEasy={session?.features?.exam_easy === true}
       restaurantId={session?.restaurantId} categoryLabel="התפריט המלא"
       exam={{ total: examConfig?.general_exam_questions || 40 }}
       onAnswer={learnItem} onDone={exitMode} onFinish={recordExam}

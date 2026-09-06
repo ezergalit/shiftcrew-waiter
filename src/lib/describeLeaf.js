@@ -44,24 +44,50 @@ const CRIT_ALT = {
   "נבטים חיים": ["נבטים חיים", "נבטים"],
 };
 
+// ── משקל (יותם, 6.9: «יותר ערך למרכיבים המרכזיים — תיאור טוב לא ייכשל על תיבול») ─────────
+// מרכיב מרכזי (חלבון/עיקרי, או אחד משני הראשונים בכרטיס) = 2 · תיבול/קישוט = 0.5 · השאר = 1
+const CORE = ["טונה", "סלמון", "ילוטייל", "המאצ", "לברק", "דניס", "בס", "מוסר", "דג", "שרימפס", "קלמארי", "תמנון", "סרטן", "צדפ", "בקר", "סינטה",
+  "אנטריקוט", "פילה", "טלה", "כבש", "אסאדו", "המבורגר", "עוף", "פרגית", "טופו", "ביצ", "גבינ", "פטה", "בוראטה", "מוצרלה", "חלומי", "פסטה",
+  "אטריות", "נודלס", "אורז", "חציל", "פטרי", "בטטה", "אבוקדו", "עדשים", "חומוס", "קינואה", "טמפורה", "כמהין", "יוגורט", "ביצי דגים"].map(norm);
+const SEASONING = ["שמן", "לימון", "ליים", "מלח", "פלפל", "שום", "בצל ירוק", "עשבי", "פטרוזיליה", "כוסברה", "נענע", "שמיר", "בזיליקום", "אורגנו",
+  "זעתר", "סומק", "פפריקה", "כמון", "שומשום", "צ'ילי", "צילי", "צלפים", "ג'ינג'ר", "גינגר", "וסאבי", "תבלין", "קונפי", "רכז", "סילאן", "דבש"].map(norm);
+const wordIn = (t, list) => toks(t).some((w) => list.some((k) => w === k || (k.length >= 3 && w.startsWith(k))));
+export function rowWeight(ing, position) {
+  const k = norm(String(ing || ""));
+  if (wordIn(k, SEASONING) && !wordIn(k, CORE)) return 0.5;
+  if (wordIn(k, CORE) || position <= 1) return 2;
+  return 1;
+}
+
 /** שורות הכרטיס: מרכיבים (targets מהמנוע, עם ניסוחים שנלמדו) · הכנה/אופי מהתיאור · בטיחות */
 export function buildRows(dish, targets = null) {
   const rows = [];
   const ings = targets ? targets.map((t) => ({ t: t.t, alt: t.alt || [] })) : (dish.ingredients || []).map((x) => ({ t: x, alt: [] }));
   // מרכיב שהוא גם אופן הכנה («טמפורה») יורש את הניסוחים של ההכנה — «מטוגנים» מזכה אותו
   const prepAltsFor = (t) => PREP.filter(([key]) => toks(t).some((w) => same(w, key))).flatMap(([, alt]) => alt);
-  for (const { t, alt } of ings) rows.push({ id: `ing:${t}`, kind: "ing", canonical: [t], alt: [...alt, ...prepAltsFor(t)], crit: false });
+  const order = (dish.ingredients || []).map(norm);
+  for (const { t, alt } of ings) rows.push({ id: `ing:${t}`, kind: "ing", canonical: [t], alt: [...alt, ...prepAltsFor(t)], crit: false, w: rowWeight(t, Math.max(0, order.indexOf(norm(t)))) });
   const dt = toks(String(dish.desc || ""));
   const ingKeys = new Set(ings.map((i) => norm(i.t)));
   for (const [key, alt] of PREP) {
     if ([...ingKeys].some((k) => toks(k).some((w) => same(w, key)))) continue;   // «טמפורה» כבר מרכיב
     // זיהוי לפי המילה עצמה בלבד — «מטוגן» בתיאור אינו ראיה לטמפורה (נתפס חי על נאמס: שורת
     // «טמפורה» צצה למנה בלי טמפורה). ה-alt משמש רק לזיכוי התשובה, לא לבניית השורה.
-    if (dt.some((w) => same(w, key))) rows.push({ id: `desc:${key}`, kind: "desc", canonical: [key], alt, crit: false });
+    if (dt.some((w) => same(w, key))) rows.push({ id: `desc:${key}`, kind: "desc", canonical: [key], alt, crit: false, w: 1 });
   }
   for (const p of dish.pregnancy || []) rows.push({ id: `crit:${p}`, kind: "crit", canonical: [p], alt: CRIT_ALT[p] || [], crit: true });
   return rows;
 }
+
+// «פילה דניס» נענה ב«דניס», «גבינת פטה» ב«פטה», «שעועית ירוקה» ב«שעועית» — המילה המבחינה מספיקה;
+// מילת-חלק/צבע לבדה («פילה», «ירוקה») לא (יותם: «לזהות תשובה דומה או משמעות»)
+const GENERIC_PARTS = new Set(["פילה", "חזה", "נתח", "נתחי", "גבינת", "גבינה", "רוטב", "קרם", "שמן", "עלי", "עלים", "פרוסות", "אצבעות", "כדורי", "טבעות",
+  "ירוק", "ירוקה", "ירוקים", "אדום", "אדומה", "לבן", "לבנה", "שחור", "שחורה", "טרי", "טרייה", "קצוץ", "קצוצה", "צלוי", "צלויה", "מטוגן", "מטוגנת", "חם", "חמה", "קר", "קרה", "יווני", "יוונית", "יפני", "יפנית"].map(norm));
+const phrasesOf = (r) => {
+  const out = [...(r.canonical || []), ...(r.alt || [])];
+  for (const c of r.canonical || []) { const pt = toks(c); if (pt.length >= 2) for (const w of pt) if (w.length >= 3 && !GENERIC_PARTS.has(w)) out.push(w); }
+  return out;
+};
 
 /** סימון דטרמיניסטי: ok / miss / wrong (הוזכר בשלילה) לכל שורה */
 export function markRows(rows, text) {
@@ -69,7 +95,7 @@ export function markRows(rows, text) {
   const neg = negIndex(at);
   return rows.map((r) => {
     let status = "miss";
-    for (const phrase of [...(r.canonical || []), ...(r.alt || [])]) {
+    for (const phrase of phrasesOf(r)) {
       const pt = toks(phrase); if (!pt.length) continue;
       const i = findRun(pt, at); if (i < 0) continue;
       const phraseNeg = pt.some((t) => NEG_LIST.includes(t));                  // «לא מבושל» מכיל שולל בעצמו
@@ -81,15 +107,21 @@ export function markRows(rows, text) {
   });
 }
 
-/** ציון: כיסוי המרכיבים/ההכנה (60% = מלא, 30% = חלקי); סתירה/טענה זרה מורידות; כשל בטיחות = 0 */
-export function scoreRows(rows, foreignCount = 0) {
+/** ציון: כיסוי **משוקלל** (מרכזי 2 · תיבול 0.5) — 60% = מלא, 25% = חלקי; סתירה/טענה זרה מורידות
+ *  (כמשקל השורה, טענה זרה = 1); כשל בטיחות = 0. easy (features.exam_easy): 45% / 20%. */
+export function scoreRows(rows, foreignCount = 0, { easy = false } = {}) {
   const main = rows.filter((r) => !r.crit);
+  const W = (r) => (r.w ?? 1);
+  const total = main.reduce((a, r) => a + W(r), 0);
+  const okW = main.filter((r) => r.status === "ok").reduce((a, r) => a + W(r), 0);
+  const wrongW = main.filter((r) => r.status === "wrong").reduce((a, r) => a + W(r), 0) + foreignCount;
   const ok = main.filter((r) => r.status === "ok").length;
   const wrong = main.filter((r) => r.status === "wrong").length + foreignCount;
   const n = main.length;
-  const cover = n ? Math.max(0, ok - wrong) / n : (wrong ? 0 : 1);
+  const cover = total ? Math.max(0, okW - wrongW) / total : (wrong ? 0 : 1);
   const safety = safetyVerdict(rows);
-  const lvl = safety ? 0 : cover >= 0.6 ? 2 : cover >= 0.3 ? 1 : 0;
+  const [full, part] = easy ? [0.45, 0.2] : [0.6, 0.25];
+  const lvl = safety ? 0 : cover >= full ? 2 : cover >= part ? 1 : 0;
   return { lvl, cover, ok, wrong, n, safety };
 }
 
@@ -98,9 +130,9 @@ export function scoreRows(rows, foreignCount = 0) {
  * `judge` = קריאה אסינכרונית ל-exam-judge v5 (null ⇒ דטרמיניסטי בלבד). נקרא רק כשיש מה
  * להכריע: שורה שלא זוהתה, או ציון לא-מלא — תיאור שכל שורותיו זוהו לא עולה כסף.
  */
-export async function gradeDescription({ dish, targets = null, text, judge = null }) {
+export async function gradeDescription({ dish, targets = null, text, judge = null, easy = false }) {
   let rows = markRows(buildRows(dish, targets), text);
-  let s = scoreRows(rows);
+  let s = scoreRows(rows, 0, { easy });
   let note = "", foreign = [], judged = false;
   const words = toks(String(text || "")).length;
   const needJudge = !!judge && words >= 3 && (s.lvl < 2 || rows.some((r) => !r.crit && r.status === "miss"));
@@ -116,7 +148,7 @@ export async function gradeDescription({ dish, targets = null, text, judge = nul
         rows = mergeRows(rows, verified);
         foreign = verified.foreign || [];
         note = verified.note || "";
-        s = scoreRows(rows, foreign.length);
+        s = scoreRows(rows, foreign.length, { easy });
         judged = true;
       }
     }
