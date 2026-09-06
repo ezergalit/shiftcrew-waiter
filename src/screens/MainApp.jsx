@@ -590,7 +590,7 @@ export default function MainApp({ session, onSignOut }) {
   // One row per completed exam attempt, so the owner sees exam history (and repeat
   // failures) rather than only the current mastery snapshot. Per-dish scores already
   // went to menu_progress via learnItem — this is the attempt-level record.
-  const recordExam = async ({ score, passed, dishCount, sittingId = null }) => {
+  const recordExam = async ({ score, passed, dishCount, sittingId = null, startedAt = null }) => {
     if (!examCategory) return;
     // Unlock immediately and locally: the next category and its games should open on the
     // results screen, not after a reload. The DB row below is the durable record.
@@ -603,7 +603,7 @@ export default function MainApp({ session, onSignOut }) {
       restaurant_id: session.restaurantId,
       team_member_id: session.teamMemberId,
       category: examCategory.key,
-      score, passed, dish_count: dishCount, sitting_id: sittingId,
+      score, passed, dish_count: dishCount, sitting_id: sittingId, started_at: startedAt,
       // מבחן מלא ⇒ ממתין לאישור המנהל («המנהל יודיע לך את התוצאה», יותם 6.9); בחנים — null.
       // `passed` נשאר false עד שהמנהל מאשר — אחרת «לא להעביר» שלו לא היה משנה כלום.
       review_status: examCategory.key === "general" ? "pending" : null,

@@ -228,6 +228,8 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const [secondsLeft, setSecondsLeft] = useState(0);
   // מבחן: מסך הסבר לפני שהשעון מתחיל (יותם, 6.9); בוחן — מתחילים מיד
   const [briefed, setBriefed] = useState(!exam);
+  const [confirming, setConfirming] = useState(false);   // «אתה בטוח שאתה רוצה להתחיל?» (יותם, 6.9)
+  const [startedAt, setStartedAt] = useState(null);
   const [blocked, setBlocked] = useState(null);   // null = עדיין לא ידוע · 0 = פתוח · >0 = חסום
   const [reviewLeft, setReviewLeft] = useState(REVIEW_S);
   const [reporting, setReporting] = useState(null); // {text} כשכותבים דיווח על טעות
@@ -275,7 +277,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     for (const [cat, { asked, bank: ids }] of Object.entries(askedRef.current)) saveSeen(restaurantId, cat, nextSeen(loadSeen(restaurantId, cat), asked, ids));
     // מבחן מלא: «עבר» נקבע ע"י המנהל בבדיקה (יותם) — נרשם false עד שהוא מאשר.
     // גם ישיבה שהופסקה בדיווחים נרשמת (עם הדיווחים) — «3 דיווחים» אינם מחיקה של מבחן כושל
-    onFinish?.({ score: avg, passed: exam ? false : avg >= passMark, dishCount: deck.length, sittingId, pending: !!exam, reports });
+    onFinish?.({ score: avg, passed: exam ? false : avg >= passMark, dishCount: deck.length, sittingId, pending: !!exam, reports, startedAt });
   }, [finished, restaurantId]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // «נתקע במסך התשובה» (יותם, 6.9): במבחן המלא התוצאה ארוכה (שורות תיאור + ככה מתארים) וכפתור
@@ -567,8 +569,21 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
         <p>🪑 במבחן {deck.length} שאלות — תצטרך להיות פנוי כ-<b className="text-[#eef0f6]">{Math.ceil((total + deck.length * REVIEW_S) / 60)} דקות</b> ברצף.</p>
         <p>🏁 בסוף המבחן המנהל יודיע לך את התוצאה. בהצלחה!</p>
       </div>
-      <button onClick={() => { setBriefed(true); setQStartedAt(Date.now()); }} className="w-full py-3 min-h-[44px] rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm">מתחילים את המבחן</button>
-      <button onClick={onDone} className="w-full py-2 text-[12px] text-[#8a8aa0]">לא עכשיו</button>
+      {!confirming ? (<>
+        <button onClick={() => setConfirming(true)} className="w-full py-3 min-h-[44px] rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm">מתחילים את המבחן</button>
+        <button onClick={onDone} className="w-full py-2 text-[12px] text-[#8a8aa0]">לא עכשיו</button>
+      </>) : (
+        <div className="rounded-2xl border border-[#f3a712]/50 bg-[#33290f]/60 p-4 space-y-3">
+          <p className="text-[14px] font-black text-[#f3c14b]">אתה בטוח שאתה רוצה להתחיל?</p>
+          <p className="text-[12.5px] text-[#eef0f6] leading-relaxed">אי אפשר להפסיק באמצע, והמנהל יראה באיזו שעה התחלת את המבחן.</p>
+          <div className="flex gap-2">
+            <button onClick={() => { const t = new Date().toISOString(); setStartedAt(t); setBriefed(true); setQStartedAt(Date.now());
+              if (teamMemberId && restaurantId) db.from("exam_answers").insert({ restaurant_id: restaurantId, team_member_id: teamMemberId, sitting_id: sittingId, question: "__start__", answer: { startedAt: t }, lvl: null }).then(() => {}, () => {}); }}
+              className="flex-1 py-3 min-h-[44px] rounded-xl bg-[#22c08c] text-[#06231a] font-black text-[13px]">כן, מתחיל עכשיו</button>
+            <button onClick={() => setConfirming(false)} className="py-3 px-4 rounded-xl bg-[#20232b] text-[#8a8aa0] font-bold text-[13px]">חזרה</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 
