@@ -75,8 +75,8 @@ function GradeDetail({ g, unit = "המלצות", nameToks = [] }) {
     : d.status === "unknown" ? "text-[#9b7bff]" : "text-[#f3a712]";
   return (
     <div className="space-y-1 mt-1">
-      <OkSummary items={(g.detail || []).filter((d) => d.status === "ok").map((d) => d.chip)} />
-      {(g.detail || []).filter((d) => d.status !== "ok").map((d, i) => (
+      <OkSummary items={(g.detail || []).filter((d) => d.status === "ok" && !d.leftover).map((d) => d.chip)} />
+      {(g.detail || []).filter((d) => d.status !== "ok" || d.leftover).map((d, i) => (
         <p key={i} className="text-[11.5px] font-bold leading-snug">
           <span className="text-[#eef0f6]">«{d.chip}»</span>{" "}
           <span className={cls(d)}>{label(d)}</span>
@@ -202,6 +202,9 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const [alts, setAlts] = useState(new Map());
   useEffect(() => { loadLearnedAlts(restaurantId).then(setAlts); }, [restaurantId]);
   const [judging, setJudging] = useState(false);
+  // מזהה ישיבה אחד לכל מבחן — נכתב על כל תשובה ועל שורת התוצאה, כדי שהמנהל יראה בדיוק
+  // את התשובות של המבחן הזה (ולא של ישיבה שכנה/נטושה באותו חלון זמן).
+  const [sittingId] = useState(() => (globalThis.crypto?.randomUUID?.() || `s${Date.now()}${Math.round(performance.now())}`));
 
   const [i, setI] = useState(0);
   const [ings, setIngs] = useState([]);
@@ -225,10 +228,11 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const [secondsLeft, setSecondsLeft] = useState(0);
   // מבחן: מסך הסבר לפני שהשעון מתחיל (יותם, 6.9); בוחן — מתחילים מיד
   const [briefed, setBriefed] = useState(!exam);
-  const [blocked, setBlocked] = useState(null);   // מספר דיווחים פתוחים שחוסמים את המבחן
+  const [blocked, setBlocked] = useState(null);   // null = עדיין לא ידוע · 0 = פתוח · >0 = חסום
   const [reviewLeft, setReviewLeft] = useState(REVIEW_S);
   const [reporting, setReporting] = useState(null); // {text} כשכותבים דיווח על טעות
   const [reports, setReports] = useState(0);
+  const [reportedCards, setReportedCards] = useState([]);   // אינדקסים שכבר דווחו — בלי דיווח כפול
   const [aborted, setAborted] = useState(false);
   const [toast, setToast] = useState("");
   const [qStartedAt, setQStartedAt] = useState(0);
@@ -242,14 +246,14 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     if (!exam || !restaurantId || !teamMemberId) return;
     // ספירה דרך RPC (SECURITY DEFINER): החסימה היא ברמת המסעדה, אבל מלצר רואה רק את
     // הדיווחים שלו — קריאה ישירה לטבלה הייתה סופרת רק אותם.
-    db.rpc("exam_block_count").then(({ data, error }) => { if (!error && (data || 0) >= 3) setBlocked(data); });
+    db.rpc("exam_block_count").then(({ data, error }) => setBlocked(error ? 0 : (data || 0)));
   }, [exam, restaurantId, teamMemberId]);
   useEffect(() => {
     // השעון עומד בזמן קריאת התשובה ובזמן כתיבת דיווח — לא לוקח מזמן המבחן
-    if (!started || !briefed || finished || secondsLeft <= 0 || (exam && (result || reporting))) return;
+    if (!started || !briefed || finished || secondsLeft <= 0 || (exam && (result || reporting || judging))) return;
     const t = setTimeout(() => { setSecondsLeft((s) => s - 1); setElapsedQ((e) => e + 1); }, 1000);
     return () => clearTimeout(t);
-  }, [started, briefed, finished, secondsLeft, exam, result, reporting]);
+  }, [started, briefed, finished, secondsLeft, exam, result, reporting, judging]);
   // 30 שניות לקרוא במה טעית, ואז ממשיכים לבד (יותם, 6.9)
   useEffect(() => {
     if (!exam || !result || finished) return;
@@ -258,26 +262,42 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     const t = setTimeout(() => setReviewLeft((r) => r - 1), 1000);
     return () => clearTimeout(t);
   }, [exam, result, finished, reviewLeft, reporting]);   // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (started && secondsLeft === 0 && !finished && scores.length) setFinished(true); }, [started, secondsLeft, finished, scores.length]);
+  // נגמר הזמן ⇒ מסיימים, גם אם לא נענתה אף שאלה (אחרת המסך תקוע על 00:00)
+  useEffect(() => { if (started && briefed && secondsLeft === 0 && !finished) setFinished(true); }, [started, briefed, secondsLeft, finished]);
 
   useEffect(() => {
-    if (!finished || aborted) return;
-    const avg = weightedAvg(scores.filter((x) => !x.excluded));
+    // 🔴 בלי השומר הזה האפקט נורה כל שנייה (onFinish הוא arrow חדש בכל רנדר של MainApp,
+    // שמתרנדר כל שנייה משעון הלימוד) ⇒ שורת exam_results חדשה בכל שנייה על מסך הסיום.
+    if (!finished || aborted || reportedRef.current) return;
+    reportedRef.current = true;
+    const avg = examAvg();
     // מה שנשאל נרשם — עבר או נכשל — כדי שהישיבה הבאה תהיה אחרת (יותם, 6.9)
     for (const [cat, { asked, bank: ids }] of Object.entries(askedRef.current)) saveSeen(restaurantId, cat, nextSeen(loadSeen(restaurantId, cat), asked, ids));
-    onFinish?.({ score: avg, passed: avg >= passMark, dishCount: deck.length });
-  }, [finished, aborted, scores, deck.length, onFinish, restaurantId, passMark]);
+    // מבחן מלא: «עבר» נקבע ע"י המנהל בבדיקה (יותם) — נרשם false עד שהוא מאשר.
+    onFinish?.({ score: avg, passed: exam ? false : avg >= passMark, dishCount: deck.length, sittingId, pending: !!exam });
+  }, [finished, aborted, restaurantId]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // «נתקע במסך התשובה» (יותם, 6.9): במבחן המלא התוצאה ארוכה (שורות תיאור + ככה מתארים) וכפתור
   // «המנה הבאה» ירד מתחת לקצה המסך בטלפון — והשורש היה מסך בלי גלילה (early-return של MainApp
   // מחוץ למיכל הגולל). המיכל גולל עכשיו, והכפתור נגלל לתצוגה כשהתוצאה מופיעה.
   // ⚠️ מעל כל ה-early returns (חוקי hooks — פעם שביעית בפרויקט)
   const nextRef = useRef(null);
+  const reportedRef = useRef(false);
+  const finishedRef = useRef(false);
+  useEffect(() => { finishedRef.current = finished; }, [finished]);
+  // ציון הישיבה: כרטיס שלא נענה (הזמן נגמר) נספר כאפס — אחרת 5 מתוך 40 מושלמות = 100%.
+  // כרטיס שדווח כטעות באפליקציה יוצא מהחישוב לגמרי (לא לטובה ולא לרעה).
+  const examAvg = () => {
+    const counted = scores.filter((x) => !x.excluded);
+    if (!exam) return weightedAvg(counted);
+    const missing = Math.max(0, deck.length - scores.length);
+    return weightedAvg([...counted, ...Array.from({ length: missing }, () => ({ v: 0, w: 1 }))]);
+  };
   // «כל פעולה שתבצע תישלח למנהל» — לוג של כל תשובה במבחן (fire-and-forget)
   const logAnswer = (answer, lvl) => {
     if (!exam || !teamMemberId || !restaurantId) return;
     const c = deck[i];
-    db.from("exam_answers").insert({ restaurant_id: restaurantId, team_member_id: teamMemberId, category: c?.cat || c?.it?.category || null,
+    db.from("exam_answers").insert({ restaurant_id: restaurantId, team_member_id: teamMemberId, sitting_id: sittingId, category: c?.cat || c?.it?.category || null,
       dish: c?.dish || c?.set?.ask?.slice(0, 120) || c?.rec?.ask?.slice(0, 120) || null, question: c?.set ? "set" : c?.rec ? "rec" : c?.simple ? "simple" : "dish",
       answer, lvl }).then(({ error }) => { if (error) console.error("exam_answers:", error.message); });
   };
@@ -287,15 +307,17 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     const text = (reporting?.text || "").trim();
     if (!text) return;
     const c = deck[i];
-    setScores((s) => s.map((x, k) => (k === s.length - 1 ? { ...x, excluded: true } : x)));
     const { error } = await db.from("exam_reports").insert({
-      restaurant_id: restaurantId, team_member_id: teamMemberId, dish: c?.dish || null,
+      restaurant_id: restaurantId, team_member_id: teamMemberId, sitting_id: sittingId, dish: c?.dish || null,
       question: c?.set?.ask || c?.rec?.ask || (c?.simple ? c.simple.map((q) => q.ask).join(" | ") : `describe:${c?.dish}`),
       answer: result?.set ? { typed: result.set.sel } : { parts: (result?.parts || []).map((p) => ({ key: p.key, answer: p.answer ?? p.text ?? null })) },
       verdict: result?.set ? { lvl: result.set.r.lvl } : { parts: (result?.parts || []).map((p) => ({ key: p.key, lvl: p.g?.lvl, rows: p.leaf?.rows?.map((r) => [r.canonical[0], r.status]) })) },
       explanation: text.slice(0, 500),
     });
     if (error) { setToast("הדיווח לא נשלח — בדוק חיבור ונסה שוב"); console.error("exam_reports:", error.message); return; }
+    // רק אחרי שהשליחה הצליחה: השאלה יוצאת מהציון
+    setScores((s) => s.map((x, k) => (k === s.length - 1 ? { ...x, excluded: true } : x)));
+    setReportedCards((r) => [...r, i]);
     const n = reports + 1;
     setReports(n); setReporting(null);
     if (n >= 3) { setAborted(true); setFinished(true); return; }
@@ -397,6 +419,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       ];
       const avg = Math.round(parts.reduce((a, p) => a + LVL_SCORE[p.g.lvl], 0) / parts.length);
       const worst = Math.min(...parts.map((p) => p.g.lvl));
+      if (finishedRef.current) return;
       setResult({ parts, avg });
       logAnswer({ desc: descText.slice(0, 1200), ings, alls }, worst);
       setScores((s) => [...s, { v: avg, w: 1 }]);
@@ -408,6 +431,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       cur.flavor && build("flav", cur.flavor, flavs),
       cur.allergens && build("alls", cur.allergens, alls),
     ].filter(Boolean).map((p) => ({ ...p, g: grade(p.q, p.answer) }));
+    const logGeneric = (lvl) => logAnswer({ ings, flavs, alls }, lvl);
 
     // ⚠️ Tier 2 runs for INGREDIENTS ONLY — and only in the full exam (Yotam: quizzes = no AI). Allergens are a closed list of eight values whose
     // synonyms are already hard-coded in the engine, so there is no unusual phrasing left
@@ -438,9 +462,11 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       }
     }
 
+    if (finishedRef.current) return;   // נגמר הזמן בזמן ההמתנה לשופט — לא רושמים תשובה למבחן שנסגר
     const avg = Math.round(parts.reduce((a, p) => a + LVL_SCORE[p.g.lvl], 0) / parts.length);
     const worst = Math.min(...parts.map((p) => p.g.lvl));
     setResult({ parts, avg });
+    logGeneric(worst);
     setScores((s) => [...s, { v: avg, w: 1 }]);
     if (cur.it) onAnswer?.(cur.it.id, LVL_RATING[worst]);
   };
@@ -481,7 +507,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   };
 
   if (finished) {
-    const avg = weightedAvg(scores.filter((x) => !x.excluded));
+    const avg = examAvg();
     if (aborted) return (
       <div className="h-screen overflow-y-auto max-w-md mx-auto p-6 text-center space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
         <p className="text-3xl">🛠️</p>
@@ -515,6 +541,9 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const ss = String(secondsLeft % 60).padStart(2, "0");
   const fmt = (n) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
 
+  if (exam && teamMemberId && blocked === null) return (
+    <div className="h-screen flex items-center justify-center"><p className="text-[13px] font-bold text-[#8a8aa0]">רגע…</p></div>
+  );
   if (exam && blocked) return (
     <div className="h-screen overflow-y-auto max-w-md mx-auto p-6 text-center space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
       <p className="text-3xl">🛠️</p>
@@ -781,7 +810,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               )}
             </div>
           )}
-          {exam && teamMemberId && (reporting ? (
+          {exam && teamMemberId && !reportedCards.includes(i) && (reporting ? (
             <div className="bg-[#16181c] border border-[#f3a712]/40 rounded-xl p-3 space-y-2">
               <p className="text-[12px] font-black text-[#f3a712]">🚩 דיווח על טעות באפליקציה</p>
               <p className="text-[11px] text-[#8a8aa0]">מה לא נכון כאן? השאלה תישלח לבדיקה ולא תיספר — לא לטובה ולא לרעה. השעון עומד.</p>
