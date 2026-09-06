@@ -935,6 +935,15 @@ export default function MainApp({ session, onSignOut }) {
   // the mastery % needed to SIT a category exam, not the mark needed to pass one. Both
   // exams in this app pass at 70, so the number means the same thing wherever it appears.
   if (mode === "general_exam") {
+    // יותם (6.9): במסעדות הבוחן-בכתיבה המבחן המלא = הבחנים ביחד — אותם כרטיסים מכל
+    // הקטגוריות, מכסה פר-קטגוריה לפי מספר המנות (12 ראשונות ו-6 עיקריות ⇒ פי 2),
+    // והכל ב-general_exam_questions. משקאות מחוץ למבחן (יש להם בחנים משלהם).
+    if (openExam) return <OpenQuiz
+      items={cards.filter((c) => !c.knowledge && !c.drink)} allItems={cards}
+      restaurantId={session?.restaurantId} categoryLabel="התפריט המלא"
+      exam={{ total: examConfig?.general_exam_questions || 40 }}
+      onAnswer={learnItem} onDone={exitMode} onFinish={recordExam}
+    />;
     return <MenuExam
       items={cards.filter((c) => !c.knowledge)}
       deckSize={examConfig?.general_exam_questions || 40}

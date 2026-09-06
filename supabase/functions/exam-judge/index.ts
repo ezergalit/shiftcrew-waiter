@@ -165,7 +165,7 @@ Deno.serve(async (req) => {
     const said = ((body.said as string[]) || []).filter(Boolean).slice(0, 40);
     if (!expected.length || !said.length) return json({ credited: [] });
     const user = `שאלה: ${body.ask || ""}\nexpected (מה שהמסעדה רשמה): ${JSON.stringify(expected)}\nsaid (מה שהמלצר כתב, ולא הותאם): ${JSON.stringify(said)}`;
-    const r = await callModel(SYSTEM_V4, user, orKey, anthKey, "claude-haiku-4.5");
+    const r = await callModel(SYSTEM_V4, user, orKey, anthKey);   // defaults: dated Anthropic id / anthropic/claude-haiku-4.5
     if (r.skipped) return json({ credited: [], skipped: r.skipped });
     let parsed: { credited?: { said?: string; means?: string }[] } = {};
     try { const m = (r.text || "").match(/\{[\s\S]*\}/); parsed = m ? JSON.parse(m[0]) : {}; } catch { return json({ credited: [], skipped: "bad_model_json" }); }

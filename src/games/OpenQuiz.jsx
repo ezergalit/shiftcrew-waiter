@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GraduationCap, Check, X as XIcon } from "lucide-react";
 import ExitExam from "./ExitExam";
 import AnswerInput from "../components/AnswerInput";
@@ -7,6 +7,13 @@ import { generate, grade, setMenuVocab, norm, toks, wMatch, describeQuestionFor 
 import { menuFromCards } from "../lib/examMenu";
 import { buildVocab } from "../lib/examSuggest";
 import { loadLearnedAlts, withLearnedAlts, judgeAnswer, saveLearnedAlts } from "../lib/examJudge";
+import { buildSetQuestions, composeQuiz, nextSeen, scoreSet, examPlan } from "../lib/quizBank";
+
+// ── מחזור «נשאל» (יותם, 6.9: «מלצר שנכשל לא מקבל את אותו הבוחן פעם נוספת») ──
+// פר-מכשיר, פר-מסעדה, פר-קטגוריה. מה שנשאל שוקע לסוף; כשהבנק כולו נראה — סבב חדש.
+const seenKey = (restaurantId, cat) => `menu-app-quiz-seen:${restaurantId || "r"}:${cat}`;
+const loadSeen = (restaurantId, cat) => { try { return JSON.parse(localStorage.getItem(seenKey(restaurantId, cat))) || []; } catch { return []; } };
+const saveSeen = (restaurantId, cat, list) => { try { localStorage.setItem(seenKey(restaurantId, cat), JSON.stringify(list)); } catch { /* private mode */ } };
 
 // The category quiz, answered by WRITING instead of picking (user, 29.8).
 //
@@ -62,7 +69,7 @@ const weightedAvg = (scores) => {
   return wsum ? Math.round(scores.reduce((a, s) => a + s.v * s.w, 0) / wsum) : 0;
 };
 
-export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId, onAnswer, onDone, onFinish }) {
+export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId, onAnswer, onDone, onFinish, exam = null }) {
   // The engine and the autocomplete both read the WHOLE restaurant, not this category:
   // grading needs the full vocabulary to tell a foreign word from a menu word, and the
   // suggestion pool must not narrow to the dishes being asked about.
@@ -74,54 +81,73 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     return generate(fullMenu);
   }, [fullMenu]);
 
-  // One card per dish in THIS category that the engine is willing to ask about.
+  // ── הרכב הבוחן (יותם, 6.9) ─────────────────────────────────────────────────
+  // מנות: «60-70% מהמנות באקראי — 12 ראשונות ⇒ 7, 7 סלטים ⇒ 5, 4 ומטה ⇒ כולן».
+  // כל כרטיס מנה = «תמליץ ותאר»: מרכיבים + אלרגיות (השאלה המפורקת). ועוד 1-2 שאלות-סט
+  // בלי תיאור («ציין את כל הראשונות שטבעוני יכול לאכול», «לקוח רוצה דג נא ואבוקדו —
+  // על מה תמליץ?») — דטרמיניסטיות, בלי שופט. מה שנשאל שוקע לסוף המחזור.
+  // המבחן המלא (`exam`) = אותם כרטיסים מכל הקטגוריות, מכסה פר-קטגוריה לפי מספר המנות.
+  // ⚠️ קטגוריות משקאות שומרות את הרכב 31.8 (מעט תיאור, בעיקר המלצות).
+  const askedRef = useRef({});            // cat ⇒ { asked: ids, bank: ids } — נשמר בסיום
   const deck = useMemo(() => {
-    const inCat = new Set((items || []).filter((i) => !i.knowledge).map((i) => i.name));
+    const food = (items || []).filter((i) => !i.knowledge);
     const byDish = new Map();
     for (const q of bank) {
-      if (!inCat.has(q.dish)) continue;
       if (q.sit !== "describe" && q.sit !== "allergens" && q.sit !== "flavor") continue;
       const e = byDish.get(q.dish) || { dish: q.dish };
       e[q.sit] = q;
       byDish.set(q.dish, e);
     }
-    const withItem = [...byDish.values()].map((e) => ({
-      ...e,
-      it: (items || []).find((i) => i.name === e.dish),
-    })).filter((e) => e.it);
-    // Recommendation/situation questions (user, 31.8): drinks get trait questions,
-    // food gets "אורח אלרגי ל-X / אורחת בהריון / אוהב חריף / מחפש משהו מתוק" — and the
-    // quiz composition leans on them: AT LEAST HALF of every sitting where the pool
-    // allows, and never fewer than one. A pool that avoids repeating itself: questions
-    // already asked on this device sink to the back until the whole pool has cycled.
-    const catName = (items || []).find((i) => !i.knowledge)?.category;
-    // Drink categories flip the mix (user, 31.8: «לא צריך יותר מ1-2 שאלות תיאור
-    // במבחן — רוב השאלות צריכות להיות פתוחות יותר, המלץ על…»): at most 2 dish
-    // cards, and recommendations fill the sitting instead.
-    const drinkCat = (items || []).some((i) => i.drink);
-    const recPool = catName
-      ? bank.filter((q) => (q.sit === "drinkrec" || q.sit === "dishrec") && q.cat === catName)
-      : [];
-    let recs = [];
-    if (recPool.length) {
-      const seenKey = `menu-app-recasked:${restaurantId || "r"}:${catName}`;
-      let seen = [];
-      try { seen = JSON.parse(localStorage.getItem(seenKey)) || []; } catch { /* fresh */ }
-      const fresh = shuffle(recPool.filter((q) => !seen.includes(q.dish)));
-      const used = shuffle(recPool.filter((q) => seen.includes(q.dish)));
-      recs = [...fresh, ...used].slice(0, drinkCat ? 6 : 4).map((q) => ({ rec: q, dish: q.ask }));
-      try {
-        const asked = recs.map((r) => r.rec.dish);
-        const nextSeen = fresh.length >= recs.length ? [...seen, ...asked] : asked;
-        localStorage.setItem(seenKey, JSON.stringify(nextSeen));
-      } catch { /* private mode */ }
+    const dishCard = (it) => { const e = byDish.get(it.name); return e ? { ...e, it } : null; };
+    const drinkCat = !exam && food.some((i) => i.drink);
+    askedRef.current = {};
+
+    // ── משקאות (לא במבחן המלא): ההרכב של 31.8 ללא שינוי ──
+    if (drinkCat) {
+      const withItem = food.map(dishCard).filter(Boolean);
+      const catName = food[0]?.category;
+      const recPool = catName ? bank.filter((q) => (q.sit === "drinkrec" || q.sit === "dishrec") && q.cat === catName) : [];
+      let recs = [];
+      if (recPool.length) {
+        const key = `menu-app-recasked:${restaurantId || "r"}:${catName}`;
+        let seen = [];
+        try { seen = JSON.parse(localStorage.getItem(key)) || []; } catch { /* fresh */ }
+        const fresh = shuffle(recPool.filter((q) => !seen.includes(q.dish)));
+        const used = shuffle(recPool.filter((q) => seen.includes(q.dish)));
+        recs = [...fresh, ...used].slice(0, 6).map((q) => ({ rec: q, dish: q.ask }));
+        try {
+          const asked = recs.map((r) => r.rec.dish);
+          localStorage.setItem(key, JSON.stringify(fresh.length >= recs.length ? [...seen, ...asked] : asked));
+        } catch { /* private mode */ }
+      }
+      const dishCards = shuffle(withItem).sort((a, b) => (b.it?.isSpecial ? 1 : 0) - (a.it?.isSpecial ? 1 : 0));
+      return [...dishCards.slice(0, 2), ...recs];
     }
-    // The few describe cards land on the best sellers first (user, 31.8: «יותר
-    // שאלות על אלון לבן, שאבלי… וכל היותר נמכרים») — the manager's ⭐ is the
-    // signal; unstarred menus keep the plain shuffle.
-    const dishCards = shuffle(withItem).sort((a, b) => (b.it?.isSpecial ? 1 : 0) - (a.it?.isSpecial ? 1 : 0));
-    return [...dishCards.slice(0, drinkCat ? 2 : Math.max(2, 8 - recs.length)), ...recs];
-  }, [bank, items, restaurantId]);
+
+    // ── מנות: קטגוריה אחת (בוחן) או כל הקטגוריות במכסה (מבחן) ──
+    const cats = exam ? [...new Set(food.filter((i) => !i.drink).map((i) => i.category))] : [food[0]?.category].filter(Boolean);
+    const askable = new Map(cats.map((c) => [c, food.filter((i) => i.category === c).map(dishCard).filter(Boolean)]));
+    const plan = exam ? examPlan(Object.fromEntries([...askable].map(([c, l]) => [c, l.length])), exam.total || 40) : null;
+    const out = [];
+    for (const cat of cats) {
+      const cards = askable.get(cat) || [];
+      if (!cards.length || (plan && !plan[cat])) continue;
+      const catItems = food.filter((i) => i.category === cat);
+      const sets = buildSetQuestions(catItems, cat);
+      const pool = catItems.map((i) => i.name);
+      const seen = loadSeen(restaurantId, cat);
+      const { cards: picked, asked } = composeQuiz({
+        dishes: cards.map((c) => ({ name: c.dish, starred: !!c.it?.isSpecial })),
+        sets, seen, size: plan ? plan[cat] : null,
+      });
+      askedRef.current[cat] = { asked, bank: [...cards.map((c) => `dish:${c.dish}`), ...sets.map((q) => q.id)] };
+      for (const c of picked) {
+        if (c.kind === "dish") { const e = cards.find((x) => x.dish === c.name); if (e) out.push(e); }
+        else out.push({ set: c.set, cat, pool: shuffle(pool) });
+      }
+    }
+    return out;
+  }, [bank, items, restaurantId, exam]);
 
   // Phrasings previous waiters have had accepted. Loaded once and folded into the
   // questions, so tier 1 matches them for free and this sitting never pays for them again.
@@ -134,6 +160,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const [alls, setAlls] = useState([]);
   const [recAns, setRecAns] = useState([]);
   const [flavs, setFlavs] = useState([]);
+  const [setSel, setSetSel] = useState([]);   // שאלת-סט: שמות המנות שסומנו
   const [result, setResult] = useState(null);
   // שלב 2 (יותם, 1.9): בחרת משקה בשאלת המלצה ⇒ «עכשיו תאר אותו לאורח» — טקסט
   // חופשי, נבדק במצב-משפט ואם צריך עולה לשופט. {dish, q, text, res, judging}
@@ -143,7 +170,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
 
   // 60s a dish: writing from memory is slower than recognising, and the previous typed
   // attempt's 25s was part of why it felt punitive.
-  const SECONDS_PER_DISH = 60;
+  const SECONDS_PER_DISH = exam ? 45 : 60;
   const started = deck.length >= 2;
   const [secondsLeft, setSecondsLeft] = useState(0);
   useEffect(() => { if (started) setSecondsLeft(deck.length * SECONDS_PER_DISH); }, [started, deck.length]);
@@ -157,8 +184,10 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   useEffect(() => {
     if (!finished) return;
     const avg = weightedAvg(scores);
+    // מה שנשאל נרשם — עבר או נכשל — כדי שהישיבה הבאה תהיה אחרת (יותם, 6.9)
+    for (const [cat, { asked, bank: ids }] of Object.entries(askedRef.current)) saveSeen(restaurantId, cat, nextSeen(loadSeen(restaurantId, cat), asked, ids));
     onFinish?.({ score: avg, passed: avg >= 70, dishCount: deck.length });
-  }, [finished, scores, deck.length, onFinish]);
+  }, [finished, scores, deck.length, onFinish, restaurantId]);
 
   if (!started) {
     return (
@@ -178,6 +207,14 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
 
   const submit = async () => {
     const build = (key, q, answer) => ({ key, q: withLearnedAlts(q, alts), answer });
+    // שאלת-סט (ציין את כולן / המלצה מרומזת): סט מדויק, בלי שופט. בחירה שגויה יקרה מפספוס.
+    if (cur.set) {
+      const r = scoreSet(cur.set.answer, setSel);
+      const v = LVL_SCORE[r.lvl];
+      setResult({ parts: [], set: { q: cur.set, r, sel: setSel }, avg: v });
+      setScores((s) => [...s, { v, w: Math.max(2, cur.set.answer.length) }]);
+      return;
+    }
     if (cur.rec) {
       const g = grade(cur.rec, recAns);
       const parts = [{ key: "rec", q: cur.rec, answer: recAns, g }];
@@ -271,7 +308,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   };
 
   const next = () => {
-    setResult(null); setIngs([]); setAlls([]); setRecAns([]); setFlavs([]); setStage2(null);
+    setResult(null); setIngs([]); setAlls([]); setRecAns([]); setFlavs([]); setSetSel([]); setStage2(null);
     if (i + 1 >= deck.length) setFinished(true); else setI(i + 1);
   };
 
@@ -304,11 +341,15 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       </div>
 
       <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
-        <p className="text-[11px] font-black text-[#22c08c]">{cur.rec ? "המלצה ללקוח" : "כתיבה מהזיכרון"}</p>
-        <p className="text-[17px] font-black text-[#eef0f6] mt-1 leading-snug">{cur.rec ? cur.rec.ask : cur.dish}</p>
-        {!cur.rec && (
+        <p className="text-[11px] font-black text-[#22c08c]">
+          {cur.set ? (cur.set.kind === "rec" ? "המלצה ללקוח" : "ציין את כולן") : cur.rec ? "המלצה ללקוח" : cur.it?.drink ? "כתיבה מהזיכרון" : "תמליץ ותאר"}
+          {exam && cur.cat ? ` · ${shortCat(cur.cat)}` : exam && cur.it?.category ? ` · ${shortCat(cur.it.category)}` : ""}
+        </p>
+        <p className="text-[17px] font-black text-[#eef0f6] mt-1 leading-snug">{cur.set ? cur.set.ask : cur.rec ? cur.rec.ask : cur.dish}</p>
+        {!cur.rec && !cur.set && (
           <p className="text-[12px] text-[#8a8aa0] mt-1">
             {cur.describe && cur.flavor ? "מה יש בקוקטייל, ואיך הוא בטעם?"
+              : cur.describe && askAll && !cur.it?.drink ? "אורח מבקש המלצה. תמליץ על המנה ותאר אותה: מה יש בה ואילו אלרגיות."
               : cur.describe && askAll ? "מה יש במנה, ואילו אלרגיות היא נושאת?"
               : cur.describe ? (cur.it?.drink ? "איך תתארו את המשקה?" : "מה יש במנה — מלבד מה שבשם?")
               : cur.flavor ? "איך הקוקטייל בטעם?"
@@ -319,6 +360,22 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
 
       {!result ? (
         <div className="space-y-4">
+          {cur.set && (
+            <div className="space-y-2">
+              <p className="text-[11px] font-black text-[#8a8aa0]">סמן/י את כל המנות שמתאימות</p>
+              <div className="flex flex-wrap gap-2">
+                {cur.pool.map((name) => {
+                  const on = setSel.includes(name);
+                  return (
+                    <button key={name} type="button" onClick={() => setSetSel((s) => on ? s.filter((x) => x !== name) : [...s, name])}
+                      className={`px-3 py-2 min-h-[40px] rounded-xl text-[12.5px] font-bold border ${on ? "bg-[#22c08c] text-[#06231a] border-[#22c08c]" : "bg-[#16181c] text-[#eef0f6] border-[#2a2e36]"}`}>
+                      {name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {cur.rec && (
             <AnswerInput
               vocab={[]} values={recAns} onChange={setRecAns}
@@ -346,7 +403,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
           )}
           <button
             onClick={submit}
-            disabled={judging}
+            disabled={judging || (!!cur.set && !setSel.length)}
             className="w-full py-3 min-h-[44px] rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm disabled:opacity-60"
           >
             {judging ? "בודק…" : "שליחה"}
@@ -354,6 +411,27 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
         </div>
       ) : (
         <div className="space-y-3">
+          {result.set && (
+            <div className="bg-[#16181c] border border-[#22252b] rounded-xl p-3 space-y-2">
+              <div className="flex items-center gap-2">
+                {result.set.r.lvl === 2 ? <Check size={15} className="text-[#22c08c]" /> : <XIcon size={15} className="text-[#f3a712]" />}
+                <p className="text-[12px] font-black text-[#eef0f6]">
+                  {result.set.r.lvl === 2 ? "נכון — בדיוק" : result.set.r.lvl === 1 ? "חלקי" : "לא נכון"}
+                  {result.set.r.missed ? ` · פספסת ${result.set.r.missed}` : ""}{result.set.r.wrong ? ` · ${result.set.r.wrong} לא במקומן` : ""}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {cur.pool.map((name) => {
+                  const inAns = result.set.q.answer.includes(name), picked = result.set.sel.includes(name);
+                  if (!inAns && !picked) return null;
+                  const cls = inAns && picked ? "bg-[#22c08c]/20 text-[#22c08c] border-[#22c08c]/50"
+                    : inAns ? "text-[#f3c14b] border-dashed border-[#f3c14b]/60"
+                    : "text-[#e0315a] border-[#e0315a]/50 line-through";
+                  return <span key={name} className={`px-2 py-1 rounded-lg text-[11.5px] font-bold border ${cls}`} title={result.set.q.why?.[name] || ""}>{name}{result.set.q.why?.[name] ? ` — ${result.set.q.why[name]}` : ""}</span>;
+                })}
+              </div>
+            </div>
+          )}
           {result.parts.map((p) => (
             <div key={p.key} className="bg-[#16181c] border border-[#22252b] rounded-xl p-3 space-y-2">
               <div className="flex items-center gap-2">

@@ -1,0 +1,74 @@
+// ══ הרכב הבוחן (יותם, 6.9) — הכללים שאסור שיישברו ══
+//   node tests/quizbank.test.mjs
+import { quizSize, setCountFor, buildSetQuestions, composeQuiz, nextSeen, scoreSet, examPlan, catForms, veganSafe } from "../src/lib/quizBank.js";
+
+let fail = 0;
+const ok = (cond, msg) => { if (!cond) { fail++; console.log("🔴", msg); } };
+
+// 1. גודל הישיבה — הדוגמאות המילוליות של יותם
+ok(quizSize(12) === 7, "12 ראשונות ⇒ 7");
+ok(quizSize(7) === 5, "7 סלטים ⇒ 5");
+ok(quizSize(4) === 4 && quizSize(3) === 3 && quizSize(2) === 2, "4 ומטה ⇒ הכל");
+ok(quizSize(9) === 5 && quizSize(10) === 6 && quizSize(16) === 10, "9⇒5 · 10⇒6 · 16⇒10 (60%)");
+ok(quizSize(5) === 4 && quizSize(8) === 6, "5⇒4 · 8⇒6 (70%)");
+ok(setCountFor(12, 5) === 2 && setCountFor(7, 5) === 1 && setCountFor(4, 5) === 1 && setCountFor(12, 0) === 0, "1-2 שאלות-סט, 0 כשאין בנק");
+
+// 2. בנק שאלות-סט על קטגוריה סינתטית
+const D = (name, o = {}) => ({ name, category: "ראשונות", ingredients: ["אורז"], allergens: [], pregnancy: [], pitfalls: [], ...o });
+const cat = [
+  D("סשימי ילוטייל", { ingredients: ["ילוטייל", "אבוקדו", "פונזו"], allergens: ["סויה"], pregnancy: ["דג נא"] }),
+  D("סקוורס", { ingredients: ["סלמון", "אבוקדו", "טוביקו"], allergens: ["סויה"], pregnancy: ["דג נא"] }),
+  D("שרימפס טמפורה", { ingredients: ["שרימפס", "טמפורה", "איולי"], allergens: ["גלוטן", "ביצים", "רכיכות"], pitfalls: ["מיונז"] }),
+  D("נאמס צמחוני", { ingredients: ["ירקות", "אטריות אורז"], allergens: [], pitfalls: ["כוסברה"] }),
+  D("אדממה", { ingredients: ["אדממה", "מלח"], allergens: ["סויה"] }),
+];
+const sets = buildSetQuestions(cat, "ראשונות");
+const byId = Object.fromEntries(sets.map((q) => [q.id, q]));
+ok(byId["set:allergen-has:סויה"]?.answer.length === 3, "רגישות לסויה — לא יכול: 3");
+ok(byId["set:allergen-safe:סויה"]?.answer.join() === ["שרימפס טמפורה", "נאמס צמחוני"].join(), "רגישות לסויה — כן יכול: 2");
+ok(byId["set:pregnancy-no"]?.answer.length === 2 && byId["set:pregnancy-ok"]?.answer.length === 3, "הריון: אסור 2 / אפשר 3");
+ok(byId["set:pitfall:כוסברה"]?.answer[0] === "נאמס צמחוני", "מוקש כוסברה");
+ok(byId["set:vegan"]?.answer.join() === ["נאמס צמחוני", "אדממה"].join(), "טבעוני: נאמס + אדממה בלבד");
+ok(!sets.some((q) => q.answer.length === cat.length || q.answer.length === 0), "אין שאלה שהתשובה שלה הכל/כלום");
+// הרמז מצביע על סקוורס + סשימי ילוטייל (בנתונים האלה «אבוקדו» לבדו כבר מצמצם לשתיים — הזוג נשמר לתפריט שבו אבוקדו נפוץ)
+const hinted = sets.find((q) => q.kind === "rec" && q.answer.length === 2 && q.answer.includes("סקוורס") && q.answer.includes("סשימי ילוטייל"));
+ok(!!hinted && /אבוקדו|דג נא/.test(hinted.ask), "רמז ⇒ סקוורס + סשימי ילוטייל");
+ok(sets.every((q) => !q.ask.includes("הGreek")), "ניסוח");
+ok(catForms("Greek Oven Breads").catIn === "המנות ב״Greek Oven Breads״" && catForms("ראשונות").catIn === "הראשונות" && catForms("ילדים").catIn === "מנות הילדים", "צורות קטגוריה");
+ok(veganSafe({ name: "טופו", ingredients: ["טופו"], allergens: [] }) === true && veganSafe({ name: "x", ingredients: [] }) === null, "גלאי טבעוני: כן / לא-ידוע");
+
+// 3. הרכבה: 12 מנות ⇒ 7 כרטיסים (5 מנות + 2 סט), המנות של הרמז נכנסות
+const twelve = Array.from({ length: 12 }, (_, i) => D(`מנה ${i + 1}`, { ingredients: [`מרכיב${i}`, "אבוקדו"], allergens: i % 2 ? ["גלוטן"] : [], pregnancy: i < 2 ? ["דג נא"] : [] }));
+const sets12 = buildSetQuestions(twelve, "ראשונות");
+const seeded = (() => { let s = 7; return () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }; })();
+const q1 = composeQuiz({ dishes: twelve.map((d) => ({ name: d.name })), sets: sets12, seen: [], rand: seeded });
+ok(q1.cards.length === 7, `12 מנות ⇒ 7 כרטיסים (יצא ${q1.cards.length})`);
+ok(q1.cards.filter((c) => c.kind === "dish").length === 5 && q1.cards.filter((c) => c.kind !== "dish").length === 2, "5 מנות + 2 סט");
+const recCard = q1.cards.find((c) => c.kind === "rec");
+if (recCard) ok(recCard.set.answer.every((name) => q1.cards.some((c) => c.kind === "dish" && c.name === name)), "המנות של הרמז נבחנות בנפרד באותה ישיבה");
+// 4. בלי חזרה: הישיבה הבאה שונה
+const bankIds = [...twelve.map((d) => `dish:${d.name}`), ...sets12.map((s) => s.id)];
+const seen = nextSeen([], q1.asked, bankIds);
+const q2 = composeQuiz({ dishes: twelve.map((d) => ({ name: d.name })), sets: sets12, seen, rand: seeded });
+// מנות של הרמז המרומז חייבות להיבחן איתו — הן החריג היחיד לחזרה
+const rec2 = q2.cards.find((c) => c.kind === "rec");
+ok(q2.cards.filter((c) => c.kind === "dish" && !(rec2 && rec2.set.answer.includes(c.name))).every((c) => !q1.asked.includes(`dish:${c.name}`)), "מלצר שנכשל לא מקבל את אותן מנות בישיבה הבאה");
+ok(q2.cards.filter((c) => c.kind !== "dish").every((c) => !q1.asked.includes(c.set.id)), "וגם לא את אותן שאלות-סט");
+// מחזור: אחרי שכל הבנק נראה — מתחילים מחדש (לא נתקעים בלי «לא נראה»)
+const full = nextSeen(bankIds.slice(0, -1), bankIds, bankIds);
+ok(full.length === bankIds.length && bankIds.every((id) => full.includes(id)), "כיסוי מלא ⇒ סבב חדש מהישיבה האחרונה");
+// 5. ניקוד סט: מדויק = מלא; לסמן הכל = חלקי/כלום
+ok(scoreSet(["א", "ב"], ["א", "ב"]).lvl === 2, "סט מדויק ⇒ מלא");
+ok(scoreSet(["א", "ב"], ["א"]).lvl === 1, "פספוס אחד ⇒ חלקי");
+ok(scoreSet(["א", "ב"], ["א", "ב", "ג", "ד", "ה", "ו"]).lvl === 0, "לסמן הכל ⇒ 0 (בחירה שגויה יקרה)");
+// 6. המבחן המלא: 12 ראשונות + 6 עיקריות ⇒ פי 2, סה"כ 40
+const plan = examPlan({ "ראשונות": 12, "עיקריות": 6, "סלטים": 6, "מרקים": 4, "ווק": 4, "ילדים": 5, "מאקי": 7 }, 40);
+const tot = Object.values(plan).reduce((a, b) => a + b, 0);
+ok(tot === 40, `סה"כ 40 (יצא ${tot})`);
+ok(Math.abs(plan["ראשונות"] - 2 * plan["עיקריות"]) <= 1, `ראשונות פי 2 מעיקריות, עד עיגול (${plan["ראשונות"]} מול ${plan["עיקריות"]})`);
+ok(Object.entries(plan).every(([c, k]) => k <= ({ "ראשונות": 12, "עיקריות": 6, "סלטים": 6, "מרקים": 4, "ווק": 4, "ילדים": 5, "מאקי": 7 })[c]), "אף קטגוריה לא מקבלת יותר ממה שיש בה");
+const small = examPlan({ "א": 2, "ב": 2 }, 40);
+ok(small["א"] === 2 && small["ב"] === 2, "תפריט קטן ממכסה ⇒ כל המנות, לא יותר");
+
+console.log(fail ? `\n🔴 ${fail} כשלים` : "quizbank.test: כל הבדיקות עברו");
+process.exit(fail ? 1 : 0);
