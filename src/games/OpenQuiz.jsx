@@ -239,9 +239,9 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   // 3 דיווחים פתוחים ב-24 שעות ⇒ המבחן חסום למסעדה עד טיפול (יותם, 6.9)
   useEffect(() => {
     if (!exam || !restaurantId) return;
-    db.from("exam_reports").select("id", { count: "exact", head: true })
-      .eq("restaurant_id", restaurantId).eq("status", "open").gte("created_at", new Date(Date.now() - 864e5).toISOString())
-      .then(({ count }) => { if ((count || 0) >= 3) setBlocked(count); });
+    // ספירה דרך RPC (SECURITY DEFINER): החסימה היא ברמת המסעדה, אבל מלצר רואה רק את
+    // הדיווחים שלו — קריאה ישירה לטבלה הייתה סופרת רק אותם.
+    db.rpc("exam_block_count").then(({ data, error }) => { if (!error && (data || 0) >= 3) setBlocked(data); });
   }, [exam, restaurantId]);
   useEffect(() => {
     // השעון עומד בזמן קריאת התשובה ובזמן כתיבת דיווח — לא לוקח מזמן המבחן
