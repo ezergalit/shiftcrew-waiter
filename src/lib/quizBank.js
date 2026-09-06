@@ -80,36 +80,55 @@ export function examPlan(sizes, total = 40) {
   return plan;
 }
 
-// ── מרכיב-כותרת: מה שלקוח באמת מבקש בשולחן (יותם, 6.9) ─────────────────────────
-// דגים, בשר, עיקריים צמחיים — או מרכיב שהמסעדה עצמה שמה בשם של מנה בקטגוריה. תיבול/רוטב/
-// ציפוי לעולם לא («ספייסי מיונז» הוא המרכיב האמיתי, אבל אף אחד לא מבקש רול עם מיונז).
-// ⚠️ `norm` מקפל אותיות סופיות (ם⇒מ, ן⇒נ) — לכן כל הרשימות עוברות דרכו, אחרת «קרם» לא תופס «קרמ».
-const HEADLINE = ["טונה", "סלמון", "ילוטייל", "המאצ", "לברק", "דניס", "מוסר", "דג לבן", "שרימפס", "קלמארי", "תמנון", "סרטן", "צלופח",
-  "אונאגי", "סקאלופ", "צדפ", "עוף", "פרגית", "בקר", "סינטה", "אנטריקוט", "פילה", "טלה", "כבש", "אסאדו", "ברווז", "המבורגר",
-  "טופו", "אבוקדו", "פטרי", "שיטאקי", "חציל", "בטטה", "כמהין", "ארטישוק", "קינואה", "עדשים", "חומוס", "גבינ", "פטה", "בוראטה",
-  "מוצרלה", "חלומי", "ביצה", "אננס", "תות", "שוקולד", "נודלס", "אטריות", "ראמן",
-  "עגל", "ניוקי", "ריזוטו", "שעועית", "יוגורט", "אנשובי", "סרדינ", "קדאיף", "פיסטוק"].map(norm);
-// מילה שלמה בלבד: «בס» (בסיס/בסגנון), «כבד» (כבדי = וויסקי כבד), «מנגו» (מנגולד)
-const HEADLINE_EXACT = ["בס", "כבד", "מנגו"].map(norm);
-const CONDIMENT_WORDS = ["מיונז", "רוטב", "סויה", "טריאקי", "פונזו", "שומשום", "שמן", "מלח", "פלפל", "סוכר", "לימון", "ליים", "בצל", "שום",
-  "ג'ינג'ר", "גינגר", "וסאבי", "כוסברה", "פטרוזיליה", "נענע", "אורז", "אצה", "נורי", "טמפורה", "שבבי", "קראמבל", "ציפוי", "רסק", "חמאה",
-  "שמנת", "קרם", "סילאן", "דבש", "חרדל", "קטשופ", "צ'ילי", "צילי", "יוזו", "טוביקו", "מסאגו", "איקורה", "תבלין", "עשבי", "ציר", "בסיס", "אבקת"].map(norm);
-const isCondiment = (k) => CONDIMENT_WORDS.some((c) => k === c || k.startsWith(c + " ") || k.endsWith(" " + c) || k.includes(" " + c + " ") || k.startsWith(c) && c.length >= 4);
-const headlineWord = (w) => HEADLINE.some((h) => w.startsWith(h)) || HEADLINE_EXACT.includes(w);
-function isHeadline(ing) {
-  const raw = String(ing || ""); if (/[()]|אופצי/.test(raw)) return false;          // «שרימפס בטמפורה (אופציה)»
-  const k = norm(raw); if (k.length < 3 || isCondiment(k)) return false;
-  return k.split(" ").filter(Boolean).some(headlineWord);
+// ── מה לקוח באמת מבקש (יותם, 6.9): «אף אחד לא יבקש מנה ראשונה עם אטריות זכוכית — לפחות לא
+// בתדירות ששווה ללמוד». רמז = משפחת חלבון (טונה/סלמון/דג/בשר/עוף/פירות ים…) או מרכיב-בקשה
+// נפוץ (אבוקדו/בטטה/פטריות/טופו/חציל), לבד או עם סגנון (חריף · אפוי · בגריל · מטוגן · נא):
+// «רול מיוחד עם טונה», «סלמון אפוי», «משהו חריף מהראשונות». לא כמהין, לא פיסטוק, לא אטריות.
+// ⚠️ `norm` מקפל אותיות סופיות — כל הרשימות עוברות דרכו.
+// ⚠️ ספציפי לפני כללי: סט שנתפס כ«סלמון» לא ייקרא «דג» (דדופ לפי הסט)
+const FAMILIES = [
+  ["טונה", ["טונה"]], ["סלמון", ["סלמון"]], ["ילוטייל", ["ילוטייל", "המאצ"]], ["לברק", ["לברק"]], ["דניס", ["דניס"]],
+  ["שרימפס", ["שרימפס", "שרימפ"]],
+  ["טופו", ["טופו"]], ["אבוקדו", ["אבוקדו"]], ["בטטה", ["בטטה"]], ["פטריות", ["פטרי", "שיטאקי", "שימג"]], ["חציל", ["חציל"]],
+  ["עוף", ["עוף", "פרגית"]],
+  ["בשר", ["בקר", "סינטה", "אנטריקוט", "פילה בקר", "אסאדו", "טלה", "כבש", "המבורגר", "קבב", "בשר", "עגל", "ברווז"]],
+  ["פירות ים", ["שרימפס", "שרימפ", "קלמארי", "תמנון", "סרטן", "צדפ", "מולים", "פירות ים", "סקאלופ"]],
+  ["דג", ["דג", "דגים", "טונה", "סלמון", "ילוטייל", "המאצ", "לברק", "דניס", "מוסר", "בקלה", "אנשובי", "סרדינ", "פילה דג", "דג לבן"]],
+].map(([label, words]) => [label, words.map(norm)]);
+const EXACT_ONLY = new Set(["בס", "דג"].map(norm));                       // «בס» ≠ בסיס · «דג» ≠ דגן
+const FISH_EXACT = ["בס"].map(norm);
+const PROTEIN = new Set(["טונה", "סלמון", "ילוטייל", "לברק", "דניס", "דג", "שרימפס", "פירות ים", "בשר", "עוף"]);
+// «קרם חציל», «רוטב צדפות», «ציר בקר» — נושא, לא המנה: לא מכניסים למשפחה
+const CARRIER = /^(קרם|רוטב|ממרח|קציפת|ציר|אבקת|שמן|מרק|שבבי|פירורי)\b/;
+const wordHits = (tokens, words) => words.some((w) => tokens.some((t) => (EXACT_ONLY.has(w) ? t === w : t.startsWith(w))));
+// המנה שייכת למשפחה לפי המרכיבים השאילים והשם (לא לפי התיאור — «מוגש לצד דג» אינו מנת דג)
+function inFamily(d, words) {
+  const toksOf = (s) => norm(String(s || "")).split(/[\s,/]+/).filter(Boolean);
+  const ings = askableIngredients(d).filter((x) => !CARRIER.test(norm(x)));
+  const pool = [...ings.flatMap(toksOf), ...toksOf(d.name)];
+  return wordHits(pool, words) || (words === FAMILY_FISH && wordHits(pool, FISH_EXACT));
 }
+const FAMILY_FISH = FAMILIES.find(([l]) => l === "דג")[1];
+// סגנון: מהדגלים או ממילות ההכנה שבתיאור של המסעדה
+// ⚠️ מילות ההכנה עוברות norm (אותיות סופיות) לפני שנעשות regex — /מטוגן/ מילולי לא תופס «מטוגנ»
+const descHas = (d, words) => { const t = norm(String(d.desc || "")); return words.map(norm).some((w) => t.includes(w)); };
+const STYLES = [
+  { key: "חריף", test: (d) => (d.pitfalls || []).includes("חריף"), phrase: (unit, atom) => atom ? `ל${unit} חריף עם ${atom}` : `משהו חריף` },
+  { key: "אפוי", test: (d) => descHas(d, ["אפוי", "בתנור", "אפויה", "אפויים", "אפייה"]), phrase: (unit, atom) => atom ? `ל${unit} עם ${atom} אפוי` : `משהו אפוי` },
+  { key: "בגריל", test: (d) => descHas(d, ["גריל", "צלוי", "צלויה", "על האש", "פחמים", "צלייה"]), phrase: (unit, atom) => atom ? `ל${unit} עם ${atom} מהגריל` : `משהו מהגריל` },
+  { key: "מטוגן", test: (d) => descHas(d, ["מטוגן", "מטוגנת", "מטוגנים", "טמפורה", "טיגון"]), phrase: (unit, atom) => atom ? `ל${unit} עם ${atom} מטוגן` : `משהו מטוגן` },
+  { key: "נא", test: (d) => (d.pregnancy || []).some((p) => /נא/.test(p)), phrase: (unit, atom) => atom ? `ל${unit} עם ${atom} נא` : null },
+];
 
 // ── בנק שאלות-סט לקטגוריה (בלי AI) ──────────────────────────────────────────
 // כל שאלה: { id, kind: "list"|"rec", ask, answer: string[] (שמות מנות), why: {name: reason} }
 // נבנית רק כשהתשובה היא **חלק** מהקטגוריה (לא כולן ולא אף אחת) — אחרת אין מה לדעת.
-export function buildSetQuestions(items, catLabel) {
+export function buildSetQuestions(items, catLabel, opts = {}) {
   // כרטיסי ידע ומסלולי אירוע (המרכיבים שלהם הם מנות) אינם מנות — אין עליהם שאלות-סט
   const dishes = (items || []).filter((d) => !d.knowledge && !d.event && d.name);
   const n = dishes.length;
   if (n < 2) return [];
+  if (dishes.every((d) => d.drink)) return [];                    // משקאות: ההרכב של 31.8, לא כאן
   const cat = String(catLabel || dishes[0].category || "").trim() || "המנות";
   const { catIn, catFrom } = catForms(cat);
   const out = [];
@@ -132,11 +151,13 @@ export function buildSetQuestions(items, catLabel) {
   const kTag = (d) => (d.kashrut || []).length > 0;
   const kosher = (d) => kTag(d) && !(d.kashrut || []).some((k) => NOT_KOSHER.test(k));
   const kTagged = dishes.filter(kTag).length >= Math.ceil(n * 0.7);
+  const meatOrFish = (d) => inFamily(d, FAMILY_FISH) || inFamily(d, FAMILIES.find(([l]) => l === "פירות ים")[1]) || inFamily(d, FAMILIES.find(([l]) => l === "בשר")[1]) || inFamily(d, FAMILIES.find(([l]) => l === "עוף")[1]);
   const AUDIENCE = [
     { id: "kosher", who: "לקוח ששומר כשרות", on: kTagged && dishes.some((d) => (d.kashrut || []).some((k) => NOT_KOSHER.test(k))), ok: kosher, why: (d) => (kosher(d) ? `כשרה${(d.kashrut || []).length ? ` (${(d.kashrut || []).join(", ")})` : ""}` : kTag(d) ? `לא כשרה — ${(d.kashrut || []).filter((k) => NOT_KOSHER.test(k)).join(", ")}` : "כשרות לא מסומנת") },
     { id: "celiac", who: "לקוח צליאקי (שלא אוכל גלוטן)", on: tagged && dishes.some((d) => hasA(d, "גלוטן")), ok: (d) => !hasA(d, "גלוטן"), why: (d) => (hasA(d, "גלוטן") ? "מכילה גלוטן" : "בלי גלוטן") },
     { id: "lactose", who: "לקוח שרגיש ללקטוז", on: tagged && dishes.some((d) => hasA(d, "לקטוז")), ok: (d) => !hasA(d, "לקטוז"), why: (d) => (hasA(d, "לקטוז") ? "מכילה לקטוז" : "בלי לקטוז") },
     { id: "vegan", who: "לקוח טבעוני", on: vs.every((v) => v !== null), ok: (_, i) => vs[i], why: (_, i) => (vs[i] ? "טבעונית" : "לא טבעונית") },
+    { id: "veggie", who: "לקוח צמחוני", on: dishes.every((d) => (d.ingredients || []).length), ok: (d) => !meatOrFish(d), why: (d) => (meatOrFish(d) ? "יש בה בשר/דג" : "צמחונית") },
     { id: "no-raw", who: "לקוח שלא אוכל דג נא", on: dishes.some(rawFish), ok: (d) => !rawFish(d), why: (d) => (rawFish(d) ? "יש דג נא" : "בלי דג נא") },
     { id: "raw", who: "לקוח שרוצה דג נא", on: dishes.some(rawFish), ok: rawFish, why: (d) => (rawFish(d) ? "יש דג נא" : "אין דג נא") },
   ];
@@ -148,33 +169,49 @@ export function buildSetQuestions(items, catLabel) {
     const ask = big ? `תמליץ ל${a.who} על 3 מנות ${catFrom}` : `אילו מנות ${catFrom} תמליץ ל${a.who}? ציין את כל המנות שאתה מכיר`;
     push(`set:${a.id}`, "list", ask, S, why, big ? 3 : null);
   }
-  // 5. המלצה מרומזת (יותם, 6.9): «לקוח מבקש המלצה לרול מיוחד עם טונה אדומה, או ספייסי טונה —
-  //    אף אחד לא יבקש רול עם טונה וספייסי מיונז». רמז = **מרכיב-כותרת אחד** (דג/בשר/עיקרי, או
-  //    מרכיב שמופיע בשם של מנה בקטגוריה) שמצביע על 1-4 מנות. רוטב/תיבול לעולם לא רמז, שני
-  //    מרכיבים לעולם לא. «חריף» מצטרף רק כדי לצמצם רמז רחב מדי («רול חריף עם סלמון»).
-  const unit = /קוקטייל/.test(cat) ? "קוקטייל" : /מיוחד/.test(cat) ? "רול מיוחד" : /רול|מאקי|אינסייד/.test(cat) ? "רול" : "מנה";
-  const headlineOf = (d) => askableIngredients(d).filter(isHeadline);
-  const index = new Map();                                     // atomKey → { label, set: dish[] }
-  dishes.forEach((d) => { for (const x of headlineOf(d)) { const k = norm(x); const e = index.get(k) || { label: x, set: [] }; if (!e.set.includes(d)) e.set.push(d); index.set(k, e); } });
-  const recs = [];
-  for (const [, e] of index) {
-    if (e.set.length <= 4) { recs.push({ atom: e.label, S: e.set, hot: false }); continue; }
-    const hot = e.set.filter((d) => (d.pitfalls || []).includes("חריף"));
-    if (hot.length >= 1 && hot.length <= 4) recs.push({ atom: e.label, S: hot, hot: true });
+  // 5. שיתוף (יותם: «בסלון יבקשו המלצה ל-5 מאזטים»): קטגוריה שנאכלת יחד ⇒ «תמליץ על 5» — כל 5
+  //    מנות מהקטגוריה נכונות; הידע הוא השמות. לא עובר דרך `partial` — התשובה היא כל הקטגוריה.
+  if (/מאזט|מזה|מזטים|טאפס|לשיתוף|meze|mezze|tapas/i.test(cat) && n >= 6) {
+    out.push({ id: "set:share5", kind: "list", ask: `שולחן מבקש שתמליץ על 5 מנות ${catFrom} — על אילו תמליץ?`, answer: names(dishes), why: Object.fromEntries(dishes.map((d) => [d.name, "מהקטגוריה"])), need: 5 });
   }
-  // רמז ששם המנה מסגיר («ילוטייל» ⇒ סשימי ילוטייל) אינו ידע — נשמר רק כשלפחות מנה אחת
-  // בסט לא נושאת אותו בשם. סטים גדולים קודם (2 מנות > מנה אחת), ורק רמז שמכסה מנה חדשה; עד 8.
-  // מסגיר = השם מכיל את הרמז, או את מילת-הכותרת שבו («פילה סלמון» ⇒ «סלמון מיסו» מסגיר)
-  const obvious = (d, atom) => { const n = norm(d.name); const a = norm(atom); return n.includes(a) || a.split(" ").some((w) => headlineWord(w) && n.split(" ").some((nw) => nw.startsWith(w) || w.startsWith(nw) && nw.length >= 3)); };
-  const covered = new Set();
-  recs.sort((a, b) => b.S.length - a.S.length);
+  // 6. המלצה מרומזת — משפחת חלבון / מרכיב-בקשה נפוץ, לבד או עם סגנון; 1-4 מנות (5-8 ⇒ «תמליץ על 3»)
+  const unit = /קוקטייל/.test(cat) ? "קוקטייל" : /מיוחד/.test(cat) ? "רול מיוחד" : /רול|מאקי|אינסייד/.test(cat) ? "רול" : "מנה";
+  const extra = (opts.guestAsks || []).map((w) => [w, [norm(w)]]);
+  const recs = [];
+  const seen = new Set();
+  const key = (S) => S.map((d) => d.name).sort().join("|");
+  const consider = (atom, style, S) => {
+    if (!S.length || S.length > 8 || seen.has(key(S))) return;
+    seen.add(key(S));
+    recs.push({ atom, style, S });
+  };
+  const roll = /רול/.test(unit);
+  // סגנון הכנה (אפוי/גריל/מטוגן/נא) רק על חלבון ורק מחוץ לרולים — «רול עם טונה מטוגן» ו«אבוקדו אפוי» אינם בקשה
+  const styleFits = (st, atom) => st.key === "חריף" || (!roll && (atom == null || PROTEIN.has(atom)));
+  const obviousSingle = (S, atom) => S.length === 1 && atom && norm(S[0].name).includes(norm(atom));   // «מנה עם ילוטייל» ⇒ סשימי ילוטייל
+  for (const [atom, words] of [...FAMILIES, ...extra]) {
+    const S = dishes.filter((d) => inFamily(d, words));
+    if (!S.length || obviousSingle(S, atom)) continue;
+    if (S.length <= 4) { consider(atom, null, S); continue; }
+    // סגנון מוסיף ידע (איזה סלמון אפוי) — לכן «סלמון אפוי ⇒ סלמון מיסו» נשאר גם כשהשם מכיל סלמון
+    for (const st of STYLES) { if (!styleFits(st, atom) || (st.key === "נא" && atom === "דג")) continue; const S2 = S.filter(st.test); if (S2.length >= 1 && S2.length <= 4) consider(atom, st, S2); }
+    if (S.length <= 8) consider(atom, null, S);                 // רחב ⇒ «תמליץ על 3»
+  }
+  for (const st of STYLES) {                                     // סגנון בלבד: «משהו חריף מהראשונות»
+    if (!st.phrase(unit, null) || !styleFits(st, null)) continue;
+    const S = dishes.filter(st.test);
+    if (S.length >= 1 && S.length <= 8 && S.length < n) consider(null, st, S);
+  }
+  // עד 8 לקטגוריה; קודם רמזים ממוקדים (1-4), אחר כך רחבים
+  recs.sort((a, b) => (a.S.length <= 4 ? 0 : 1) - (b.S.length <= 4 ? 0 : 1) || b.S.length - a.S.length);
   for (const r of recs) {
     if (out.filter((q) => q.kind === "rec").length >= 8) break;
-    if (r.S.every((d) => obvious(d, r.atom))) continue;
-    if (r.S.every((d) => covered.has(d.name))) continue;
-    r.S.forEach((d) => covered.add(d.name));
-    const ask = `לקוח מבקש המלצה ל${unit}${r.hot ? " חריף" : ""} עם ${r.atom} ${catFrom} — על מה תמליץ?${r.S.length >= 2 ? " ציין את כל המנות שאתה מכיר" : ""}`;
-    push(`rec:${norm(r.atom)}${r.hot ? "+חריף" : ""}`, "rec", ask, r.S, Object.fromEntries(r.S.map((d) => [d.name, `יש ${r.atom}${r.hot ? " וחריף" : ""}`])));
+    const what = r.atom ? (r.style ? r.style.phrase(unit, r.atom) : `ל${unit} עם ${r.atom}`) : r.style.phrase(unit, null);
+    const lead = r.atom ? `לקוח מבקש המלצה ${what}` : `לקוח מבקש ${what}`;                     // «לקוח מבקש משהו חריף מהראשונות»
+    const big = r.S.length > 4;
+    const ask = big ? `${lead} ${catFrom} — תמליץ על 3` : `${lead} ${catFrom} — על מה תמליץ?${r.S.length >= 2 ? " ציין את כל המנות שאתה מכיר" : ""}`;
+    const why = Object.fromEntries(r.S.map((d) => [d.name, `${r.atom ? `יש ${r.atom}` : ""}${r.atom && r.style ? " · " : ""}${r.style ? r.style.key : ""}`]));
+    push(`rec:${r.atom ? norm(r.atom) : ""}${r.style ? "+" + r.style.key : ""}`, "rec", ask, r.S, why, big ? 3 : null);
   }
   return out;
 }

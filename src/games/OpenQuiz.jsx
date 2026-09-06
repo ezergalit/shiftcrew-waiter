@@ -110,8 +110,10 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     }
     // מנה פשוטה (יותם, 6.9: המבורגר ילדים, פסטה ילדים, בייגל…) — שואלים רק מה שרלוונטי מתוך
     // התיאור (בלקיחת ההזמנה · כמה גרם · כמה יחידות · כמה לשולחן), במקום «תמליץ ותאר»+אלרגיות
+    // מנה פשוטה בלי שאלה נגזרת (בייגל שכולו ליווי) — לא נבחנת בכלל (יותם: «אף לקוח לא ישאל מה
+    // יש בבייגל קולורי»); הידע עליה נכנס דרך שאלות-הסט של הקטגוריה.
     const dishCard = (it) => {
-      if (isSimple(it)) { const sq = simpleQuestions(it); if (sq.length) return { dish: it.name, it, simple: sq }; }
+      if (isSimple(it)) { const sq = simpleQuestions(it); return sq.length ? { dish: it.name, it, simple: sq } : null; }
       const e = byDish.get(it.name); return e ? { ...e, it } : null;
     };
     const drinkCat = !exam && food.some((i) => i.drink);

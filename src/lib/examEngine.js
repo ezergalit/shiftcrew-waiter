@@ -221,6 +221,11 @@ const isVegan = d => /טבעוני/.test(d.desc || "") && !/אינו צמחונ�
 // free = the dish's whole vocabulary: name + description + ingredient phrasing. Anything
 // the dish's own page says is at worst neutral — never an "invention".
 const freeFor = d => [...new Set([...nameToks(d), ...toks(d.desc || ""), ...(d.ingredients || []).flatMap(i => toks(i))])];
+// «לחם» בפינרלי, «אורז ואצה» בסושי — ברור שהם שם וזה לא הקונספט של השאלה (יותם, 6.9):
+// בסיס/נושא/תיבול יסודי לא מזכה ולא מוריד, בכל מנה בכל מסעדה. חל דרך freeWord על כל שאלה.
+export const BASE_FREE = ["לחם", "לחמנייה", "לחמניה", "לחמים", "בצק", "מאפה", "פיתה", "פיתות", "אורז", "אורז סושי", "אצה", "אצות", "נורי",
+  "קמח", "שמן", "שמן זית", "מלח", "פלפל", "מים", "סוכר", "תבלינים", "תבלין", "ירק", "רוטב"];
+const freeWord = (w, q) => [...(q.free || []), ...BASE_FREE].some((f) => wMatch(w, norm(f)));
 
 /* ══ Situation generators — each returns exam moves in the page schema ══ */
 export function generate(menu) {
@@ -957,7 +962,7 @@ function sentenceLeftoverWrong(cw, q, creditedTis) {
   }
   for (const w of cw) {
     if (cover.some((v) => wMatch(w, v))) continue;
-    if ((q.free || []).some((f) => wMatch(w, norm(f)))) continue;
+    if (freeWord(w, q)) continue;
     // קנס חייב להיות ודאי: חברות מדויקת באוצר המילים, לא עמומה — «ומאוד»
     // נתפס דרך prefix ל«מאודה» (גיוזה מאודה) והפיל משפט נכון. נתפס באימות.
     const bare = w.startsWith("ו") && w.length > 2 ? w.slice(1) : w;
@@ -982,7 +987,7 @@ export function grade(q, answer) {
     const chips = Array.isArray(answer) ? answer : String(answer).split(/[,·\n]+/).map(x => x.trim()).filter(Boolean);
     const matched = new Set(); let inv = 0;
     for (const t of q.targets) addVocab(t.t, ...(t.must || []), ...(t.alt || []));
-    addVocab(...(q.free || []));
+    addVocab(...(q.free || []), ...BASE_FREE);
     // התיאורים שהאמת של השאלה באמת נושאת — כדי לזהות ניחוש סותר: «מר» על
     // קוקטייל שכל האמת שלו מתוקה נספר כטעות גם אם המילה «מתוק» שלצידו נכונה.
     const truthCanons = new Set();
@@ -1001,6 +1006,10 @@ export function grade(q, answer) {
       const cw = toks(c); total += cw.length;
       const d = { chip: c, credited: [], status: "" };
       detail.push(d);
+      // בסיס («אורז», «לחם», «פיתה») נסגר כאן, לפני ההתאמה העמומה: אחרת «פיתה» זיכה «פילה»
+      // ו«אורז» זיכה «כבד אווז» (טעות אות אחת). רק יעד שהוא בדיוק המילה עדיין נספר.
+      const baseSet = new Set(BASE_FREE.map(norm));
+      if (cw.length && cw.every((w) => baseSet.has(w)) && !q.targets.some((t, ti) => !matched.has(ti) && norm(t.t) === norm(c))) { d.status = "free"; continue; }
       // ניגוד לאמת = טעות בטוחה, גם כשהיא רוכבת על צ'יפ שחציו נכון («מתוק מר»
       // מזוכה על המתוק — וה«מר» היה עובר חינם).
       if (truthCanons.size && cw.some(contradicts)) { wrongFar++; d.contradicts = true; }
@@ -1029,7 +1038,7 @@ export function grade(q, answer) {
         d.status = "ok";
         d.credited = credited.map((ti) => q.targets[ti].t);
         return true; })()) { /* מצב משפט — זיכה כמה יעדים */ }
-      else if (cw.length && cw.every(w => (q.free || []).some(f => wMatch(w, norm(f))))) { d.status = "free"; }
+      else if (cw.length && cw.every(w => freeWord(w, q))) { d.status = "free"; }
       else {
         inv++;
         const u = cw.filter(w => !vocab.some(v => wMatch(w, v)));
@@ -1059,7 +1068,7 @@ export function grade(q, answer) {
   } else if (q.k === "fact") {
     const tokens = toks(String(answer)); total = tokens.length;
     for (const g of q.req) addVocab(...g);
-    addVocab(...(q.half || []).flat(), ...(q.free || []));
+    addVocab(...(q.half || []).flat(), ...(q.free || []), ...BASE_FREE);
     const hit = q.req.filter(g => g.some(v => entryOk(v, tokens))).length;
     lvl = hit === q.req.length ? 2 : hit > 0 ? 1
         : (q.half && q.half.some(g => g.some(v => entryOk(v, tokens)))) ? 1 : 0;

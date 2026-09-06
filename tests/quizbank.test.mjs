@@ -45,8 +45,21 @@ const rolls = buildSetQuestions([
   D("סלמון קריספי", { category: "רולים מיוחדים", ingredients: ["סלמון", "שבבי טמפורה", "ספייסי מיונז"], allergens: ["גלוטן", "ביצים"] }),
   D("ירקות", { category: "רולים מיוחדים", ingredients: ["מלפפון", "גזר", "אבוקדו"], allergens: [] }),
 ], "רולים מיוחדים");
-const tuna = rolls.find((q) => q.id === "rec:טונה אדומה");
-ok(tuna && tuna.answer.length === 2 && tuna.ask === "לקוח מבקש המלצה לרול מיוחד עם טונה אדומה מתוך ״רולים מיוחדים״ — על מה תמליץ? ציין את כל המנות שאתה מכיר", `«רול מיוחד עם טונה אדומה» ⇒ 2 רולים (${tuna?.ask})`);
+const tuna = rolls.find((q) => q.id === "rec:טונה");
+ok(tuna && tuna.answer.length === 3 && tuna.ask === "לקוח מבקש המלצה לרול מיוחד עם טונה מתוך ״רולים מיוחדים״ — על מה תמליץ? ציין את כל המנות שאתה מכיר", `«רול מיוחד עם טונה» ⇒ 3 רולים (${tuna?.ask})`);
+ok(!rolls.some((q) => /מטוגן|אפוי|מהגריל/.test(q.ask)), "ברולים אין סגנון הכנה («רול עם טונה מטוגן» אינו בקשה)");
+const mains = buildSetQuestions([
+  D("סלמון מיסו", { category: "עיקריות", ingredients: ["פילה סלמון", "מיסו"], desc: "פילה סלמון אפוי בתנור עם מיסו" }),
+  D("סלמון בגריל", { category: "עיקריות", ingredients: ["פילה סלמון", "לימון"], desc: "פילה סלמון צלוי על הגריל" }),
+  D("סלמון קריספי", { category: "עיקריות", ingredients: ["פילה סלמון", "פנקו"], desc: "סלמון מטוגן בציפוי פנקו" }),
+  D("סלמון טרטר", { category: "עיקריות", ingredients: ["סלמון", "אבוקדו"], desc: "סלמון נא קצוץ", pregnancy: ["דג נא"] }),
+  D("סלמון בשמנת", { category: "עיקריות", ingredients: ["סלמון", "שמנת"], desc: "פסטה עם סלמון ושמנת" }),
+  D("שניצל", { category: "עיקריות", ingredients: ["חזה עוף", "פנקו"], desc: "חזה עוף מטוגן" }),
+  D("צ'יפס", { category: "עיקריות", ingredients: ["תפוחי אדמה"], desc: "צ'יפס מטוגן" }),
+], "עיקריות");
+ok(mains.some((q) => /עם סלמון אפוי/.test(q.ask) && q.answer.join() === "סלמון מיסו") && mains.some((q) => /עם סלמון מהגריל/.test(q.ask)), `סלמון רחב (5) ⇒ מצומצם בסגנון: «סלמון אפוי», «סלמון מהגריל» (${mains.filter((q) => q.kind === "rec").map((q) => q.ask.replace(/ מהעיקריות.*/, "")).join(" | ")})`);
+ok(mains.some((q) => /^לקוח מבקש משהו מטוגן מהעיקריות/.test(q.ask) && q.answer.length === 3), "«לקוח מבקש משהו מטוגן מהעיקריות» ⇒ 3 (סגנון בלבד, ניסוח לקוח)");
+ok(!mains.some((q) => /עם עוף מטוגן|צ'יפס/.test(q.ask)), "אין «עוף מטוגן» כשיש עוף אחד (הרמז הפשוט «עם עוף» מספיק)");
 ok(!rolls.some((q) => /מיונז|מלפפון|טמפורה/.test(q.ask)), "מיונז/מלפפון/טמפורה לעולם לא רמז");
 ok(!rolls.some((q) => q.id === "rec:ספייסי טונה"), "«ספייסי טונה» ⇒ «ספייסי טונה רול» — השם מסגיר, לא נשאל");
 // מילים קצרות שלמות בלבד: «כבדי» (וויסקי כבד) אינו «כבד אווז»; «מנגולד» אינו «מנגו»
@@ -54,7 +67,7 @@ const wl = buildSetQuestions([
   D("ארדבג", { category: "וויסקי", ingredients: ["כבדי", "מעושן"] }), D("גלנליווט", { category: "וויסקי", ingredients: ["קליל", "פירותי"] }),
   D("מגורו ניגירי", { category: "וויסקי", ingredients: ["כבד אווז", "אורז"] }), D("סלט הגינה", { category: "וויסקי", ingredients: ["מנגולד", "לימון"] }),
 ], "וויסקי");
-ok(!wl.some((q) => /כבדי|מנגולד/.test(q.ask)) && wl.some((q) => q.id === "rec:כבד אווז"), "«כבדי»/«מנגולד» לא רמז; «כבד אווז» כן");
+ok(!wl.some((q) => /כבדי|מנגולד|כבד/.test(q.ask)), "«כבדי»/«מנגולד»/«כבד אווז» אינם בקשות של לקוח — אין רמז");
 ok(sets.every((q) => !q.ask.includes("הGreek")), "ניסוח");
 ok(catForms("Greek Oven Breads").catIn === "המנות ב״Greek Oven Breads״" && catForms("ראשונות").catIn === "הראשונות" && catForms("ילדים").catIn === "מנות הילדים" && catForms("אינסייד אאוט").catFrom === "מתוך ״אינסייד אאוט״", "צורות קטגוריה (שתי מילים ⇒ ציטוט)");
 ok(veganSafe({ name: "טופו", ingredients: ["טופו"], allergens: [] }) === true && veganSafe({ name: "x", ingredients: [] }) === null, "גלאי טבעוני: כן / לא-ידוע");
@@ -74,6 +87,7 @@ if (recCard) ok(recCard.set.answer.every((name) => q1.cards.some((c) => c.kind =
 const bankIds = [...twelve.map((d) => `dish:${d.name}`), ...sets12.map((s) => s.id)];
 const seen = nextSeen([], q1.asked, bankIds);
 const q2 = composeQuiz({ dishes: twelve.map((d) => ({ name: d.name })), sets: sets12, seen, rand: seeded });
+ok(!sets12.some((q) => /מרכיב\d|אבוקדו ו/.test(q.ask)), "מרכיב שאינו בקשה של לקוח אינו רמז");
 // מנות של הרמז המרומז חייבות להיבחן איתו — הן החריג היחיד לחזרה
 const rec2 = q2.cards.find((c) => c.kind === "rec");
 ok(q2.cards.filter((c) => c.kind === "dish" && !(rec2 && rec2.set.answer.includes(c.name))).every((c) => !q1.asked.includes(`dish:${c.name}`)), "מלצר שנכשל לא מקבל את אותן מנות בישיבה הבאה");
