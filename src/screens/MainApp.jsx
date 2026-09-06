@@ -260,6 +260,16 @@ export default function MainApp({ session, onSignOut }) {
   // Minutes studied since Sunday — feeds the personal greeting ("השבוע למדת X דקות").
   const [weekSeconds, setWeekSeconds] = useState(0);
   const [passedCats, setPassedCats] = useState([]);
+  // «תצוגת מלצר» של המנהל = משתמש admin עם 100% בהכל, שיכול לגשת לכל הבחנים והמבחן (יותם, 6.9).
+  // רק בזיכרון — preview לעולם לא כותב (learnItem/recordExam עוצרים על preview).
+  useEffect(() => {
+    if (!preview || !cards?.length) return;
+    setMasteryById(Object.fromEntries(cards.map((c) => [c.id, 5])));
+    setFivesById(Object.fromEntries(cards.map((c) => [c.id, 2])));
+    setVerifiedById(Object.fromEntries(cards.map((c) => [c.id, true])));
+    setMastered(new Set(cards.map((c) => c.id)));
+    setPassedCats([...new Set(cards.map((c) => c.category).filter(Boolean))]);
+  }, [preview, cards]);
   const [daily, setDaily] = useState(() => loadDaily(session?.teamMemberId));
   const [bonusTotal, setBonusTotal] = useState(() => loadNum("menu-app-bonus", session?.teamMemberId));
   const [bestSpeed, setBestSpeed] = useState(() => loadNum("menu-app-best-speed", session?.teamMemberId));
@@ -372,7 +382,7 @@ export default function MainApp({ session, onSignOut }) {
           .eq("id", session.teamMemberId).then(() => {}, () => {});
       }
       const { data: m } = session?.teamMemberId ? await db.from("menu_progress").select("source_item_id, mastery, consecutive_fives, verified").eq("team_member_id", session.teamMemberId) : { data: [] };
-      if (alive) {
+      if (alive && !preview) {   // preview = admin עם 100% (אפקט נפרד) — לא לדרוס
         // Points follow VERIFIED mastery only — a self-reported 5 doesn't count here.
         setMastered(new Set((m || []).filter(r => (r.mastery ?? 0) >= 4 && r.verified).map(r => r.source_item_id)));
         setVerifiedById(Object.fromEntries((m || []).map(r => [r.source_item_id, !!r.verified])));
@@ -401,7 +411,7 @@ export default function MainApp({ session, onSignOut }) {
       }
       const { data: exams } = session?.teamMemberId ? await db.from("exam_results")
         .select("category").eq("team_member_id", session.teamMemberId).eq("passed", true) : { data: [] };
-      if (alive) setPassedCats([...new Set((exams || []).map(r => r.category))]);
+      if (alive && !preview) setPassedCats([...new Set((exams || []).map(r => r.category))]);
       const today = new Date().toISOString().slice(0, 10);
       const { data: b, error: bErr } = await db.from("daily_brief").select("*").eq("restaurant_id", session?.restaurantId).eq("date", today).maybeSingle();
       // A brief that fails to load looks exactly like a day with no brief — the same
@@ -594,6 +604,8 @@ export default function MainApp({ session, onSignOut }) {
       team_member_id: session.teamMemberId,
       category: examCategory.key,
       score, passed, dish_count: dishCount,
+      // מבחן מלא ⇒ ממתין לאישור המנהל («המנהל יודיע לך את התוצאה», יותם 6.9); בחנים — null
+      review_status: examCategory.key === "general" ? "pending" : null,
     });
     // Non-fatal: the exam already counted via menu_progress, so a failed insert loses the
     // history row but not the trainee's progress. Don't interrupt the results screen.
