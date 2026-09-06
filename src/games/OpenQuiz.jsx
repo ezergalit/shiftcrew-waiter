@@ -500,13 +500,26 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               label="אלרגיות" placeholder="כתבו אלרגיה ולחצו הוסף…"
             />
           )}
-          <button
-            onClick={submit}
-            disabled={judging || (!!cur.set && !setSel.length) || (openDesc && toks(descText).length < 2) || (openDesc && !ings.length) || (!!cur.simple && cur.simple.some((_, k) => !(simpleAns[k] || "").trim()))}
-            className="w-full py-3 min-h-[44px] rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm disabled:opacity-60"
-          >
-            {judging ? "בודק…" : "שליחה"}
-          </button>
+          {/* «נתקע בתשובה» (יותם, 6.9): הכפתור היה מושבת בלי להגיד למה — דרש גם תיאור וגם
+              צ'יפ מרכיב. עכשיו: תיאור של שתי מילים מספיק (מרכיבים חסרים = פספוס בציון, לא
+              חסימה), ומה שעדיין חסר כתוב מתחת לכפתור. */}
+          {(() => {
+            const why = judging ? null
+              : cur.set && !setSel.length ? "כתבו לפחות מנה אחת ולחצו הוסף"
+              : openDesc && toks(descText).length < 2 ? "כתבו תיאור של לפחות שתי מילים"
+              : cur.simple && cur.simple.some((_, k) => !(simpleAns[k] || "").trim()) ? "ענו על כל השאלות"
+              : null;
+            return (<>
+              <button
+                onClick={submit}
+                disabled={judging || !!why}
+                className="w-full py-3 min-h-[44px] rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm disabled:opacity-60"
+              >
+                {judging ? "בודק את התשובה… (עד כמה שניות)" : "שליחה"}
+              </button>
+              {why && <p className="text-[11px] text-[#8a8aa0] text-center -mt-1">{why}</p>}
+            </>);
+          })()}
         </div>
       ) : (
         <div className="space-y-3">
