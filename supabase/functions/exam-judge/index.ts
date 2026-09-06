@@ -15,9 +15,9 @@
 // exam_memory only after this verification. No key / timeout / bad JSON ⇒ the deterministic
 // verdict stands; nothing is saved.
 //
-// ⚠️ NOT YET DEPLOYED. Preconditions: OPENROUTER_API_KEY / ANTHROPIC_API_KEY secret set in
-// the project (currently absent ⇒ skipped:no_key), and Yotam's §10 decisions. Deploy keeps
-// v4 live for restaurants already calling it (absent v ⇒ v4 path).
+// Deployed 6.9 as v2 of `exam-judge` in project qwgbyeapzzeybmndrszw (this file, verbatim).
+// Without an OPENROUTER_API_KEY / ANTHROPIC_API_KEY secret every path returns skipped:no_key
+// and the deterministic verdict stands. Absent `v` ⇒ v4 path (live restaurants).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 export const CONTRACT_VERSION = 5;
