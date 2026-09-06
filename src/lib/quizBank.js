@@ -56,7 +56,8 @@ export function catForms(cat) {
   if (CAT_SPECIAL[cat]) return { catIn: CAT_SPECIAL[cat][0], catFrom: CAT_SPECIAL[cat][1] };
   const words = cat.split(/\s+/).filter(Boolean);
   const latin = /[A-Za-z]/.test(cat);
-  if (latin || words.length >= 3) return { catIn: `המנות ב״${cat}״`, catFrom: `מתוך ״${cat}״` };
+  // שתי מילים ומעלה ⇒ ציטוט: «מהרולים מיוחדים» / «מהאינסייד אאוט» אינם עברית
+  if (latin || words.length >= 2) return { catIn: `המנות ב״${cat}״`, catFrom: `מתוך ״${cat}״` };
   const catIn = /^ה/.test(cat) ? cat : `ה${cat}`;
   return { catIn, catFrom: `מ${catIn}` };
 }
@@ -77,6 +78,22 @@ export function examPlan(sizes, total = 40) {
   // רצפה של 1 לקטגוריה כשהמבחן גדול מספיק (40 שאלות ⇒ אף קטגוריה לא נעלמת)
   for (const r of raw) if (plan[r.cat] === 0 && left <= 0) { const donor = order.find((o) => plan[o.cat] > 1 && o.cat !== r.cat); if (donor) { plan[donor.cat]--; plan[r.cat] = 1; } }
   return plan;
+}
+
+// ── מרכיב-כותרת: מה שלקוח באמת מבקש בשולחן (יותם, 6.9) ─────────────────────────
+// דגים, בשר, עיקריים צמחיים — או מרכיב שהמסעדה עצמה שמה בשם של מנה בקטגוריה. תיבול/רוטב/
+// ציפוי לעולם לא («ספייסי מיונז» הוא המרכיב האמיתי, אבל אף אחד לא מבקש רול עם מיונז).
+const HEADLINE = ["טונה", "סלמון", "ילוטייל", "המאצ", "לברק", "דניס", "מוסר", "דג לבן", "שרימפס", "קלמארי", "תמנון", "סרטן", "צלופח",
+  "אונאגי", "סקאלופ", "צדפ", "עוף", "פרגית", "בקר", "סינטה", "אנטריקוט", "פילה", "טלה", "כבש", "אסאדו", "ברווז", "המבורגר", "כבד",
+  "טופו", "אבוקדו", "פטרי", "שיטאקי", "חציל", "בטטה", "כמהין", "ארטישוק", "קינואה", "עדשים", "חומוס", "גבינ", "פטה", "בוראטה",
+  "מוצרלה", "חלומי", "ביצה", "מנגו", "אננס", "תות", "שוקולד"];
+const HEADLINE_EXACT = ["בס"];
+const CONDIMENT = /מיונז|רוטב|סויה|טריאקי|פונזו|שומשום|שמן|מלח|פלפל|סוכר|לימון|ליים|בצל|שום|ג'ינג'ר|גינגר|וסאבי|כוסברה|פטרוזיליה|נענע|אורז|אצה|נורי|טמפורה|שבבי|קראמבל|ציפוי|רסק|חמאה|שמנת|קרם|סילאן|דבש|חרדל|קטשופ|צ'ילי|צילי|יוזו|טוביקו|מסאגו|איקורה|תבלין|עשבי/;
+function isHeadline(ing, nameText) {
+  const k = norm(String(ing || "")); if (k.length < 3 || CONDIMENT.test(k)) return false;
+  const words = k.split(" ").filter(Boolean);
+  if (words.some((w) => HEADLINE.some((h) => w.startsWith(h)) || HEADLINE_EXACT.includes(w))) return true;
+  return nameText.includes(k);                                  // «טונה אדומה» בשם מנה ⇒ כותרת
 }
 
 // ── בנק שאלות-סט לקטגוריה (בלי AI) ──────────────────────────────────────────
@@ -117,46 +134,30 @@ export function buildSetQuestions(items, catLabel) {
     const ask = big ? `תמליץ ל${a.who} על 3 מנות ${catFrom}` : `אילו מנות ${catFrom} תמליץ ל${a.who}? ציין את כולן`;
     push(`set:${a.id}`, "list", ask, S, why, big ? 3 : null);
   }
-  // 5. המלצה מרומזת — מרכיב/דגל אחד או שניים שמצביעים על 1-2 מנות בלבד
-  //    («לקוח רוצה דג נא ואבוקדו מהראשונות ⇒ סקוורס / סשימי ילוטייל»)
-  const atomsOf = (d) => {
-    const s = new Map();
-    for (const x of askableIngredients(d)) s.set(norm(x), x);
-    for (const x of d.pregnancy || []) s.set(norm(x), x);
-    for (const x of d.pitfalls || []) s.set(norm(x), x);
-    return s;
-  };
-  const dishAtoms = dishes.map(atomsOf);
+  // 5. המלצה מרומזת (יותם, 6.9): «לקוח מבקש המלצה לרול מיוחד עם טונה אדומה, או ספייסי טונה —
+  //    אף אחד לא יבקש רול עם טונה וספייסי מיונז». רמז = **מרכיב-כותרת אחד** (דג/בשר/עיקרי, או
+  //    מרכיב שמופיע בשם של מנה בקטגוריה) שמצביע על 1-4 מנות. רוטב/תיבול לעולם לא רמז, שני
+  //    מרכיבים לעולם לא. «חריף» מצטרף רק כדי לצמצם רמז רחב מדי («רול חריף עם סלמון»).
+  const unit = /מיוחד/.test(cat) ? "רול מיוחד" : /רול|מאקי|אינסייד/.test(cat) ? "רול" : "מנה";
+  const nameText = dishes.map((d) => norm(d.name)).join(" | ");
+  const headlineOf = (d) => askableIngredients(d).filter((x) => isHeadline(x, nameText));
   const index = new Map();                                     // atomKey → { label, set: dish[] }
-  dishAtoms.forEach((m, i) => { for (const [k, label] of m) { const e = index.get(k) || { label, set: [] }; e.set.push(dishes[i]); index.set(k, e); } });
+  dishes.forEach((d) => { for (const x of headlineOf(d)) { const k = norm(x); const e = index.get(k) || { label: x, set: [] }; if (!e.set.includes(d)) e.set.push(d); index.set(k, e); } });
   const recs = [];
-  const seenSets = new Set();
-  const key = (S) => S.map((d) => d.name).sort().join("|");
   for (const [, e] of index) {
-    if (e.set.length >= 1 && e.set.length <= 2 && !seenSets.has(key(e.set))) {
-      seenSets.add(key(e.set));
-      recs.push({ atoms: [e.label], S: e.set });
-    }
-  }
-  const keys = [...index.keys()].filter((k) => index.get(k).set.length >= 2);
-  for (let i = 0; i < keys.length; i++) for (let j = i + 1; j < keys.length; j++) {
-    const A = index.get(keys[i]), B = index.get(keys[j]);
-    const inter = A.set.filter((d) => B.set.includes(d));
-    if (inter.length >= 1 && inter.length <= 2 && !seenSets.has(key(inter))) {
-      seenSets.add(key(inter));
-      recs.push({ atoms: [A.label, B.label], S: inter });
-    }
+    if (e.set.length <= 4) { recs.push({ atom: e.label, S: e.set, hot: false }); continue; }
+    const hot = e.set.filter((d) => (d.pitfalls || []).includes("חריף"));
+    if (hot.length >= 1 && hot.length <= 4) recs.push({ atom: e.label, S: hot, hot: true });
   }
   // עדיפות לרמז שמכסה מנה שעוד לא כוסתה; עד 8 לקטגוריה
   const covered = new Set();
-  recs.sort((a, b) => a.S.filter((d) => !covered.has(d.name)).length - b.S.filter((d) => !covered.has(d.name)).length).reverse();
+  recs.sort((a, b) => a.S.length - b.S.length);
   for (const r of recs) {
     if (out.filter((q) => q.kind === "rec").length >= 8) break;
-    if (r.S.every((d) => covered.has(d.name)) && r.atoms.length === 1) continue;
+    if (r.S.every((d) => covered.has(d.name))) continue;
     r.S.forEach((d) => covered.add(d.name));
-    const what = r.atoms.length === 2 ? `${r.atoms[0]} ו${r.atoms[1]}` : r.atoms[0];
-    push(`rec:${r.atoms.map(norm).join("+")}`, "rec", `לקוח מבקש משהו עם ${what} ${catFrom} — על מה תמליץ? ציין את כל האופציות`, r.S,
-      Object.fromEntries(r.S.map((d) => [d.name, `יש ${what}`])));
+    const ask = `לקוח מבקש המלצה ל${unit}${r.hot ? " חריף" : ""} עם ${r.atom} ${catFrom} — על מה תמליץ?${r.S.length >= 2 ? " ציין את כל האפשרויות" : ""}`;
+    push(`rec:${norm(r.atom)}${r.hot ? "+חריף" : ""}`, "rec", ask, r.S, Object.fromEntries(r.S.map((d) => [d.name, `יש ${r.atom}${r.hot ? " וחריף" : ""}`])));
   }
   return out;
 }
@@ -181,11 +182,14 @@ export function composeQuiz({ dishes, sets, seen = [], rand = Math.random, size 
   // שאלות-סט: קודם «ציין את כל», ואז אם יש מקום — המלצה מרומזת; לא-נשאל קודם
   const lists = byFresh(sets.filter((q) => q.kind === "list"), (q) => q.id);
   const recs = byFresh(sets.filter((q) => q.kind === "rec"), (q) => q.id);
+  // במכסת מבחן רמז נבחר רק אם הוא והמנות שלו נכנסים בה (רמז של 2 מנות במכסה של 1 ⇒ 41)
+  const recFits = (q) => size == null || 1 + q.answer.filter((name) => dishes.some((d) => d.name === name)).length <= N;
+  const recsFit = recs.filter(recFits);
   const chosenSets = [];
   if (setN >= 1 && lists.length) chosenSets.push(lists[0]);
-  if (chosenSets.length < setN && recs.length) chosenSets.push(recs[0]);
+  if (chosenSets.length < setN && recsFit.length) chosenSets.push(recsFit[0]);
   while (chosenSets.length < setN) {
-    const next = [...lists, ...recs].find((q) => !chosenSets.includes(q));
+    const next = [...lists, ...recsFit].find((q) => !chosenSets.includes(q));
     if (!next) break; chosenSets.push(next);
   }
   // מנות: קודם המנות של ההמלצה המרומזת (בוחנים כל אחת בנפרד), אחר כך לא-נשאל, ⭐ קודם
