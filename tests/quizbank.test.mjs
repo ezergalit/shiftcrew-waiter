@@ -49,6 +49,12 @@ const tuna = rolls.find((q) => q.id === "rec:טונה אדומה");
 ok(tuna && tuna.answer.length === 2 && tuna.ask === "לקוח מבקש המלצה לרול מיוחד עם טונה אדומה מתוך ״רולים מיוחדים״ — על מה תמליץ? ציין את כל האפשרויות", `«רול מיוחד עם טונה אדומה» ⇒ 2 רולים (${tuna?.ask})`);
 ok(!rolls.some((q) => /מיונז|מלפפון|טמפורה/.test(q.ask)), "מיונז/מלפפון/טמפורה לעולם לא רמז");
 ok(!rolls.some((q) => q.id === "rec:ספייסי טונה"), "«ספייסי טונה» ⇒ «ספייסי טונה רול» — השם מסגיר, לא נשאל");
+// מילים קצרות שלמות בלבד: «כבדי» (וויסקי כבד) אינו «כבד אווז»; «מנגולד» אינו «מנגו»
+const wl = buildSetQuestions([
+  D("ארדבג", { category: "וויסקי", ingredients: ["כבדי", "מעושן"] }), D("גלנליווט", { category: "וויסקי", ingredients: ["קליל", "פירותי"] }),
+  D("מגורו ניגירי", { category: "וויסקי", ingredients: ["כבד אווז", "אורז"] }), D("סלט הגינה", { category: "וויסקי", ingredients: ["מנגולד", "לימון"] }),
+], "וויסקי");
+ok(!wl.some((q) => /כבדי|מנגולד/.test(q.ask)) && wl.some((q) => q.id === "rec:כבד אווז"), "«כבדי»/«מנגולד» לא רמז; «כבד אווז» כן");
 ok(sets.every((q) => !q.ask.includes("הGreek")), "ניסוח");
 ok(catForms("Greek Oven Breads").catIn === "המנות ב״Greek Oven Breads״" && catForms("ראשונות").catIn === "הראשונות" && catForms("ילדים").catIn === "מנות הילדים" && catForms("אינסייד אאוט").catFrom === "מתוך ״אינסייד אאוט״", "צורות קטגוריה (שתי מילים ⇒ ציטוט)");
 ok(veganSafe({ name: "טופו", ingredients: ["טופו"], allergens: [] }) === true && veganSafe({ name: "x", ingredients: [] }) === null, "גלאי טבעוני: כן / לא-ידוע");
