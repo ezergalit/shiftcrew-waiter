@@ -512,7 +512,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   if (finished) {
     const avg = examAvg();
     if (aborted) return (
-      <div className="h-screen overflow-y-auto max-w-md mx-auto p-6 text-center space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+      <div className="h-screen pt-[calc(26px+env(safe-area-inset-top))] overflow-y-auto max-w-md mx-auto p-6 text-center space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
         <p className="text-3xl">🛠️</p>
         <p className="text-sm font-black text-[#eef0f6]">תודה על הדיווחים</p>
         <p className="text-[12.5px] text-[#8a8aa0] leading-relaxed">אנחנו מטפלים בבעיות שדיווחת עליהן. המבחן הזה לא נספר, ותוכל להיבחן שוב מחר.</p>
@@ -521,7 +521,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     );
     // מבחן: הציון לא מוצג — «בסוף המבחן המנהל יודיע לך את התוצאה» (יותם, 6.9). בוחן — כרגיל.
     if (exam) return (
-      <div className="h-screen overflow-y-auto max-w-md mx-auto p-6 text-center space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+      <div className="h-screen pt-[calc(26px+env(safe-area-inset-top))] overflow-y-auto max-w-md mx-auto p-6 text-center space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
         <GraduationCap size={40} className="text-[#22c08c] mx-auto" />
         <p className="text-sm font-black text-[#eef0f6]">המבחן הסתיים ונשלח למנהל</p>
         <p className="text-[12.5px] text-[#8a8aa0] leading-relaxed">המנהל יעבור על התשובות ויודיע לך את התוצאה. תודה!</p>
@@ -529,7 +529,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       </div>
     );
     return (
-      <div className="h-screen overflow-y-auto max-w-md mx-auto p-6 text-center space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+      <div className="h-screen pt-[calc(26px+env(safe-area-inset-top))] overflow-y-auto max-w-md mx-auto p-6 text-center space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
         <GraduationCap size={40} className={avg >= passMark ? "text-[#22c08c] mx-auto" : "text-[#f3a712] mx-auto"} />
         <p className="text-3xl font-black text-[#eef0f6]">{avg}%</p>
         <p className="text-sm font-bold text-[#8a8aa0]">
@@ -545,10 +545,10 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const fmt = (n) => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
 
   if (exam && teamMemberId && blocked === null) return (
-    <div className="h-screen flex items-center justify-center"><p className="text-[13px] font-bold text-[#8a8aa0]">רגע…</p></div>
+    <div className="h-screen pt-[calc(26px+env(safe-area-inset-top))] flex items-center justify-center"><p className="text-[13px] font-bold text-[#8a8aa0]">רגע…</p></div>
   );
   if (exam && blocked) return (
-    <div className="h-screen overflow-y-auto max-w-md mx-auto p-6 text-center space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+    <div className="h-screen pt-[calc(26px+env(safe-area-inset-top))] overflow-y-auto max-w-md mx-auto p-6 text-center space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
       <p className="text-3xl">🛠️</p>
       <p className="text-sm font-black text-[#eef0f6]">מבחן התפריט חסום כרגע</p>
       <p className="text-[12.5px] text-[#8a8aa0] leading-relaxed">דווחו כמה טעויות במבחן ואנחנו מטפלים בהן. אפשר להיבחן מחר.</p>
@@ -557,7 +557,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   );
   // מסך ההסבר לפני המבחן — מילה במילה לפי יותם (6.9), עם המספרים האמיתיים של הישיבה
   if (exam && !briefed) return (
-    <div className="h-screen overflow-y-auto max-w-md mx-auto p-5 space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+    <div className="h-screen pt-[calc(26px+env(safe-area-inset-top))] overflow-y-auto max-w-md mx-auto p-5 space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
       <p className="text-[11px] font-black text-[#22c08c]">מבחן תפריט</p>
       <p className="text-xl font-black text-[#eef0f6]">לפני שמתחילים</p>
       <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4 space-y-2.5 text-[13px] text-[#c4c4d4] leading-relaxed">
@@ -589,18 +589,33 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
 
   const overBudget = exam && !result && elapsedQ > perQ;
   return (
-    <div className="h-screen overflow-y-auto max-w-md mx-auto p-4 space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
-      <div className="flex items-center justify-between">
-        <p className="text-[11px] font-black text-[#8a8aa0]">
-          {shortCat(categoryLabel)} · {i + 1}/{deck.length}
+    <div className="h-screen pt-[calc(26px+env(safe-area-inset-top))] overflow-y-auto max-w-md mx-auto p-4 space-y-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
+      {/* השעון: צ'יפ גדול ומודגש, ומצב «עומד» מפורש — בזמן קריאת התשובה, דיווח, ובזמן שהשופט
+          בודק (יותם, 6.9: «לא רואים אותו למעלה» + «בזמן שה-AI קורא גם לא להעביר את הזמן»). */}
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11.5px] font-black text-[#8a8aa0] leading-snug">
+          {shortCat(categoryLabel)}<br />{i + 1}/{deck.length}
         </p>
-        <div className="text-left">
-          <p className={`${exam ? "text-[20px]" : "text-[13px]"} font-black tabular-nums leading-none ${secondsLeft < 60 ? "text-[#e0315a]" : exam && result ? "text-[#8a8aa0]" : "text-[#eef0f6]"}`}>
-            {mm}:{ss}{exam && result ? " ⏸" : ""}
-          </p>
-          {exam && !result && <p className={`text-[10.5px] font-bold ${overBudget ? "text-[#f3a712]" : "text-[#5a5a6e]"}`}>{overBudget ? `עברת את ${fmt(perQ)} לשאלה — יישאר פחות לאחרות` : `≈ ${fmt(perQ)} לשאלה · עברו ${fmt(elapsedQ)}`}</p>}
-          {exam && result && <p className="text-[10.5px] font-bold text-[#22c08c]">{reporting ? "השעון עומד בזמן הדיווח" : `${reviewLeft} שניות לקרוא — לא נספר`}</p>}
-        </div>
+        {(() => {
+          const paused = exam && (result || reporting || judging);
+          const tone = paused ? { bg: "#15302b", bd: "#22c08c66", fg: "#22c08c" }
+            : secondsLeft < 60 ? { bg: "#3a1d22", bd: "#e0315a66", fg: "#ff8098" }
+            : overBudget ? { bg: "#33290f", bd: "#f3a71266", fg: "#f3c14b" }
+            : { bg: "#16181c", bd: "#22252b", fg: "#eef0f6" };
+          const note = !exam ? null
+            : judging ? "השעון עומד — בודקים את התשובה"
+            : reporting ? "השעון עומד — דיווח"
+            : result ? `השעון עומד · ${reviewLeft} שניות לקרוא`
+            : overBudget ? `עברת את ${fmt(perQ)} לשאלה` : `≈ ${fmt(perQ)} לשאלה`;
+          return (
+            <div className="rounded-2xl px-3.5 py-2 text-center min-w-[112px]" style={{ background: tone.bg, border: `1px solid ${tone.bd}` }}>
+              <p className={`${exam ? "text-[28px]" : "text-[15px]"} font-black tabular-nums leading-none`} style={{ color: tone.fg }}>
+                {paused ? "⏸ " : ""}{mm}:{ss}
+              </p>
+              {note && <p className="text-[10.5px] font-bold mt-1 leading-tight" style={{ color: paused ? "#22c08c" : overBudget ? "#f3c14b" : "#5a5a6e" }}>{note}</p>}
+            </div>
+          );
+        })()}
       </div>
       {toast && <p className="text-[12px] font-bold text-[#22c08c] bg-[#15302b]/60 rounded-xl px-3 py-2">{toast}</p>}
 
@@ -709,8 +724,33 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
             </>);
           })()}
         </div>
+      ) : reporting ? (
+        /* מסך דיווח נקי: כשפותחים אותו לא רואים את התיאור והפירוט — רק מה מדווחים ועל מה. */
+        <div className="space-y-3">
+          <div className="bg-[#16181c] border border-[#f3a712]/40 rounded-2xl p-4 space-y-2.5">
+            <p className="text-[14px] font-black text-[#f3a712]">🚩 דיווח על טעות באפליקציה</p>
+            <p className="text-[12px] text-[#c4c4d4] leading-relaxed">
+              על השאלה: <b className="text-[#eef0f6]">{cur.dish || cur.set?.ask || cur.rec?.ask}</b>
+            </p>
+            <p className="text-[11.5px] text-[#8a8aa0] leading-relaxed">מה לא נכון כאן? השאלה תישלח לבדיקה ולא תיספר — לא לטובה ולא לרעה. השעון עומד.</p>
+            <textarea value={reporting.text} onChange={(e) => setReporting({ text: e.target.value.slice(0, 500) })} maxLength={500} rows={5} dir="rtl" autoFocus
+              placeholder="למשל: כתבתי ״טונה״ וזה לא זיהה למרות שיש טונה במנה…"
+              className="w-full bg-[#101216] border border-[#22252b] rounded-xl p-3 text-[16px] text-[#eef0f6]" />
+            <div className="flex gap-2">
+              <button onClick={sendReport} disabled={!reporting.text.trim()} className="flex-1 py-3 min-h-[44px] rounded-xl bg-[#f3a712] text-[#2a1d00] font-black text-[13px] disabled:opacity-60">שליחת הדיווח</button>
+              <button onClick={() => setReporting(null)} className="py-3 px-4 rounded-xl bg-[#20232b] text-[#8a8aa0] font-bold text-[13px]">ביטול</button>
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="space-y-3">
+          {/* הדיווח למעלה (יותם, 6.9) — לפני הפירוט, כדי שלא צריך לגלול כדי למצוא אותו */}
+          {exam && teamMemberId && !reportedCards.includes(i) && (
+            <button onClick={() => setReporting({ text: "" })}
+              className="w-full py-2.5 min-h-[44px] rounded-xl border border-[#f3a712]/40 bg-[#33290f]/40 text-[12.5px] font-black text-[#f3c14b]">
+              🚩 מצאת טעות באפליקציה? דווח — לא לוקח מזמן המבחן
+            </button>
+          )}
           {result.set && (
             <div className="bg-[#16181c] border border-[#22252b] rounded-xl p-3 space-y-2">
               <div className="flex items-center gap-2">
@@ -826,21 +866,6 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               )}
             </div>
           )}
-          {exam && teamMemberId && !reportedCards.includes(i) && (reporting ? (
-            <div className="bg-[#16181c] border border-[#f3a712]/40 rounded-xl p-3 space-y-2">
-              <p className="text-[12px] font-black text-[#f3a712]">🚩 דיווח על טעות באפליקציה</p>
-              <p className="text-[11px] text-[#8a8aa0]">מה לא נכון כאן? השאלה תישלח לבדיקה ולא תיספר — לא לטובה ולא לרעה. השעון עומד.</p>
-              <textarea value={reporting.text} onChange={(e) => setReporting({ text: e.target.value.slice(0, 500) })} maxLength={500} rows={3} dir="rtl"
-                placeholder="למשל: כתבתי ״טונה״ וזה לא זיהה למרות שיש טונה במנה…"
-                className="w-full bg-[#101216] border border-[#22252b] rounded-xl p-2.5 text-[16px] text-[#eef0f6]" />
-              <div className="flex gap-2">
-                <button onClick={sendReport} disabled={!reporting.text.trim()} className="flex-1 py-2.5 min-h-[40px] rounded-xl bg-[#f3a712] text-[#2a1d00] font-black text-[12.5px] disabled:opacity-60">שליחת הדיווח</button>
-                <button onClick={() => setReporting(null)} className="py-2.5 px-3 rounded-xl bg-[#20232b] text-[#8a8aa0] font-bold text-[12.5px]">ביטול</button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setReporting({ text: "" })} className="w-full py-2 text-[12px] font-bold text-[#f3a712]">🚩 מצאת טעות באפליקציה? דווח (לא לוקח מזמן המבחן)</button>
-          ))}
           <button
             ref={nextRef}
             onClick={next}
