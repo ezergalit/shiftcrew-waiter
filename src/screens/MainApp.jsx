@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
 import MetricsScreen, { DeleteProfile } from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
 import BriefGate, { briefHasContent } from "../components/BriefGate";
-import AppTour from "../components/AppTour";
+import Tutorial from "./Tutorial";
 import ColorKey, { needsColorKey, markColorKeySeen } from "../components/ColorKey";
 import TasksTab, { useShiftTasks, PERIOD_LABEL } from "../components/TasksTab";
 import ManagerMessages from "../components/ManagerMessages";
@@ -190,7 +190,6 @@ export default function MainApp({ session, onSignOut }) {
   // Without it a restaurant renders exactly the app it rendered before — which is what
   // keeps CREWDEMO (in Apple review) and the Google testers' restaurants untouched.
   const aurora = session?.features?.design === "aurora";
-  const [tourStep, setTourStep] = useState(0);
   const [showMetrics, setShowMetrics] = useState(false); // flashcards | quiz | match | speed | exam | …
   const [modeItems, setModeItems] = useState(null); // scoped items for a challenge round; null = full menu
   // Offered once per app open, never nagged: dismissing it clears the record.
@@ -848,61 +847,33 @@ export default function MainApp({ session, onSignOut }) {
   if (gatePractice)
     return <BriefGate brief={brief} cards={cards} session={session} practice onClose={() => setGatePractice(false)} />;
 
-  // Built here, above the early returns, so a step can point INTO a full-screen view
-  // (the metrics screen) without the tour unmounting the moment it opens.
-  const tourNode = tourOpen ? (
-      <AppTour
-        aurora={tasksOff || trainee}
-        metricsOff={metricsOff}
-        demoItems={cards}
-        step={tourStep}
-        onStep={setTourStep}
-        onNavigate={(t, reset) => {
-          setTab(t);
-          setShowMetrics(false);   // a tab step is meaningless behind the metrics screen
-          // The tour points at the TOP level of each tab ("tap a menu", "tap a category"),
-          // but both tabs keep their own drill-down state — landing on a dish list with
-          // the spotlight hunting for a menu card is a dimmed screen with nothing to tap.
-          // ⚠️ Reset only when the step ASKS for it (`reset`), or the tab actually changes.
-          // Consecutive steps share a tab ("tap a menu" then "tap a category"), and
-          // resetting on every step remounted the browser right after the waiter's tap,
-          // undoing the tap they were just told to make. But a step that points at the
-          // menu list ("tap a menu") is unreachable if the browser is still drilled into
-          // a dish list from a previous run — that's the tour getting stuck with a
-          // spotlight on nothing. Those steps declare `reset` and get a clean top level.
-          if (reset || t !== tab) {
-            if (t === "categories") setBrowseKey((k) => k + 1);
-            if (t === "learn") { setCatView(null); setGroupView(null); }
-            // The tour now walks INTO a real flashcard session (one card, then a short
-            // written test). A step that resets must also leave that session, or the
-            // closing steps would stand on a card instead of the tab they name.
-            setMode(null); setProg(null);
-          }
-        }}
+  // ══ המדריך: מסך מלא, לא שכבה ══
+  // הסיור הקודם היה overlay מעל האפליקציה החיה — מדידת אלרגמנטים, החשכה, והמתנה להקשה
+  // במקום הנכון. משם הגיעו ה«דיליי» וה«קצב שלא מתאים» (יותם, 13.9). `Tutorial` הוא מסך
+  // עצמאי שמרנדר את המסעדה הזו מהנתונים שכבר נטענו — ולכן אין לו במה להיתקע.
+  if (tourOpen && cards?.length > 0)
+    return (
+      <Tutorial
+        session={session}
+        cards={cards}
         onDone={() => {
           setTourOpen(false);
-          // Land on the main screen, not wherever the tour ended (user, 2026-08-23) — the
-          // last step stands on the metrics screen, and closing there left the waiter on a
-          // stats page instead of the tasks they open the app for. Also covers "skip",
-          // which can be pressed from any step.
+          // נוחתים על המסך הראשי ובראשו — לא במקום שבו המדריך נגמר.
           setShowMetrics(false);
           setTab(trainee ? "learn" : tasksOff ? "categories" : "home");
-          // …and on the TOP of that screen (Yotam, 3.9: "בסוף תחזיר אותו לדף הראשי"). The
-          // tour now ends inside a flashcard session / a learn drill-down / an open
-          // menu; switching the tab alone left the waiter wherever the last step stood.
           setMode(null); setProg(null);
           setCatView(null); setGroupView(null);
           setBrowseKey((k) => k + 1);
           if (session?.teamMemberId) localStorage.setItem(`${TOUR_DONE_KEY}-${session.teamMemberId}`, "1");
         }}
       />
-  ) : null;
+    );
 
   // Full-screen, above the tabs: it is a place you go to, not a tab you live in.
   if (showMetrics && !metricsOff)
-    return <>{tourNode}<MetricsScreen session={session} cards={cards} masteryById={masteryById} weekly={weekly} leaderboard={leaderboard}
+    return <><MetricsScreen session={session} cards={cards} masteryById={masteryById} weekly={weekly} leaderboard={leaderboard}
       onDone={() => setShowMetrics(false)}
-      onReplayTour={() => { setShowMetrics(false); setTourStep(0); setTourOpen(true); }} /></>;
+      onReplayTour={() => { setShowMetrics(false); setTourOpen(true); }} /></>;
 
   // The colour legend, once a day, in front of the first practice of the day: red is an
   // allergy, purple is pregnancy, yellow is a preference. A waiter who reads the chips
@@ -919,17 +890,17 @@ export default function MainApp({ session, onSignOut }) {
   // so a first-day waiter on a colour-key restaurant (CREWDEMO) was stuck behind it. The tour
   // teaches the colours itself; the key shows on the next visit to the menu tab.
   if (tab === "categories" && !tourOpen && session?.features?.color_key !== false && !colorKeySeen && (preview || needsColorKey(session?.teamMemberId)))
-    // {tourNode} stays mounted on top, like the metrics branch below — without it, the
+    //  stays mounted on top, like the metrics branch below — without it, the
     // tour's "tap the menu tab" step navigated a first-day waiter straight into this
     // screen and the tour overlay silently vanished under it.
-    return <>{tourNode}<ColorKey onDone={() => { markColorKeySeen(session?.teamMemberId); setColorKeySeen(true); }} /></>;
+    return <><ColorKey onDone={() => { markColorKeySeen(session?.teamMemberId); setColorKeySeen(true); }} /></>;
 
 
   if (mode === "progressive" && prog)
     // ⚠️ Recomputed here, not captured when the session started: the waiter is rating
     // dishes right now, so the category can cross the exam threshold mid-session — and
     // that is exactly the moment worth offering the exam (user, 2026-08-23).
-    return <>{tourNode}<ProgressiveFlashcards slim={aurora} merged={mergedWarnings} items={prog.items} label={prog.label} firstId={prog.firstId} initialProgress={prog.progress}
+    return <><ProgressiveFlashcards slim={aurora} merged={mergedWarnings} items={prog.items} label={prog.label} firstId={prog.firstId} initialProgress={prog.progress}
       /* 🔴 The full gate, not just the mastery threshold. This button used to check only
          scorePct, so a failed quiz could be retaken through a 5-second flashcard round:
          rate ten cards, tap the exam offer at the end, gate skipped (user, 31.8: "מסיים
@@ -1230,7 +1201,7 @@ export default function MainApp({ session, onSignOut }) {
       {aurora && <><div className="aurora" aria-hidden><i></i><i></i><i></i><i></i></div><div className="grain" aria-hidden></div></>}
       {/* First-run interactive tour: walks the real screens, one step per tab. Shown once
           per member — the flag is device-scoped, same as the welcome slides. */}
-      {tourNode}
+      
       {/* Header.
           ⚠️ Under the skin there is NO header bar. It held one button, and a translucent
           strip with its own bottom border above the aurora read as a piece of chrome
