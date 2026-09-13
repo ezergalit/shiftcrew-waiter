@@ -631,7 +631,14 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   const menuTiles = [...new Set(dishCards.map((c) => c.menuGroup).filter(Boolean))]
     .sort((a, b) => Math.min(...dishCards.filter((c) => c.menuGroup === a).map((c) => c.menuPosition ?? 1e9))
                   - Math.min(...dishCards.filter((c) => c.menuGroup === b).map((c) => c.menuPosition ?? 1e9)));
+  // 🔴 13.9: החיפוש השווה מחרוזות גולמיות — `"יינות".includes("יין")` הוא **false**, כי
+  // הנו״ן סופית ב«יין» ורגילה בתוך «יינות» (אותה מלכודת שכבר תועדה ב-pubToCard ובעורך
+  // התפריט). מלצר שחיפש «יין» לא ראה את קטגוריית היינות בכלל, ו«בירה» החמיצה את «בירות».
+  // `fold` מנטרל את חמש האותיות הסופיות בשני הצדדים לפני ההשוואה.
+  const fold = (t) => String(t || "").replace(/ך/g, "כ").replace(/ם/g, "מ").replace(/ן/g, "נ").replace(/ף/g, "פ").replace(/ץ/g, "צ");
   const nq = q.trim();
+  const nqf = fold(nq);
+  const hasQ = (t) => fold(t).includes(nqf);
   const openDish = (d) => {
     const items = (cards || []).filter((x) => x.category === d.category)
       .sort((a, b) => (a.menuPosition ?? 0) - (b.menuPosition ?? 0));
@@ -672,10 +679,10 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
     );
   };
   const nameCats = nq
-    ? [...new Set((cards || []).map((c) => c.category).filter(Boolean))].filter((c) => c.includes(nq))
+    ? [...new Set((cards || []).map((c) => c.category).filter(Boolean))].filter((c) => hasQ(c))
     : [];
   const dishMatches = nq
-    ? (cards || []).filter((d) => (d.name || "").includes(nq) || (d.ingredients || []).some((i) => String(i).includes(nq))).slice(0, 40)
+    ? (cards || []).filter((d) => hasQ(d.name) || (d.ingredients || []).some((i) => hasQ(i))).slice(0, 40)
     : [];
   return (
     <div className="flex flex-col gap-3.5 min-h-full">

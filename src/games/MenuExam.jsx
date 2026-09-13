@@ -31,10 +31,12 @@ export default function MenuExam({ items, deckSize = 40, passMark = 70, category
   // ⚠️ categoryOrder is the owner's own serving order (exam_config.category_order). The
   // serving-order question is built only from it — guessing a course from a category name
   // would teach the waiter something false about their own restaurant's service.
-  const deck = useMemo(
-    () => buildMenuExamDeck(items || [], deckSize, Math.random, categoryOrder || []),
-    [items, deckSize, categoryOrder],
-  );
+  // 🔴 מוקפא ל-mount, לא useMemo (13.9). `items` הוא `cards.filter(...)` — מערך חדש בכל
+  // רנדר של MainApp, ש-מתרנדר **כל שנייה** משעון הלימוד. עם useMemo הדק נבנה מחדש כל
+  // שנייה עם `Math.random`: השאלה התחלפה למלצר באמצע התשובה, והשעון (שנגזר מ-`total`
+  // של הדק) התאפס לערך מלא ולכן מעולם לא נגמר. אותה מחלקה בדיוק כמו הבוחן — ר'
+  // [[feedback_random_deck_frozen]]: הרכבה אקראית מוקפאת ב-initializer של useState.
+  const [deck] = useState(() => buildMenuExamDeck(items || [], deckSize, Math.random, categoryOrder || []));
 
   const [i, setI] = useState(0);
   const [picked, setPicked] = useState(new Set());

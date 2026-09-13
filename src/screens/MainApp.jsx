@@ -1699,8 +1699,13 @@ export default function MainApp({ session, onSignOut }) {
                 const hello = h < 5 ? "לילה טוב" : h < 12 ? "בוקר טוב" : h < 17 ? "צהריים טובים" : "ערב טוב";
                 const first = (session?.firstName || session?.name || "").split(" ")[0];
                 const sub = `${session?.restaurantName}${pct > 0 ? ` · ${pct}% מהתפריט אצלך` : " · מתחילים מהתפריט"}`;
+                // ⚠️ כשהמדדים כבויים זה לא כפתור אלא כותרת: `.hdr` נותן `cursor:pointer`
+                // תמיד, ו-<button> בלי onClick ובלי תווית נותן משוב לחיצה שלא מוביל לשום
+                // מקום (ולקורא מסך — כפתור בלי שם). שלוש המסעדות החיות עם metrics:false.
+                const HdrTag = metricsOff ? "div" : "button";
                 return aurora ? (
-                  <button className="hdr" aria-label={metricsOff ? undefined : "פתיחת המדדים שלי"}
+                  <HdrTag className="hdr" style={metricsOff ? { cursor: "default" } : undefined}
+                          aria-label={metricsOff ? undefined : "פתיחת המדדים שלי"}
                           onClick={metricsOff ? undefined : () => setShowMetrics(true)}>
                     <span className="avatar">{(first || "🙂").slice(0, 2)}</span>
                     <span className="flex-1 min-w-0 text-right">
@@ -1709,7 +1714,7 @@ export default function MainApp({ session, onSignOut }) {
                       </h2>
                       <span className="au-label">{sub}</span>
                     </span>
-                  </button>
+                  </HdrTag>
                 ) : (
                   <div className="rounded-2xl p-4 mb-2.5 text-[#EEF0F6]" style={{ background: "linear-gradient(135deg,#0F5C46,#0a3d2f)" }}>
                     <p className="text-base font-black">שלום {first || "לך"} 👋</p>

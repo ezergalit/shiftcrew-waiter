@@ -14,7 +14,11 @@
 
 import { maskNameLeak, askableIngredients } from "./questionEngine.js";  // explicit extension: the tests import this module in plain node
 
-export const norm = (s) => (s || "").toString().trim().toLowerCase();
+// ⚠️ מקפל אותיות סופיות (13.9): בלי זה `"לימונים".startsWith("לימון")` הוא false — הנו״ן
+// סופית במילת היעד ורגילה בתוך המילה — ומנה שכתוב בתיאורה «לימונים כבושים» הוצעה כמסיח
+// «אין בה לימון». זה בדיוק המסיח שהפונקציה הזו קיימת כדי למנוע.
+export const norm = (s) => (s || "").toString().trim().toLowerCase()
+  .replace(/ך/g, "כ").replace(/ם/g, "מ").replace(/ן/g, "נ").replace(/ף/g, "פ").replace(/ץ/g, "צ");
 
 // Token match, not substring: "אגוזי מלך" must not make "אגוז" match "אגוזי לוז" by
 // accident, and a substring test would also match inside unrelated words.
