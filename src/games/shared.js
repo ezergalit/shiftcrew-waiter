@@ -31,6 +31,17 @@ export const ingLabel = (it) =>
   : it?.event ? (/מוגש/.test(it?.category || "") ? "המנות" : "מה כלול")
   : it?.drink ? "תיאור" : "מרכיבים";
 
+// כרטיס סיגר פשוט (יותם, 13.9: «תעשה את הכרטיסיות של הסיגרים פשוט יותר»). לסיגר אין
+// מרכיבים ואין אלרגיות — יש לו מידה, גוף וטעמים, וכל זה כבר יושב בתיאור בפורמט קבוע:
+// «קורוחו 5×54 · גוף בינוני-מלא — הדרים, פלפל שחור וקפה קלוי». הצ'יפים («מרכיבים: גוף
+// בינוני-מלא, הדרים…») רק חזרו על אותו משפט במילים אחרות.
+export const cigarParts = (it) => {
+  if (it?.drink !== "סיגר" || !it?.desc) return null;
+  const [spec, ...rest] = String(it.desc).split(/\s*—\s*/);
+  const notes = rest.join(" — ").trim().replace(/\.$/, "");
+  return { spec: (spec || "").trim(), notes };
+};
+
 export const countLabel = (arr, one, many) =>
   arr?.length > 0 ? `${arr.length} ${arr.length === 1 ? one : many}` : null;
 

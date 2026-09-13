@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Trophy, Star } from "lucide-react";
 import { dishLabel } from "../lib/questionEngine";
-import { countLabel, nLabel, mokshim, wineParts, ingLabel } from "./shared";
+import { countLabel, nLabel, mokshim, wineParts, ingLabel, cigarParts } from "./shared";
 import { categoryVisual } from "../lib/categoryVisual";
 import { gz } from "../lib/shiftChoice";
 import WarningBoxes from "./WarningBoxes";
@@ -81,7 +81,7 @@ export default function Flashcards({ items, session, quick, onRate, onDone, slim
                 {dishLabel(it)}
               </p>
               {starBadge}
-              {(it.ingredients?.length > 0 || it.allergens?.length > 0 || mokshim(it).length > 0 || it.pregnancy?.length > 0 || it.pitfalls?.length > 0) && (
+              {!cigarParts(it) && (it.ingredients?.length > 0 || it.allergens?.length > 0 || mokshim(it).length > 0 || it.pregnancy?.length > 0 || it.pitfalls?.length > 0) && (
                 <p className="text-xs font-bold text-[#8a8aa0]">
                   {[
                     it.drink ? countLabel(it.ingredients, "פרט תיאור", "פרטי תיאור")
@@ -116,14 +116,19 @@ export default function Flashcards({ items, session, quick, onRate, onDone, slim
                   their content. Empty sections simply don't render. */}
               {slim ? <>
                 {it.knowledge && it.desc && <p className="text-sm text-[#c4c4d4] leading-relaxed text-right">{it.desc}</p>}
-                {it.ingredients?.length > 0 && (
-                  <div className="bg-[#1c1f25] p-2 rounded-lg"><p className="text-xs font-bold text-[#c4c4d4]">{ingLabel(it)}: {it.ingredients.join(", ")}</p></div>
-                )}
-                {(() => { const w = wineParts(it); return w ? <>
-                  {w.notes && <p className="text-sm text-[#c4c4d4] leading-relaxed text-right">{w.notes}</p>}
-                  {w.opening && <div className="bg-[#1d2a24] p-2 rounded-lg"><p className="text-xs font-bold text-[#22c08c] text-right">איך פותחים: {w.opening}</p></div>}
-                </> : null; })()}
-                <WarningBoxes it={it} merged={merged} />
+                {(() => { const cg = cigarParts(it); return cg ? <>
+                  {cg.spec && <div className="bg-[#1c1f25] p-2 rounded-lg"><p className="text-xs font-bold text-[#c4c4d4] text-right">מידה וגוף: {cg.spec}</p></div>}
+                  {cg.notes && <div className="bg-[#241f18] p-2 rounded-lg"><p className="text-xs font-bold text-[#e0b072] text-right">טעמים: {cg.notes}</p></div>}
+                </> : <>
+                  {it.ingredients?.length > 0 && (
+                    <div className="bg-[#1c1f25] p-2 rounded-lg"><p className="text-xs font-bold text-[#c4c4d4]">{ingLabel(it)}: {it.ingredients.join(", ")}</p></div>
+                  )}
+                  {(() => { const w = wineParts(it); return w ? <>
+                    {w.notes && <p className="text-sm text-[#c4c4d4] leading-relaxed text-right">{w.notes}</p>}
+                    {w.opening && <div className="bg-[#1d2a24] p-2 rounded-lg"><p className="text-xs font-bold text-[#22c08c] text-right">איך פותחים: {w.opening}</p></div>}
+                  </> : null; })()}
+                  <WarningBoxes it={it} merged={merged} />
+                </>; })()}
               </> : <>
                 {it.desc && <p className="text-sm text-[#c4c4d4] leading-relaxed">{it.desc}</p>}
                 {it.ingredients?.length > 0 && <p className="text-xs text-[#8a8aa0]">{ingLabel(it)}: {it.ingredients.join(", ")}</p>}

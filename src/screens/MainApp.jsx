@@ -745,6 +745,11 @@ export default function MainApp({ session, onSignOut }) {
   // and service training offered a quiz that always dead-ends — "סתם מבלבל"). The rule
   // is the written quiz's own deck rule: at least two dishes the engine can ask about.
   // null = not an open-exam restaurant; the chip exams keep their own thin-data path.
+  // «תוריד את הסיגרים ואת האירועים לגמרי מהמבחן ומהבחנים — רק בלמידה» (יותם, 13.9, סלון יווני).
+  // סיגר אינו מנה: אין לו מרכיבים, אלרגיות או הכנה — יש לו מותג ואורך, וזה לא ידע שנבחנים עליו.
+  // מסלול אירוע הוא מחירון (250 ₪ לאדם, מה כלול) — המלצר קורא אותו, לא משנן אותו.
+  // שניהם נשארים בתפריט ובכרטיסיות במלואם; רק הבוחן והמבחן מדלגים עליהם.
+  const learnOnly = (c) => !!c && (c.drink === "סיגר" || c.event === true);
   const examableCats = useMemo(() => {
     if (session?.features?.exam !== "open" || !cards?.length) return null;
     const menu = menuFromCards(cards);
@@ -766,10 +771,17 @@ export default function MainApp({ session, onSignOut }) {
       if (!perCat.has(cat)) perCat.set(cat, new Set());
       perCat.get(cat).add(q.dish);
     }
+    // קטגוריה שכולה למידה-בלבד (סיגרים, מסלולי אירוע) יוצאת מהסט ⇒ אין צ'יפ בוחן, אין כפתור
+    // בסוף קטגוריה, ואין קיצור-דרך מההילוך. «לא להציג אופציה למבחן שאין» (יותם, 13.9).
+    const learnOnlyCats = new Set((cards || []).reduce((acc, c) => {
+      if (!c.category) return acc;
+      if (learnOnly(c)) acc.push(c.category);
+      return acc;
+    }, []).filter((cat) => (cards || []).filter((c) => c.category === cat).every(learnOnly)));
     return new Set([
       ...[...perCat].filter(([, d]) => d.size >= 2).map(([c]) => c),
       ...[...recCount].filter(([, n]) => n >= 2).map(([c]) => c),
-    ]);
+    ].filter((c) => !learnOnlyCats.has(c)));
   }, [cards, session?.features?.exam]);
   const examable = (key) => !examableCats || examableCats.has(key);
   // שתייה קלה נשארת מחוץ לתרגול (31.8 בוקר) אבל מקבלת בוחן «מה יש» קצר (יותם,
@@ -959,14 +971,14 @@ export default function MainApp({ session, onSignOut }) {
     // הקטגוריות, מכסה פר-קטגוריה לפי מספר המנות (12 ראשונות ו-6 עיקריות ⇒ פי 2),
     // והכל ב-general_exam_questions. משקאות מחוץ למבחן (יש להם בחנים משלהם).
     if (openExam) return <OpenQuiz
-      items={cards.filter((c) => !c.knowledge && !c.drink)} allItems={cards} quizOff={quizOff} examEasy={session?.features?.exam_easy === true}
+      items={cards.filter((c) => !c.knowledge && !c.drink && !learnOnly(c))} allItems={cards} quizOff={quizOff} examEasy={session?.features?.exam_easy === true}
       examLevel={session?.features?.exam_level || "normal"}
       restaurantId={session?.restaurantId} teamMemberId={preview ? null : session?.teamMemberId} categoryLabel="התפריט המלא"
       exam={{ total: examConfig?.general_exam_questions || 40 }}
       onAnswer={learnItem} onDone={exitMode} onFinish={recordExam}
     />;
     return <MenuExam
-      items={cards.filter((c) => !c.knowledge)}
+      items={cards.filter((c) => !c.knowledge && !learnOnly(c))}
       deckSize={examConfig?.general_exam_questions || 40}
       categoryOrder={examConfig?.category_order || []}
       onAnswer={learnItem}
