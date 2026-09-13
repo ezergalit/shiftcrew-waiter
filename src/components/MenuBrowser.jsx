@@ -132,9 +132,10 @@ const EXPLAIN_STYLE = {
 };
 function ExplainBox({ groupKey, items = [], onClose }) {
   const st = EXPLAIN_STYLE[groupKey] || EXPLAIN_STYLE.pitfalls;
+  // data-tour: הסיור מצביע על הריבוע («הקשה בכל מקום סוגרת») — השכבה כולה היא היעד, הריבוע הוא החור
   return createPortal(
-    <div className="fixed inset-0 z-[90] bg-black/60 flex items-center justify-center p-5" dir="rtl" onClick={onClose} role="button" aria-label="סגירה">
-      <div className="w-full max-w-sm rounded-2xl p-5 space-y-2.5 shadow-2xl" style={{ background: st.bg, color: st.fg }}>
+    <div data-tour="explain-layer" className="fixed inset-0 z-[90] bg-black/60 flex items-center justify-center p-5" dir="rtl" onClick={onClose} role="button" aria-label="סגירה">
+      <div data-tour="explain-box" className="w-full max-w-sm rounded-2xl p-5 space-y-2.5 shadow-2xl animate-tour-pop" style={{ background: st.bg, color: st.fg }}>
         <p className="text-[15px] font-black">{st.title}</p>
         <p className="text-[13px] font-bold leading-relaxed text-[#eef0f6]">{GROUP_NOTES[groupKey]}</p>
         {items.length > 0 && (
@@ -395,7 +396,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
             <div className="text-center space-y-3">
               {d.imageUrl ? (
                 <button onClick={() => setZoom(d.imageUrl)} className="block w-full" aria-label="הגדלת התמונה">
-                  <img src={d.imageUrl} alt={d.name} fetchPriority="high" decoding="async"
+                  <img src={d.imageUrl} alt={d.name} fetchpriority="high" decoding="async"
                     className="w-full max-h-64 rounded-3xl object-contain bg-[#16181c] border border-[#22252b]" />
                 </button>
               ) : (
@@ -437,10 +438,13 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
                 not. "מוקש" also needs saying out loud: it is not a danger, it is the
                 thing guests ask to leave out. */}
             {groupOpen && <ExplainBox groupKey={groupOpen} items={groupOpen === "mokshim" ? mokshimOf(d) : (d[groupOpen] || [])} onClose={() => setGroupOpen(null)} />}
-            {warnGroups.map(({ key, title, note, cls }) => {
+            {warnGroups.map(({ key, title, note, cls }, gi) => {
               const vals = key === "mokshim" ? mokshimOf(d) : d[key];
+              // data-tour על כרטיס האזהרה הראשון שקיים במנה — הסיור מבקש להקיש עליו ולראות את ההסבר
+              const firstWarn = vals?.length && warnGroups.slice(0, gi).every(({ key: k2 }) => !((k2 === "mokshim" ? mokshimOf(d) : d[k2])?.length));
               return vals?.length ? (
                 <button key={key} type="button" onClick={() => setGroupOpen(groupOpen === key ? null : key)} aria-expanded={groupOpen === key}
+                  data-tour={firstWarn ? "dish-warning" : undefined}
                   className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-4 active:scale-[0.99] transition-transform">
                   <p className="text-[11px] font-black text-[#5a5a6e] tracking-wide">{title}</p>
                   <p className="text-[10.5px] text-[#5a5a6e] mt-0.5 mb-2.5 leading-snug">{note}</p>
@@ -494,10 +498,14 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
       <div className="space-y-3.5">
         <Crumb over={menu ? menuLabel : (flat ? null : menu)} title={`${categoryVisual(cat).emoji} ${shortCat(cat)}`} onBack={() => setCat(null)} />
         <p className="text-[11.5px] text-[#5a5a6e] px-1">{cat.startsWith("הדרכת") ? `${nLabel(dishes.length, "נושא", "נושאים")} · הקשה על נושא פותחת אותו במלואו` : `${nLabel(dishes.length, "מנה", "מנות")} · הקשה על מנה פותחת אותה במלואה`}</p>
-        {dishes.map((d, i) => (
+        {(() => {
+          const hasWarn = (d) => warnGroups.some(({ key }) => ((key === "mokshim" ? mokshimOf(d) : d[key]) || []).length > 0);
+          const pick = [dishes.findIndex((d) => !d.knowledge && hasWarn(d)), dishes.findIndex((d) => !d.knowledge), 0].find((k) => k >= 0);
+          const tourIdx = pick;
+          return dishes.map((d, i) => (
           <button
             key={d.id}
-            data-tour={i === 0 ? "browse-dish" : undefined}
+            data-tour={i === tourIdx ? "browse-dish" : undefined}
             onClick={() => setIdx(i)}
             className="w-full text-right bg-[#16181c] border border-[#22252b] rounded-2xl p-5 space-y-2.5 active:scale-[0.99] transition-transform"
           >
@@ -514,7 +522,8 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
             {d.desc && <p className="text-[14.5px] text-[#a4a4b8] leading-[1.75] line-clamp-2">{d.desc}</p>}
             <Tags d={d} />
           </button>
-        ))}
+          ));
+        })()}
       </div>
     );
   }

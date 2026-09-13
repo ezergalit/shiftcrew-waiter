@@ -82,4 +82,15 @@ body {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.animate-tour-step { animation: tour-step 0.22s cubic-bezier(0.22, 0.61, 0.36, 1); }
+.animate-tour-step { animation: tour-step 0.14s cubic-bezier(0.2, 0.8, 0.2, 1); }
+/* 13.9: הטבעת פועמת בזוהר, לא ב-opacity — animate-pulse העלים אותה לחצי שנייה בכל מחזור */
+@keyframes tour-ring {
+  0%, 100% { box-shadow: 0 0 0 3px #22c08c, 0 0 16px rgba(34,192,140,0.45); }
+  50%      { box-shadow: 0 0 0 3px #22c08c, 0 0 30px rgba(34,192,140,0.9); }
+}
+.animate-tour-ring { animation: tour-ring 1.6s ease-in-out infinite; }
+@keyframes tour-pop {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-tour-pop { animation: tour-pop 0.16s cubic-bezier(0.2, 0.8, 0.2, 1); }

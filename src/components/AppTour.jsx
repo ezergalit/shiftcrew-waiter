@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { BookOpen, ListChecks, GraduationCap, Wallet, Sparkles, Hand } from "lucide-react";
 import { gz } from "../lib/shiftChoice";
@@ -118,11 +118,23 @@ const AURORA_STEPS = [
     target: '[data-tour="browse-dish"]', cue: "הקש/י על המנה הראשונה",
   },
   {
-    // No target and no "next": the waiter looks at the dish, and after a few seconds
-    // the tour itself moves on to the close button (Yotam, 3.9: "after around 3 seconds
-    // it should guide you to the exit button").
-    tab: "categories", deep: true, autoAfter: 3200, noDim: true, icon: Sparkles, title: "ככה נראית מנה",
-    body: "התגיות הצבעוניות הן האזהרות: אדום = אלרגיות — מה שיכול לסכן אורח, והשאר מוקשים ורגישויות. לא בטוח/ה מה זה אומר? הקשה על כותרת הקבוצה פותחת הסבר קצר עם דוגמאות מהתפריט. החצים למטה מעבירים למנה הבאה.",
+    // ⚠️ היה כאן `autoAfter: 3200` (3.9) — הוחלף בכפתור «הבנתי» (יותם, 6.9): במסך הזה יש מה
+    // לקרוא ומה להקיש (קבוצת אזהרה פותחת הסבר), ודילוג אוטומטי חתך את זה באמצע.
+    tab: "categories", deep: true, ack: "הבנתי", noDim: true, free: true, cardTop: true, icon: Sparkles, title: "ככה נראית מנה",
+    body: "תמונה, תיאור, מרכיבים — ולמטה האזהרות בצבע: אדום = אלרגיות, מה שיכול לסכן אורח; שאר הצבעים — רגישויות ומוקשים. החצים למטה מעבירים למנה הבאה.",
+  },
+  {
+    // «תוסיף ל-tutorial את החלק שבו הוא מקיש על אלרגיות ורואה את ההגדרה» (יותם, 13.9).
+    // skipIfMissing: מנה בלי שום אזהרה (ולכן בלי כרטיס) מדלגת על שני הצעדים האלה.
+    tab: "categories", deep: true, skipIfMissing: true, icon: Sparkles, title: "מה זה בעצם אומר?",
+    body: "לא בטוח/ה מה זה אלרגיה, רגישות או מוקש? הקשה על קבוצת אזהרה במנה פותחת הסבר קצר.",
+    target: '[data-tour="dish-warning"]', cue: "הקש/י על קבוצת האזהרה",
+  },
+  {
+    // הריבוע בצבע הקבוצה. היעד הוא כל השכבה — «הקשה בכל מקום סוגרת» — והחור הוא הריבוע עצמו.
+    tab: "categories", deep: true, skipIfMissing: true, noDim: true, free: true, icon: Sparkles, title: "ככה זה נראה",
+    body: "ההסבר בצבע הקבוצה, עם מילה על כל פריט. אותו דבר עובד גם בשער התפריט, על צ׳יפי המקרא. הקשה בכל מקום סוגרת.",
+    hole: '[data-tour="explain-box"]', target: '[data-tour="explain-layer"]', cue: "הקש/י כדי לסגור",
   },
   {
     tab: "categories", deep: true, icon: Sparkles, title: "וכשסיימת — יוצאים מהמנה",
@@ -206,31 +218,78 @@ const AURORA_STEPS = [
   },
 ];
 
-// The target may not exist the moment the step opens (tab switch, list still rendering),
-// so poll briefly rather than measure once.
-function useTargetRect(selector, step) {
+// ── הזרקור ───────────────────────────────────────────────────────────────────
+// ⚠️ 13.9 (יותם: «כל ה-tutorial מרגיש ונראה זול — יש דיליי אחרי כל לחיצה»). שלושה שורשים,
+// כולם היו כאן: (1) `Dim` הוגדר בתוך הרנדור ⇒ קומפוננטה חדשה בכל רנדר ⇒ ארבעת המלבנים נוצרו
+// מחדש בכל רנדר, אז ה-transition והפעימה לעולם לא רצו — כל צעד קפץ; (2) פולינג כל 60ms קרא
+// setRect עם אובייקט חדש ⇒ 16 רינדורים בשנייה גם כשכלום לא זז, וכל אחד מהם הרכיב מחדש את
+// (1); (3) ההתקדמות חיכתה 40ms אחרי ההקשה, והמדידה הראשונה החזירה null ⇒ הבזק של החשכה מלאה
+// וכפתור «לא רואים את זה?» לפריים אחד בכל מעבר. עכשיו: Dim ברמת מודול · מדידה ב-layout effect
+// לפני הצבעה + MutationObserver/ResizeObserver במקום שעון · setRect רק כשהגאומטריה השתנתה ·
+// ההתקדמות סינכרונית בהקשה · החור נשמר עד שהיעד הבא נמדד ⇒ הזרקור גולש ליעד, לא קופץ.
+const GLIDE_MS = 170;
+const EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)";
+const GLIDE = ["top", "left", "width", "height"].map((k) => `${k} ${GLIDE_MS}ms ${EASE}`).join(", ");
+
+// `free` (13.9): המלבנים לא חוסמים כלום — לצעד שבו המלצר אמור לגלול ולקרוא את המנה («הבנתי»), ולצעד
+// ריבוע ההסבר שבו «הקשה בכל מקום סוגרת» חייבת להגיע לרקע של הריבוע ולא להיבלע כאן.
+function Dim({ style, clear, free }) {
+  return (
+    <div
+      className={`absolute ${free ? "pointer-events-none" : "pointer-events-auto"}`}
+      style={{ background: clear ? "transparent" : "rgba(0,0,0,0.7)", transition: `${GLIDE}, background 160ms`, touchAction: free ? "auto" : "none", overscrollBehavior: "contain", ...style }}
+      onWheel={free ? undefined : (e) => e.preventDefault()}
+    />
+  );
+}
+
+// שורד remount של הסיור (MainApp מחליף ענף רינדור בכניסה לכרטיסיות) — אחרת החור נפתח מנקודה במרכז
+let LAST_HOLE = null;
+const near = (a, b) => Math.abs(a - b) < 0.5;
+const sameRect = (a, b) => a === b || (!!a && !!b && near(a.top, b.top) && near(a.left, b.left) && near(a.width, b.width) && near(a.height, b.height));
+
+// מודד את `holeSel` (מה שנשאר מואר) ומגלגל את `targetSel` לתצוגה פעם אחת בכניסה לצעד —
+// מיידית, לא smooth: גלילה חלקה משאירה את הטבעת רודפת אחרי היעד.
+function useTargetRect(holeSel, targetSel, step) {
   const [rect, setRect] = useState(null);
-  useEffect(() => {
-    if (!selector) { setRect(null); return; }
-    let alive = true;
+  useLayoutEffect(() => {
+    if (!holeSel) { setRect(null); return; }
+    let alive = true, raf = 0, ro = null, watched = null, scrolled = false;
+    const schedule = () => { if (alive && !raf) raf = requestAnimationFrame(measure); };
     const measure = () => {
+      raf = 0;
       if (!alive) return;
-      const el = document.querySelector(selector);
-      setRect(el ? el.getBoundingClientRect() : null);
+      const el = document.querySelector(holeSel);
+      if (el && !scrolled) {
+        scrolled = true;
+        (document.querySelector(targetSel) || el).scrollIntoView({ block: "center", behavior: "auto" });
+      }
+      if (el !== watched) {
+        ro?.disconnect(); ro = null; watched = el;
+        if (el && typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(schedule); ro.observe(el); }
+      }
+      const r = el ? el.getBoundingClientRect() : null;
+      const next = r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null;
+      setRect((prev) => (sameRect(prev, next) ? prev : next));
     };
     measure();
-    // 120ms, not 300: this is how long the spotlight takes to catch up with a screen
-    // that just changed, and at 300 every step opened with a visible beat of nothing.
-    const t = setInterval(measure, 60);
-    window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
+    const mo = new MutationObserver(schedule);
+    mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style", "data-tour", "hidden", "aria-expanded"] });
+    window.addEventListener("resize", schedule);
+    window.addEventListener("scroll", schedule, true);
+    document.addEventListener("animationend", schedule, true);
+    document.addEventListener("transitionend", schedule, true);
+    // רשת ביטחון למה שהצופים לא רואים (פונטים, תמונות שנטענות) — איטית, לא שעון
+    const t = setInterval(schedule, 400);
     return () => {
-      alive = false;
-      clearInterval(t);
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", measure, true);
+      alive = false; mo.disconnect(); ro?.disconnect(); clearInterval(t);
+      if (raf) cancelAnimationFrame(raf);
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", schedule, true);
+      document.removeEventListener("animationend", schedule, true);
+      document.removeEventListener("transitionend", schedule, true);
     };
-  }, [selector, step]);
+  }, [holeSel, targetSel, step]);
   return rect;
 }
 
@@ -250,7 +309,7 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
   // `hole` (optional) is what the spotlight leaves lit; `target` is what advances the
   // step. On a flashcard the waiter must READ the whole card while the cue points at
   // the rating row — dimming the answer they are rating defeats the step (Yotam, 3.9).
-  const rect = useTargetRect(s.hole || s.target, i);
+  const rect = useTargetRect(s.hole || s.target, s.target, i);
 
   const firedRef = useRef(-1);
   // The dish the waiter just rated — read off the card the moment the rating tap fires,
@@ -288,11 +347,10 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
 
   // Advance when the waiter taps the real element. Capture phase so we see the tap even
   // though the element's own handler (open the menu, switch tab) also runs — both should
-  // happen: the app moves AND the tour moves on.
-  // ⚠️ One advance per step, guarded by a ref. The handler waits 260ms so the screen can
-  // change first, and a second tap in that window (or a tap on a target that is still on
-  // screen in the NEXT step) would otherwise queue a second timeout carrying a stale `i`
-  // and shove the tour backwards.
+  // happen: the app moves AND the tour moves on. ⚠️ Synchronous (13.9): both updates land
+  // within the same frame (the tour's in a microtask, the app's right after its onClick),
+  // and the layout-effect measurement runs before that frame paints — the 40ms wait was a
+  // visible beat of nothing. One advance per step, guarded by firedRef.
   useEffect(() => {
     if (!s.target) return;
     const onClick = (e) => {
@@ -311,99 +369,81 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
             setQuizAnswer((it?.ingredients || []).filter(Boolean).slice(0, 8));
           }
         }
-        setTimeout(() => go(i + 1), 40);   // let the screen change first, but barely
+        go(i + 1);
       }
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
-  }, [s.target, i, go]);
+  }, [s.target, s.captureDish, i, go, demoItems]);
 
-  // ⚠️ Both timed effects below must NOT depend on `go`: it is rebuilt every render
-  // (its onNavigate prop is an inline arrow in MainApp), and MainApp re-renders every
-  // second while the study-time ticker runs — so a timer keyed on `go` was cleared and
-  // restarted before it could ever fire. The tour sat on "ככה נראית מנה" forever on a
-  // visible tab, and only worked in a hidden test tab where the ticker is paused
-  // (caught live by Yotam, 3.9). The deadline is fixed when the step is ENTERED.
+  // ⚠️ Timed effects must NOT depend on `go`: it is rebuilt every render (its onNavigate
+  // prop is an inline arrow in MainApp), and MainApp re-renders every second while the
+  // study-time ticker runs — a timer keyed on `go` was cleared and restarted before it
+  // could ever fire (caught live by Yotam, 3.9).
   const goRef = useRef(go);
   goRef.current = go;
-  const deadlineRef = useRef(null);
-  useEffect(() => {
-    deadlineRef.current = s.autoAfter ? Date.now() + s.autoAfter : null;
-  }, [i, s.autoAfter]);
 
   // `skipIfMissing`: a step that only applies to some restaurants (an extra drill-down
-  // level) walks on by itself when its target is not on screen after a short grace.
+  // level, a dish with no warning card) walks on by itself when its target is not on
+  // screen after a short grace.
   useEffect(() => {
     if (!s.skipIfMissing || !s.target) return;
     const sel = s.target;
-    const t = setTimeout(() => { if (!document.querySelector(sel)) goRef.current(i + 1); }, 450);
+    const t = setTimeout(() => { if (!document.querySelector(sel)) goRef.current(i + 1); }, 150);
     return () => clearTimeout(t);
   }, [s.skipIfMissing, s.target, i]);
 
-  // A step with `autoAfter` shows its card for a moment and then walks on by itself —
-  // used right after opening a dish, so the waiter looks before being sent to the exit.
+  // «לא רואים את זה?» רק אחרי חסד של 700ms בלי יעד — לא בפריים הראשון של כל צעד.
+  const [missing, setMissing] = useState(false);
   useEffect(() => {
-    if (!s.autoAfter) return;
-    const wait = Math.max(0, (deadlineRef.current ?? Date.now() + s.autoAfter) - Date.now());
-    const t = setTimeout(() => goRef.current(i + 1), wait);
+    setMissing(false);
+    if (!s.target || rect) return;
+    const t = setTimeout(() => setMissing(true), 700);
     return () => clearTimeout(t);
-  }, [i, s.autoAfter]);
-
-  // Scroll the target into view — a spotlight on something below the fold is just a
-  // dimmed screen with nothing to tap.
-  useEffect(() => {
-    if (!s.target) return;
-    const el = document.querySelector(s.target);
-    el?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [s.target, i]);
+  }, [s.target, rect, i]);
 
   const pad = 6;
-  const hole = rect && {
+  const live = rect && {
     top: Math.max(0, rect.top - pad),
     left: Math.max(0, rect.left - pad),
     width: rect.width + pad * 2,
     height: rect.height + pad * 2,
   };
-  // The card must not cover the thing it is pointing at.
-  const cardAtTop = hole ? hole.top + hole.height > window.innerHeight * 0.55 : false;
+  if (live) LAST_HOLE = live;
+  // ארבעת המלבנים תמיד מורכבים — הגאומטריה היא שמשתנה, ולכן היא גולשת מיעד ליעד. בלי יעד חי (צעד
+  // הסבר, או יעד שעוד לא נמדד) הגאומטריה קופאת במקום, ומלבן-כיסוי מלא נכנס ב-fade מעליה — בלי
+  // «חור שקורס לקו» על מסך שזה עתה נפתח, ובלי זרקור על קואורדינטות של מסך קודם.
+  const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+  const vw = typeof window !== "undefined" ? window.innerWidth : 375;
+  const hole = live;
+  const geo = hole || LAST_HOLE || { top: vh / 2, left: vw / 2, width: 0, height: 0 };
+  // The card must not cover the thing it is pointing at. `cardTop` pins it (the dish step:
+  // the arrows and the warnings live at the bottom of that screen).
+  const cardAtTop = s.cardTop ?? (hole ? hole.top + hole.height > vh * 0.55 : false);
 
-  // ⚠️ The dim panes and the ring animate to their new geometry rather than snapping.
-  // 180ms ease-out is short enough to still feel instant on a tap, and it also smooths the
-  // 120ms polling: while the page scrolls the target into view, the spotlight follows it
-  // instead of stuttering one measurement at a time.
-  const GLIDE = "top 110ms cubic-bezier(0.22,0.61,0.36,1), left 110ms cubic-bezier(0.22,0.61,0.36,1), width 110ms cubic-bezier(0.22,0.61,0.36,1), height 110ms cubic-bezier(0.22,0.61,0.36,1)";
-  const Dim = ({ style }) => (
-    <div className={`absolute ${s.noDim ? "bg-transparent" : "bg-black/70"} pointer-events-auto`} style={{ transition: GLIDE, touchAction: "none", overscrollBehavior: "contain", ...style }} onWheel={(e) => e.preventDefault()} />
-  );
-
-  // ⚠️ Portaled to <body> at z-80. The dish view (MenuBrowser's Overlay) is itself a
-  // body portal at z-70, so a tour rendered inside MainApp — whatever its z-index —
-  // sat BELOW it: the waiter opened a dish and the tour simply vanished behind it
-  // (Yotam's screenshot, 3.9). Same stacking-context trap as the four before it.
+  // ⚠️ Portaled to <body> at z-100. The dish view (MenuBrowser's Overlay) is a body portal at
+  // z-70 and the explain box at z-90 — the tour must sit above both (it points at the box).
   return createPortal(
-    <div className="fixed inset-0 z-[80] pointer-events-none" dir="rtl">
+    <div className="fixed inset-0 z-[100] pointer-events-none" dir="rtl">
       {/* Four rectangles around the target instead of one full-screen overlay: the hole in
           the middle is a real hole, so the tap lands on the app, not on the dimmer. */}
-      {hole ? (
-        <>
-          <Dim style={{ top: 0, left: 0, right: 0, height: hole.top }} />
-          <Dim style={{ top: hole.top + hole.height, left: 0, right: 0, bottom: 0 }} />
-          <Dim style={{ top: hole.top, left: 0, width: hole.left, height: hole.height }} />
-          <Dim style={{ top: hole.top, left: hole.left + hole.width, right: 0, height: hole.height }} />
-          <div
-            className="absolute rounded-2xl pointer-events-none animate-pulse"
-            style={{ ...hole, transition: GLIDE, boxShadow: "0 0 0 3px #22c08c, 0 0 24px rgba(34,192,140,0.55)" }}
-          />
-        </>
-      ) : (
-        <Dim style={{ inset: 0 }} />
-      )}
+      <Dim clear={s.noDim} free={s.free} style={{ top: 0, left: 0, right: 0, height: geo.top }} />
+      <Dim clear={s.noDim} free={s.free} style={{ top: geo.top + geo.height, left: 0, right: 0, bottom: 0 }} />
+      <Dim clear={s.noDim} free={s.free} style={{ top: geo.top, left: 0, width: geo.left, height: geo.height }} />
+      <Dim clear={s.noDim} free={s.free} style={{ top: geo.top, left: geo.left + geo.width, right: 0, height: geo.height }} />
+      {/* הכיסוי המלא לצעד בלי יעד — נכנס ויוצא ב-fade, ולא חוסם כשיש חור או כשהצעד חופשי */}
+      <Dim clear={s.noDim} free={s.free || !!hole} style={{ inset: 0, opacity: hole ? 0 : 1, transition: "opacity 160ms" }} />
+      <div
+        className="absolute rounded-2xl pointer-events-none animate-tour-ring"
+        style={{ ...geo, opacity: hole ? 1 : 0, transition: `${GLIDE}, opacity 160ms` }}
+      />
 
       {/* ⚠️ The dimming is viewport-wide on purpose, but the CARD is part of the app and
           must sit in the same phone-width column it does. Without this it stretched the
           full browser width on a desktop screen while the app stayed at max-w-md. */}
       <div
-        className={`absolute inset-x-0 mx-auto w-full max-w-md pointer-events-auto bg-[#16181c] border-[#22252b] p-5 space-y-3 ${
+        key={cardAtTop ? "top" : "bottom"}
+        className={`absolute inset-x-0 mx-auto w-full max-w-md pointer-events-auto bg-[#16181c] border-[#22252b] p-5 space-y-3 animate-tour-step ${
           cardAtTop
             ? "top-0 border-b rounded-b-3xl pt-[max(1.25rem,env(safe-area-inset-top))]"
             : "bottom-0 border-t rounded-t-3xl pb-[max(1.25rem,env(safe-area-inset-bottom))]"
@@ -438,8 +478,6 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
               </button>
               <p className="text-[11px] text-[#5a5a6e]">ככה נראית תשובה טובה. בבוחן האמיתי כותבים לבד — כאן רק לוחצים שליחה.</p>
             </div>
-          ) : s.autoAfter ? (
-            <p className="text-[11px] font-bold text-[#5a5a6e]">רגע להסתכל — ממשיכים אוטומטית…</p>
           ) : s.target ? (
             <>
               {/* No "next" button on purpose — the step ends when the waiter taps the real
@@ -448,7 +486,7 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
                 <Hand size={16} className="text-[#22c08c] flex-shrink-0" />
                 <p className="text-[12px] font-black text-[#22c08c]">{gz(s.cue)}</p>
               </div>
-              {!rect && (
+              {missing && !s.skipIfMissing && (
                 // The element isn't on screen (a restaurant with a single menu has no menu
                 // list at all) — never leave the waiter stuck behind a tap that can't happen.
                 <button
@@ -462,9 +500,9 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
           ) : (
             <button
               onClick={() => (last ? onDone?.() : go(i + 1))}
-              className="w-full py-3 min-h-[44px] rounded-xl font-black text-sm bg-[#22c08c] text-[#06231a]"
+              className={`w-full rounded-xl font-black bg-[#22c08c] text-[#06231a] ${s.ack ? "py-4 min-h-[52px] text-[16px]" : "py-3 min-h-[44px] text-sm"}`}
             >
-              {last ? "יאללה, מתחילים" : "הבא"}
+              {last ? "יאללה, מתחילים" : s.ack ? gz(s.ack) : "הבא"}
             </button>
           )}
 

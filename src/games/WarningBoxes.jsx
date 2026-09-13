@@ -5,8 +5,9 @@
 // לא סכנת חיים אבל רגישות). בעיקרון הסברים פשוט.»
 //   · ההפרדה היא לפי אותה החלטה פר-מסעדה של עמוד התפריט: `features.warnings === "merged"`
 //     (סלון: דג נא = מוקש להריון, שתי קבוצות) — אחרת שלוש קבוצות (סטודיו). קודם הגב מיזג תמיד.
-//   · הקשה על קופסה פותחת שורת הסבר פשוטה לקבוצה, ומילה על כל פריט שמוכר לנו.
-import { useState } from "react";
+//   · ⚠️ 13.9 (יותם): «״מה זה?״ ליד המוקשים והאלרגיות — תוריד את האופציה הזאת; רק בדף הראשי
+//     אם לוחצים על זה שזה יראה». הקופסאות בגב הכרטיסייה סטטיות; ההסבר בהקשה חי רק בשער
+//     התפריט ובמסך המנה (ExplainBox ב-MenuBrowser). GROUP_NOTES/ITEM_NOTES נשארים כאן כמקור.
 import { mokshim, pregnancyOnly, pitfallsOnly } from "./shared";
 
 export const GROUP_NOTES = {
@@ -56,29 +57,14 @@ export function warningGroups(it, merged) {
 }
 
 export default function WarningBoxes({ it, merged = false }) {
-  const [open, setOpen] = useState(null);
   const groups = warningGroups(it, merged);
   if (!groups.length) return null;
   return groups.map((g) => {
     const s = STYLE[g.key];
-    const isOpen = open === g.key;
     return (
-      <button
-        key={g.key} type="button" aria-expanded={isOpen}
-        onClick={() => setOpen(isOpen ? null : g.key)}
-        className={`w-full text-right ${s.bg} p-2 rounded-lg active:scale-[0.99] transition-transform`}
-      >
-        <p className={`text-xs font-bold ${s.fg}`}>
-          {g.title}: {g.items.join(", ")}
-          <span className="opacity-60 font-normal"> · {isOpen ? "סגירה" : "מה זה?"}</span>
-        </p>
-        {isOpen && (
-          <div className="mt-1.5 space-y-0.5 border-t border-white/10 pt-1.5">
-            <p className="text-[11px] text-[#c4c4d4] leading-snug">{GROUP_NOTES[g.key]}</p>
-            {g.items.map((x) => { const k = x.replace(/^🤰\s*/, ""); return ITEM_NOTES[k] ? <p key={x} className="text-[11px] text-[#8a8aa0] leading-snug">{x} — {ITEM_NOTES[k]}</p> : null; })}
-          </div>
-        )}
-      </button>
+      <div key={g.key} className={`w-full text-right ${s.bg} p-2 rounded-lg`}>
+        <p className={`text-xs font-bold ${s.fg}`}>{g.title}: {g.items.join(", ")}</p>
+      </div>
     );
   });
 }

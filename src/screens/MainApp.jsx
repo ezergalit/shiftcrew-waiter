@@ -903,7 +903,10 @@ export default function MainApp({ session, onSignOut }) {
   // groups out in words — "אלרגיות: רכיכות, גלוטן" — so the legend there is a screen
   // explaining something the next screen already says. In the menu the same information
   // is coloured chips with no heading, and that is where the code has to be learned.
-  if (tab === "categories" && session?.features?.color_key !== false && !colorKeySeen && (preview || needsColorKey(session?.teamMemberId)))
+  // ⚠️ Not while the tour is up (13.9): the tour's dim panes cover this screen's only button,
+  // so a first-day waiter on a colour-key restaurant (CREWDEMO) was stuck behind it. The tour
+  // teaches the colours itself; the key shows on the next visit to the menu tab.
+  if (tab === "categories" && !tourOpen && session?.features?.color_key !== false && !colorKeySeen && (preview || needsColorKey(session?.teamMemberId)))
     // {tourNode} stays mounted on top, like the metrics branch below — without it, the
     // tour's "tap the menu tab" step navigated a first-day waiter straight into this
     // screen and the tour overlay silently vanished under it.
