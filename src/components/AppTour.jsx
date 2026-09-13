@@ -121,7 +121,7 @@ const AURORA_STEPS = [
     // ⚠️ היה כאן `autoAfter: 3200` (3.9) — הוחלף בכפתור «הבנתי» (יותם, 6.9): במסך הזה יש מה
     // לקרוא ומה להקיש (קבוצת אזהרה פותחת הסבר), ודילוג אוטומטי חתך את זה באמצע.
     tab: "categories", deep: true, ack: "הבנתי", noDim: true, free: true, cardTop: true, icon: Sparkles, title: "ככה נראית מנה",
-    body: "תמונה, תיאור, מרכיבים — ולמטה האזהרות בצבע: אדום = אלרגיות, מה שיכול לסכן אורח; שאר הצבעים — רגישויות ומוקשים. החצים למטה מעבירים למנה הבאה.",
+    body: "תמונה, תיאור ומרכיבים — ולמטה האזהרות בצבע. אדום זה אלרגיות, מה שיכול לסכן אורח. החצים למטה מעבירים למנה הבאה.",
   },
   {
     // «תוסיף ל-tutorial את החלק שבו הוא מקיש על אלרגיות ורואה את ההגדרה» (יותם, 13.9).
@@ -133,7 +133,7 @@ const AURORA_STEPS = [
   {
     // הריבוע בצבע הקבוצה. היעד הוא כל השכבה — «הקשה בכל מקום סוגרת» — והחור הוא הריבוע עצמו.
     tab: "categories", deep: true, skipIfMissing: true, noDim: true, free: true, icon: Sparkles, title: "ככה זה נראה",
-    body: "ההסבר בצבע הקבוצה, עם מילה על כל פריט. אותו דבר עובד גם בשער התפריט, על צ׳יפי המקרא. הקשה בכל מקום סוגרת.",
+    body: "ההסבר בצבע הקבוצה, עם מילה על כל פריט. אותו דבר עובד גם על צ׳יפי המקרא בשער התפריט. הקשה בכל מקום סוגרת.",
     hole: '[data-tour="explain-box"]', target: '[data-tour="explain-layer"]', cue: "הקש/י כדי לסגור",
   },
   {
@@ -188,7 +188,7 @@ const AURORA_STEPS = [
   },
   {
     tab: "learn", icon: GraduationCap, title: "ובסוף — מבחן התפריט המלא",
-    body: "עוברים את הבוחן בכל קטגוריה, ואז נפתח מבחן התפריט המלא. עושים אותו במסעדה ומודיעים למנהל/ת. לפני שמתחילים יש מסך שמסביר הכול: כמה זמן יש בערך לכל שאלה, ואחרי כל תשובה 30 שניות לקרוא במה טעית — שלא נספרות מהזמן. חושב/ת שהאפליקציה טעתה? יש כפתור דיווח, והשאלה הזו לא נספרת. אסור לצאת מהאפליקציה באמצע — יציאה שלישית מדווחת. בסוף המנהל/ת עובר/ת על התשובות ומודיע/ה לך את התוצאה.",
+    body: "עוברים את הבוחן בכל קטגוריה, ואז נפתח מבחן התפריט המלא — עושים אותו במסעדה, והמנהל/ת עובר/ת על התשובות ומודיע/ה לך. כל הכללים מופיעים במסך שנפתח לפני המבחן.",
   },
   {
     // ⚠️ tab+reset are load-bearing: the waiter arrives here still inside the learn
@@ -206,7 +206,7 @@ const AURORA_STEPS = [
   {
     metricsStep: true,
     deep: true, icon: Wallet, title: "אלה הנתונים שלך",
-    body: "כמה מהתפריט כבר בכיס, באיזו רמת שליטה, והמקום שלך בצוות. מכאן אפשר גם להריץ את הסיור הזה שוב, מתי שרוצים. בהצלחה — מתחילים מהתפריט!",
+    body: "כמה מהתפריט כבר בכיס והמקום שלך בצוות. מכאן גם מריצים את הסיור הזה שוב.",
   },
   {
     // The closing step for metrics-off restaurants — a tour must end on a full
@@ -231,13 +231,25 @@ const GLIDE_MS = 170;
 const EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)";
 const GLIDE = ["top", "left", "width", "height"].map((k) => `${k} ${GLIDE_MS}ms ${EASE}`).join(", ");
 
+// שלושת השלבים כבר כתובים בכותרות («שלב 2 — לתרגל»), אז הכותרת הקטנה נגזרת מהן ולא משוכפלת.
+// «צעד 7 מתוך 21» הפך סיור לרשימת מטלות ארוכה; שם השלב + פס דק אומרים כמה נשאר בלי להפחיד.
+const STAGE_NAMES = ["", "התפריט", "תרגול", "בחנים ומבחן"];
+function stageOf(list, i) {
+  let st = 0;
+  for (let k = 0; k <= i; k++) {
+    const m = /^שלב\s*([1-9])/.exec(list[k]?.title || "");
+    if (m) st = +m[1];
+  }
+  return st;
+}
+
 // `free` (13.9): המלבנים לא חוסמים כלום — לצעד שבו המלצר אמור לגלול ולקרוא את המנה («הבנתי»), ולצעד
 // ריבוע ההסבר שבו «הקשה בכל מקום סוגרת» חייבת להגיע לרקע של הריבוע ולא להיבלע כאן.
 function Dim({ style, clear, free }) {
   return (
     <div
       className={`absolute ${free ? "pointer-events-none" : "pointer-events-auto"}`}
-      style={{ background: clear ? "transparent" : "rgba(0,0,0,0.7)", transition: `${GLIDE}, background 160ms`, touchAction: free ? "auto" : "none", overscrollBehavior: "contain", ...style }}
+      style={{ background: clear ? "transparent" : "rgba(0,0,0,0.62)", backdropFilter: clear ? undefined : "blur(2px)", WebkitBackdropFilter: clear ? undefined : "blur(2px)", transition: `${GLIDE}, background 160ms`, touchAction: free ? "auto" : "none", overscrollBehavior: "contain", ...style }}
       onWheel={free ? undefined : (e) => e.preventDefault()}
     />
   );
@@ -420,6 +432,7 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
   // The card must not cover the thing it is pointing at. `cardTop` pins it (the dish step:
   // the arrows and the warnings live at the bottom of that screen).
   const cardAtTop = s.cardTop ?? (hole ? hole.top + hole.height > vh * 0.55 : false);
+  const stage = stageOf(LIST, i);
 
   // ⚠️ Portaled to <body> at z-100. The dish view (MenuBrowser's Overlay) is a body portal at
   // z-70 and the explain box at z-90 — the tour must sit above both (it points at the box).
@@ -449,6 +462,16 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
             : "bottom-0 border-t rounded-t-3xl pb-[max(1.25rem,env(safe-area-inset-bottom))]"
         }`}
       >
+        {/* פס דק על השפה הפנימית של הכרטיס — כמה נשאר, בלי מספר צעד */}
+        <div
+          className="absolute inset-x-0 h-[2px] bg-[#22252b] overflow-hidden pointer-events-none"
+          style={cardAtTop ? { bottom: 0 } : { top: 0 }}
+        >
+          <div
+            className="h-full bg-[#22c08c] transition-[width] duration-300 ease-out"
+            style={{ width: `${((i + 1) / LIST.length) * 100}%` }}
+          />
+        </div>
         <div key={i} className="animate-tour-step space-y-3">
           <div className="flex items-start gap-2.5">
             <span
@@ -459,7 +482,9 @@ export default function AppTour({ onNavigate, onDone, step = 0, onStep, aurora =
             </span>
             <div className="flex-1 min-w-0">
               <p className="text-[15px] font-black text-[#eef0f6] leading-snug">{gz(s.title)}</p>
-              <p className="text-[10px] font-bold text-[#5a5a6e] mt-0.5">צעד {i + 1} מתוך {LIST.length}</p>
+              {stage > 0 && (
+                <p className="text-[10px] font-bold text-[#5a5a6e] mt-0.5">שלב {stage} מתוך 3 · {STAGE_NAMES[stage]}</p>
+              )}
             </div>
           </div>
 
