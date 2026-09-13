@@ -32,6 +32,10 @@ import GroupFlashcards from "../games/GroupFlashcards";
 import CategoryExam from "../games/CategoryExam";
 import QuizExam from "../games/QuizExam";
 import MenuExam from "../games/MenuExam";
+import ServiceExam from "../games/ServiceExam";
+import { buildFinalExam, buildServiceQuiz, SAFETY_MODULE, SAFETY_FLOOR } from "../lib/serviceExam";
+import { MODULES, modulesForRole } from "../lib/serviceBank";
+import { defaultStandard } from "../lib/serviceStandard";
 
 
 const db = supabase.schema("menu_app");
@@ -172,6 +176,11 @@ export default function MainApp({ session, onSignOut }) {
   // The staged path: what the owner configured, and which category exams this member has
   // already passed. Both feed learningPath.pathState, which derives every unlock.
   const [examConfig, setExamConfig] = useState(null);
+  // The restaurant's service standard. Defaults until the owner-side screen ships; nothing
+  // is `confirmed`, so house rules can be practised and never examined.
+  const [serviceStandard] = useState(() => defaultStandard());
+  const [serviceConfirmed] = useState(() => []);
+  const [serviceModule, setServiceModule] = useState(null);
   // Seconds studied today: seeded from the snapshots already written, then ticked live by
   // useStudyTime so the ring moves while the waiter studies instead of jumping every two
   // minutes when a flush lands.
@@ -445,7 +454,11 @@ export default function MainApp({ session, onSignOut }) {
   // One row per completed exam attempt, so the owner sees exam history (and repeat
   // failures) rather than only the current mastery snapshot. Per-dish scores already
   // went to menu_progress via learnItem — this is the attempt-level record.
-  const recordExam = async ({ score, passed, dishCount }) => {
+  // ⚠️ Two shapes arrive here: MenuExam/CategoryExam send { score, passed, dishCount }, and
+  // ServiceExam sends the grade object, whose count is `asked`. Normalising here rather than
+  // in each screen keeps exam_results one column shape.
+  const recordExam = async ({ score, passed, dishCount, asked }) => {
+    dishCount = dishCount ?? asked ?? 0;
     if (!examCategory) return;
     // Unlock immediately and locally: the next category and its games should open on the
     // results screen, not after a reload. The DB row below is the durable record.
@@ -673,12 +686,44 @@ export default function MainApp({ session, onSignOut }) {
   // ⚠️ The pass mark is MenuExam's own 70, NOT exam_config.pass_threshold — that column is
   // the mastery % needed to SIT a category exam, not the mark needed to pass one. Both
   // exams in this app pass at 70, so the number means the same thing wherever it appears.
+  //
+  // ⭐ 2026-08-24 (user): "המבחן הסופי צריך לכלול את הכל" — the final sitting now covers the
+  // menu AND service procedure, in sections. What changed and why is in QUESTION-QUALITY.md
+  // ("מבנה המבחן"): a per-question clock instead of one clock for the sitting, a score per
+  // section instead of a single percentage, and a 100% floor on allergies.
+  // ⚠️ `serviceStandard` / `serviceConfirmed` come from the restaurant. Until the owner-side
+  // screen exists they are the professional defaults with NOTHING confirmed, which means
+  // house rules are practised but never examined — see serviceStandard.js.
   if (mode === "general_exam") {
-    return <MenuExam
-      items={cards}
-      deckSize={examConfig?.general_exam_questions || 40}
-      categoryOrder={examConfig?.category_order || []}
+    return <ServiceExam
+      sections={buildFinalExam({
+        cards,
+        categoryOrder: examConfig?.category_order || [],
+        role: myRole || "waiter",
+        standard: serviceStandard,
+        confirmed: serviceConfirmed,
+        menuCount: Math.min(16, Math.max(8, Math.round((examConfig?.general_exam_questions || 40) / 3))),
+      })}
+      title="המבחן הסופי"
       onAnswer={learnItem}
+      onDone={exitMode}
+      onFinish={recordExam}
+    />;
+  }
+  // בוחן שירות — one module, the way CategoryExam is one category.
+  if (mode === "service_quiz" && serviceModule) {
+    return <ServiceExam
+      sections={[{
+        key: serviceModule,
+        title: MODULES[serviceModule]?.title || "שירות",
+        // ⚠️ The safety floor applies to the QUIZ too, not only the exam. The card promises
+        // "every answer required", and practising under a gentler rule than the one you are
+        // judged by is how someone arrives at the exam surprised.
+        floor: serviceModule === SAFETY_MODULE ? SAFETY_FLOOR : null,
+        questions: buildServiceQuiz({ module: serviceModule, size: 8, standard: serviceStandard, confirmed: serviceConfirmed }),
+        correct: 0,
+      }]}
+      title={`בוחן ${MODULES[serviceModule]?.title || "שירות"}`}
       onDone={exitMode}
       onFinish={recordExam}
     />;
@@ -840,18 +885,52 @@ export default function MainApp({ session, onSignOut }) {
   // the top of the learning tab is the first thing a new waiter reads, and it frames the
   // screen as blocked. The tour explains the path; this tab just shows what to practise,
   // and the exam appears the day it is actually available.
+  // בחני השירות — one per module, exactly like a category exam is one category.
+  //
+  // Always available, in any order: the service modules are not a chain, and the same
+  // "steer, never block" rule the menu path follows applies here. A bartender is not shown
+  // napkin folding and a waiter is not shown double-straining — modulesForRole decides.
+  const serviceQuizCards = () => {
+    const mods = modulesForRole(myRole || "waiter");
+    return (
+      <div className="space-y-2">
+        <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">
+          בחני השירות הם על העבודה עצמה — מתי ניגשים לשולחן, מה עושים בתלונה, ואיך מטפלים באלרגיה.
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {mods.map((m) => {
+            const meta = MODULES[m];
+            return (
+              <button
+                key={m}
+                onClick={() => { setServiceModule(m); setExamCategory({ key: `service:${m}`, label: meta.title }); setMode("service_quiz"); }}
+                className={`rounded-2xl p-3 text-right active:scale-[0.99] transition-transform border ${
+                  meta.critical ? "bg-[#3a1d22]/40 border-[#e0315a]/40" : "bg-[#16181c] border-[#22252b]"}`}
+              >
+                <span className="block text-[13px] font-black text-[#eef0f6]">{meta.title}</span>
+                <span className={`block text-[10.5px] font-bold mt-1 ${meta.critical ? "text-[#e0315a]" : "text-[#22c08c]"}`}>
+                  {meta.critical ? "נדרשות כל התשובות ←" : "לבוחן ←"}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const generalExamCard = () =>
     generalUnlocked ? (
       <button
-        onClick={() => { setExamCategory({ key: "general", label: "התפריט המלא" }); setMode("general_exam"); }}
+        onClick={() => { setExamCategory({ key: "general", label: "המבחן הסופי" }); setMode("general_exam"); }}
         className="w-full rounded-2xl p-3.5 text-right text-white active:scale-[0.99] transition-transform flex items-center gap-3"
         style={{ background: "linear-gradient(135deg,#14b8a6,#0d7f74)" }}
       >
         <GraduationCap size={20} className="flex-shrink-0" />
         <span className="flex-1">
-          <span className="block text-sm font-black">מבחן התפריט המלא</span>
+          <span className="block text-sm font-black">המבחן הסופי</span>
           <span className="block text-[11px] font-bold opacity-90">
-            {examConfig?.general_exam_questions || 40} שאלות על כל התפריט, עם שעון — זו המטרה הסופית
+            התפריט וגם השירות, בקטגוריות — עם שעון לכל שאלה. זו המטרה הסופית
           </span>
         </span>
       </button>
@@ -1076,6 +1155,11 @@ export default function MainApp({ session, onSignOut }) {
             {/* The whole-menu exam is the goal this tab exists for, so it sits at the top
                 level rather than one drill-down in. */}
             {generalExamCard()}
+            {/* ⚠️ Service quizzes belong at the TOP level, not one drill-down in. A
+                restaurant with several menus (food / desserts / bar) used to hide them
+                behind picking a menu — but "when do you greet a table" has nothing to do
+                with which menu you happen to be looking at. */}
+            {serviceQuizCards()}
             <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">
               קודם עוברים על המנות בתפריט, אחר כך נבחנים בכל קטגוריה.
             </p>
@@ -1116,6 +1200,7 @@ export default function MainApp({ session, onSignOut }) {
               </div>
             )}
             {generalExamCard()}
+            {serviceQuizCards()}
             <p className="text-[11px] text-[#8a8aa0] px-1 leading-relaxed">
               {/* No order is imposed — steer, never block. */}
               בוחרים קטגוריה, עוברים על המנות שבה, וכשמכירים אותן — נבחנים.

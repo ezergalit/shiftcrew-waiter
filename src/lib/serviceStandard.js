@@ -183,6 +183,24 @@ export const HOUSE_KEYS = {
   },
 };
 
+// ── Which categories leave the kitchen in courses ────────────────────────────────────
+// ⚠️ NOT a HOUSE_KEYS entry, because it is a list of the restaurant's own category names
+// rather than a choice between our options — the owner ticks their categories.
+//
+// It exists because nothing in the menu data separates food from drink. On Studio 2026 all
+// 22 wines and 62 spirits carry ingredients AND descriptions (a different feature filled
+// them in), so every content-based test waves them through, and the exam asked which of a
+// beef skewer, a Syrah and a sparkling water "comes out first". There is no answer.
+//
+// Empty ⇒ a multi-menu restaurant gets NO serving-order question. That is the intended
+// behaviour: a missing question costs nothing, a wrong one teaches a waiter something false
+// about their own service.
+export const COURSE_CATEGORIES_KEY = "course_categories";
+export const courseCategories = (standard) => {
+  const v = standard?.[COURSE_CATEGORIES_KEY];
+  return Array.isArray(v) && v.length ? v : null;
+};
+
 // The shape a restaurant's answers arrive in. Missing key ⇒ default, never a hole.
 export const defaultStandard = () =>
   Object.fromEntries(Object.entries(HOUSE_KEYS).map(([k, v]) => [k, v.def]));

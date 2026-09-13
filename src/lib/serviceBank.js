@@ -28,9 +28,9 @@
 // a universal answer to them would teach a waiter something false about their own floor.
 
 export const MODULES = {
-  S1: { title: "קבלת אורח", role: "floor" },
-  S2: { title: "רצף השירות", role: "floor" },
-  S3: { title: "הגשה וטכניקה", role: "floor" },
+  S1: { title: "קבלת אורח", role: "waiter" },
+  S2: { title: "רצף השירות", role: "waiter" },
+  S3: { title: "הגשה וטכניקה", role: "waiter" },
   S4: { title: "אלרגיות ובטיחות", role: "any", critical: true },
   S5: { title: "אורחים ומצבים", role: "any" },
   S6: { title: "היגיינה ומראה", role: "any" },
@@ -245,10 +245,10 @@ export const BANK = [
     null, null,
     "פינוי הוא רגע שקט. ערימה מול האורחים וקרקוש הם רעש שמזכיר לאורח שהוא יושב במקום עבודה.",
     { multiAnswers: ["clear_quiet", "plate_rim"], multiDistractors: ["announce_dish", "decant"] }),
-  Q("S3", "order", "סדר/י את שלבי הגשת בקבוק יין.",
+  Q("S3", "order", "סדר/י את שלבי הגשת בקבוק יין, עד שהכוסות על השולחן.",
     null, null,
-    "סדר קבוע ששומר על האורח: לוודא שזה הבקבוק, לפתוח, לתת לטעום, ורק אז למלא כוסות.",
-    { sequence: ["open_wine_label", "pour_taste", "pour_rest", "serve_together"] }),
+    "סדר קבוע ששומר על האורח: לוודא שזה הבקבוק, לתת לטעום, למלא לשאר — והכוסות תמיד נאחזות ברגל.",
+    { sequence: ["open_wine_label", "pour_taste", "pour_rest", "stem_hold"] }),
 
   // ── S4 · אלרגיות ובטיחות ────────────────────────────────────────────────────────
   Q("S4", "first", "אורח אומר ״יש לי אלרגיה לאגוזים״. מה הדבר הראשון?",
@@ -441,18 +441,35 @@ export function renderQuestion(entry, rnd = Math.random, idx = 0) {
 
 // Which modules apply to this person. A bartender is not examined on napkin folding, and a
 // waiter is not examined on double-straining.
-// The answer SHAPE — what the waiter physically does. `kind` is the semantic label shown on
-// the chip ("מה קודם?" vs a plain scenario); two different kinds can still be the same
-// screen, and rhythm has to follow the screen.
-export const shapeOf = (kind) => (kind === "order" ? "order" : kind === "multi" ? "multi" : "single");
+// The answer SHAPE — what the waiter physically does. `kind` is the semantic label on the
+// chip ("מה קודם?" vs a plain scenario); two different kinds can still be the same screen,
+// and both the clock and the rhythm rule have to follow the screen.
+//
+// ⚠️ Accepts a QUESTION, not just a kind string. Menu questions (serviceScenarios.js) carry
+// `kind: "compose"` with a separate `multi: true` flag, so a version that only read the kind
+// string classified them as single-choice — which gave a twelve-ingredient question the
+// 25-second single-choice clock instead of 40, and let the rhythm rule seat two of them
+// side by side believing they were different screens.
+export function shapeOf(q) {
+  if (typeof q === "string") return q === "order" ? "order" : q === "multi" ? "multi" : "single";
+  if (!q) return "single";
+  // ⚠️ Structure beats label. The menu's serving-order question carries kind:"order" but is
+  // a three-option single choice — reading the label alone handed it the 60-second
+  // sequence clock. A rendered question that has `options` is answered by picking, whatever
+  // its kind is called.
+  if (q.correctOrder || q.sequence) return "order";
+  if (q.multi || q.multiAnswers) return "multi";
+  if (q.options) return "single";
+  return q.kind === "order" ? "order" : q.kind === "multi" ? "multi" : "single";
+}
 
 export function modulesForRole(role) {
-  const wants = (m) => m.role === "any" || (role === "bar" ? m.role === "bar" : role === "both" ? true : m.role === "floor");
+  const wants = (m) => m.role === "any" || (role === "bar" ? m.role === "bar" : role === "both" ? true : m.role === "waiter");
   return Object.entries(MODULES).filter(([, m]) => wants(m)).map(([k]) => k);
 }
 
 // Build a practice or exam deck.
-//   role      — "floor" | "bar" | "both"
+//   role      — "waiter" | "bar" | "both" (lib/shiftChoice.js)
 //   size      — how many questions
 //   standard  — the restaurant's house answers (serviceStandard.js)
 //   confirmed — house keys the owner ticked; unconfirmed keys are practice-only
@@ -486,7 +503,7 @@ function interleave(a, b, rnd) {
     const prev = out[out.length - 1];
     // Prefer a neighbour of a different kind; fall back to whatever is left rather than
     // dropping questions to satisfy a layout rule.
-    let i = rest.findIndex((q) => !prev || shapeOf(q.kind) !== shapeOf(prev.kind));
+    let i = rest.findIndex((q) => !prev || shapeOf(q) !== shapeOf(prev));
     if (i < 0) i = 0;
     out.push(rest.splice(i, 1)[0]);
   }

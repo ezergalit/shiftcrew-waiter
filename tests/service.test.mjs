@@ -11,7 +11,7 @@
 
 import { BANK, ACTIONS, MODULES, renderQuestion, buildServiceDeck, modulesForRole, shapeOf, homeModule, CONFLICTS } from "../src/lib/serviceBank.js";
 import { HOUSE_KEYS, houseQuestion, defaultStandard } from "../src/lib/serviceStandard.js";
-import { buildServiceExam, gradeExam, examSeconds, secondsFor, SECTION_PLAN, DEFAULT_PASS } from "../src/lib/serviceExam.js";
+import { buildServiceExam, buildFinalExam, buildServiceQuiz, gradeExam, examSeconds, examLength, secondsFor, SECTION_PLAN, DEFAULT_PASS, SAFETY_FLOOR, SAFETY_MODULE } from "../src/lib/serviceExam.js";
 
 const fails = [];
 const warns = [];
@@ -161,7 +161,7 @@ for (const { q, i } of live) {
 // ELIMINABLE proves an action is real. It does not prove it is real TO THIS PERSON: a
 // bartender offered "לקפל מחדש מפית" eliminates it without knowing anything about bars.
 for (const [i, e] of BANK.entries()) {
-  const roles = ["floor", "bar"].filter((r) => modulesForRole(r).includes(e.module));
+  const roles = ["waiter", "bar"].filter((r) => modulesForRole(r).includes(e.module));
   for (const k of [...(e.d || []), ...(e.multiDistractors || [])]) {
     const home = homeModule(k);
     if (!home) continue; // already reported by ELIMINABLE
@@ -233,8 +233,8 @@ for (let t = 0; t < 40; t++) {
   const deck = buildServiceDeck({ role: "both", size: 20, standard: defaultStandard(), confirmed: Object.keys(HOUSE_KEYS), rnd });
   if (deck.length < 12) { bad("DECK-SIZE", `deck came back with ${deck.length} questions`); break; }
   for (let i = 1; i < deck.length; i++)
-    if (shapeOf(deck[i].kind) === shapeOf(deck[i - 1].kind) && shapeOf(deck[i].kind) !== "single")
-      warn("RHYTHM", `two "${shapeOf(deck[i].kind)}" questions in a row at ${i}`);
+    if (shapeOf(deck[i]) === shapeOf(deck[i - 1]) && shapeOf(deck[i]) !== "single")
+      warn("RHYTHM", `two "${shapeOf(deck[i])}" questions in a row at ${i}`);
 }
 
 // ── Gate: an unconfirmed house rule never reaches the exam ───────────────────────────
@@ -250,10 +250,10 @@ for (let t = 0; t < 20; t++) {
 // A waiter examined on double-straining learns that the app does not know what their job
 // is. Same failure as asking about a category the waiter never opened (rule 9).
 {
-  const floor = buildServiceDeck({ role: "floor", size: 60, standard: defaultStandard(), confirmed: Object.keys(HOUSE_KEYS), rnd });
-  if (floor.some((q) => q.module === "S7")) bad("ROLE-SCOPE", "a floor deck contains bar questions");
+  const floor = buildServiceDeck({ role: "waiter", size: 60, standard: defaultStandard(), confirmed: Object.keys(HOUSE_KEYS), rnd });
+  if (floor.some((q) => q.module === "S7")) bad("ROLE-SCOPE", "a waiter deck contains bar questions");
   const bar = buildServiceDeck({ role: "bar", size: 60, standard: defaultStandard(), confirmed: Object.keys(HOUSE_KEYS), rnd });
-  if (bar.some((q) => MODULES[q.module]?.role === "floor")) bad("ROLE-SCOPE", "a bar deck contains floor-only questions");
+  if (bar.some((q) => MODULES[q.module]?.role === "waiter")) bad("ROLE-SCOPE", "a bar deck contains waiter-only questions");
   if (!modulesForRole("both").includes("S7")) bad("ROLE-SCOPE", '"both" must include the bar module');
 }
 
@@ -279,7 +279,7 @@ for (let t = 0; t < 20; t++) {
 // attempt is recall of the app, not of the job.
 {
   const EXAM = 20;
-  for (const role of ["floor", "bar", "both"]) {
+  for (const role of ["waiter", "bar", "both"]) {
     const n = BANK.filter((e) => modulesForRole(role).includes(e.module)).length + Object.keys(HOUSE_KEYS).length;
     if (n < EXAM * 2.5) bad("BANK-DEPTH", `role "${role}" can draw on ${n} questions for a ${EXAM}-question exam (need ${Math.ceil(EXAM * 2.5)})`);
   }
@@ -307,14 +307,14 @@ for (const key of Object.keys(HOUSE_KEYS)) {
 // A section that comes back short is a silent shrink of the exam: the waiter sits a
 // 19-question exam believing it was 23, and the section percentages stop being comparable
 // between people.
-for (const role of ["floor", "bar", "both"]) {
+for (const role of ["waiter", "bar", "both"]) {
   for (let t = 0; t < 30; t++) {
     const sections = buildServiceExam({ role, standard: defaultStandard(), confirmed: [], rnd });
     if (!sections.length) { bad("EXAM-EMPTY", `role "${role}" produced no sections`); break; }
     for (const s of sections) {
-      const want = SECTION_PLAN.find((p) => p.module === s.module).count;
+      const want = SECTION_PLAN.find((p) => p.module === s.key).count;
       if (s.questions.length < want) {
-        bad("SECTION-SHORT", `role "${role}": section ${s.module} returned ${s.questions.length}/${want}`);
+        bad("SECTION-SHORT", `role "${role}": section ${s.key} returned ${s.questions.length}/${want}`);
         break;
       }
     }
@@ -346,15 +346,17 @@ for (const role of ["floor", "bar", "both"]) {
 // must NOT be certified — and the only way to know the rule is wired up is to grade a
 // synthetic sitting that has exactly that shape.
 {
-  const sections = buildServiceExam({ role: "floor", standard: defaultStandard(), confirmed: [], rnd });
-  const s4 = sections.find((s) => s.module === "S4");
+  const sections = buildServiceExam({ role: "waiter", standard: defaultStandard(), confirmed: [], rnd });
+  const s4 = sections.find((s) => s.key === SAFETY_MODULE);
   if (!s4) bad("NO-SAFETY-SECTION", "the exam has no allergy section");
   else {
     // Perfect everywhere, one right out of five on safety.
     for (const s of sections) s.correct = s.questions.length;
-    s4.correct = 1;
+    // ⚠️ The floor is 100 (user decision): ONE wrong allergy answer must fail the sitting,
+    //    however good the rest of it was. That is the whole point of the number.
+    s4.correct = s4.questions.length - 1;
     const r = gradeExam(sections, DEFAULT_PASS);
-    if (r.passed) bad("SAFETY-FLOOR", `scored ${r.score}% with ${Math.round((1 / s4.questions.length) * 100)}% on allergies and still passed`);
+    if (r.passed) bad("SAFETY-FLOOR", `scored ${r.score}% with one allergy question wrong and still passed`);
     if (!r.blockedBy.length) bad("SAFETY-FLOOR", "nothing reported as blocking the pass");
     // And the inverse: the floor must not block someone who actually cleared it.
     for (const s of sections) s.correct = s.questions.length;
@@ -373,6 +375,48 @@ for (const role of ["floor", "bar", "both"]) {
       const load = (q.prompt + " " + (q.options || []).map((o) => o.label).join(" ")).split(/\s+/).length;
       if (t < load / 3) bad("CLOCK-TIGHT", `${load} words to read in ${t}s`);
     }
+}
+
+// ── Gate: the final exam really does contain menu AND service ────────────────────────
+// The user asked for one final sitting that covers everything. A build that silently drops
+// one of the two halves would still look like a working exam.
+{
+  const dish = (id, cat, name, o = {}) => ({
+    id, category: cat, name, ingredients: o.ing || [], allergens: o.all || [],
+    pregnancy: o.preg || [], pitfalls: o.pit || [], desc: o.desc || "", price: o.price || 0,
+  });
+  const menu = [
+    dish("a1", "ראשונות", "סלט יווני", { ing: ["מלפפון", "עגבנייה", "פטה"], all: ["לקטוז"], price: 52, desc: "סלט ירקות חתוכים גס עם גבינה מלוחה ושמן זית" }),
+    dish("a2", "ראשונות", "חצילים בטחינה", { ing: ["חציל", "טחינה", "רימון"], all: ["שומשום"], price: 48, desc: "חציל שרוף עם רוטב שומשום ופתיתי פרי אדומים" }),
+    dish("a3", "ראשונות", "קרפצ׳ו בקר", { ing: ["בקר", "פרמזן"], preg: ["בשר נא"], all: ["לקטוז"], price: 64, desc: "פרוסות בשר דקות עם גבינה קשה ושמן זית" }),
+    dish("a4", "ראשונות", "כרוב צלוי", { ing: ["כרוב", "חמאה"], all: ["לקטוז"], price: 44, desc: "כרוב שנצלה בתנור עם חמאה חומה ואגוזים קלויים" }),
+    dish("m1", "עיקריות", "דג לברק", { ing: ["לברק", "לימון"], all: ["גלוטן"], price: 128, desc: "דג שלם שנצלה על גריל עם עשבי תיבול ולימון" }),
+    dish("m2", "עיקריות", "אנטריקוט", { ing: ["בקר", "רוזמרין"], price: 168, desc: "נתח בשר על האש עם תפוחי אדמה ורוטב יין אדום" }),
+    dish("m3", "עיקריות", "פסטה פטריות", { ing: ["פסטה", "פטריות", "שמנת"], all: ["גלוטן", "לקטוז"], price: 88, desc: "פסטה טרייה ברוטב שמנת עם פטריות יער וטימין" }),
+    dish("m4", "עיקריות", "מוסקה", { ing: ["חציל", "בשר טחון", "בשמל"], all: ["גלוטן", "לקטוז"], price: 96, desc: "מגש שכבות אפוי עם רוטב לבן וגבינה מעל" }),
+    dish("d1", "קינוחים", "גלקטובוריקו", { ing: ["פילו", "סולת", "סירופ"], all: ["גלוטן", "לקטוז", "ביצים"], price: 42, desc: "מאפה עלים במילוי קרם עם סירופ מתוק מעל" }),
+    dish("d2", "קינוחים", "יוגורט ודבש", { ing: ["יוגורט", "דבש", "אגוזי מלך"], all: ["לקטוז", "אגוזים"], price: 36, desc: "יוגורט סמיך עם דבש פרחים ואגוזים קלויים" }),
+  ];
+  for (const role of ["waiter", "bar", "both"]) {
+    const secs = buildFinalExam({ cards: menu, categoryOrder: ["ראשונות", "עיקריות", "קינוחים"], role, standard: defaultStandard(), confirmed: [], rnd });
+    if (!secs.some((s) => s.key === "menu")) bad("FINAL-NO-MENU", `role "${role}": the final exam has no menu section`);
+    if (!secs.some((s) => s.key === SAFETY_MODULE)) bad("FINAL-NO-SAFETY", `role "${role}": the final exam has no allergy section`);
+    if (secs.filter((s) => s.key !== "menu" && s.key !== SAFETY_MODULE).length < 3)
+      bad("FINAL-NO-SERVICE", `role "${role}": the final exam has almost no service sections`);
+    const n = examLength(secs), mins = examSeconds(secs) / 60;
+    if (n < 18 || n > 32) bad("FINAL-LENGTH", `role "${role}": ${n} questions`);
+    if (mins > 15) bad("FINAL-TOO-LONG", `role "${role}": ${Math.round(mins)} minutes`);
+    // The safety section must be exactly the size the floor was designed around: with a
+    // 100% floor, every extra question is another chance to fail on a mis-tap.
+    const s4 = secs.find((s) => s.key === SAFETY_MODULE);
+    if (s4 && s4.floor !== SAFETY_FLOOR) bad("FINAL-FLOOR", `safety section floor is ${s4.floor}, expected ${SAFETY_FLOOR}`);
+  }
+}
+
+// ── Gate: a single-module quiz is buildable for every module ─────────────────────────
+for (const mod of Object.keys(MODULES)) {
+  const q = buildServiceQuiz({ module: mod, size: 8, standard: defaultStandard(), confirmed: [], rnd });
+  if (q.length < 4) bad("QUIZ-SHORT", `בוחן for ${mod} returned only ${q.length} questions`);
 }
 
 // ── Report ───────────────────────────────────────────────────────────────────────────

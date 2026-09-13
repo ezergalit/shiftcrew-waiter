@@ -1,66 +1,78 @@
-// מבחן השירות — the certification sitting.
+// מבחן ובחני השירות.
+//
+// Two things live here, matching the app's existing vocabulary (בוחן = one unit, מבחן = all
+// of it — see CLAUDE.md, "מינוח אחיד"):
+//
+//   buildServiceQuiz  — בוחן שירות: one module, the way CategoryExam is one category.
+//   buildFinalExam    — המבחן הסופי: menu AND service together, in sections (user, 2026-08-24).
 //
 // ── What was wrong with the exam this replaces ────────────────────────────────────────
 //
-// MenuExam is 40 questions under ONE clock for the whole sitting. Three consequences, all
-// of which the user named directly ("too hard and not centred enough"):
+// MenuExam is 40 questions under ONE clock. Three consequences, all named by the user
+// ("too hard and not centred enough"):
 //
-//   1. ONE CLOCK PUNISHES THE WRONG THING. A waiter who thinks carefully about question 3
-//      has less time for question 30. The clock stops measuring service knowledge and
-//      starts measuring pacing strategy.
-//   2. 40 QUESTIONS OF ONE FLAVOUR IS NOT AN EXAM, IT IS AN ENDURANCE TEST. Past about
-//      twenty, the score measures who is still reading.
-//   3. A SINGLE PERCENTAGE HIDES THE ONLY THING THAT MATTERS. 72% can mean "solid
-//      everywhere" or "excellent everywhere and blank on allergies". Those are not the same
-//      person, and only one of them can work the floor.
-//
-// ── What this does instead ────────────────────────────────────────────────────────────
-//
-// SECTIONS, one per moment of the shift, so the result is a diagnosis and not a grade;
-// a PER-QUESTION clock, so a hard question costs only itself; and a SAFETY FLOOR, because
-// allergies are the one section where a good average is not good enough.
+//   1. ONE CLOCK PUNISHES THE WRONG THING. Thinking carefully about question 3 costs you
+//      question 30. The clock stops measuring knowledge and starts measuring pacing.
+//   2. 40 QUESTIONS OF ONE FLAVOUR IS AN ENDURANCE TEST. Past about twenty-five, the score
+//      measures who is still reading.
+//   3. ONE PERCENTAGE HIDES THE ONLY THING THAT MATTERS. 72% can mean "solid everywhere" or
+//      "excellent everywhere and blank on allergies". Only one of those can work the floor.
 
 import { BANK, MODULES, renderQuestion, modulesForRole, shapeOf } from "./serviceBank.js";
-import { HOUSE_KEYS, houseQuestion } from "./serviceStandard.js";
+import { HOUSE_KEYS, houseQuestion, courseCategories } from "./serviceStandard.js";
+import { buildMenuExamDeck } from "./serviceScenarios.js";
 
 // ── Time ──────────────────────────────────────────────────────────────────────────────
-// The clock exists to stop someone looking the answer up mid-question, NOT to make the exam
-// hard. These are generous for reading Hebrew and answering, and far too short to search:
-// a waiter who knows the answer uses about a third of them.
+// The clock exists to stop someone looking an answer up mid-question, NOT to make the exam
+// hard. Generous for reading Hebrew and answering; far too short to search. Someone who
+// knows the answer uses about a third of it.
 //
-// ⚠️ Per QUESTION, never per exam. Time left does not roll over — carrying it forward is
-// exactly what turns the exam into a pacing contest.
+// ⚠️ Per QUESTION, never per exam, and time never rolls over — carrying it forward is
+// exactly what turns an exam into a pacing contest.
 export const SECONDS = { single: 25, multi: 40, order: 60 };
-export const secondsFor = (q) => SECONDS[shapeOf(q.kind)] || SECONDS.single;
+export const secondsFor = (q) => SECONDS[shapeOf(q)] || SECONDS.single;
 
-// Running out of time is scored as a wrong answer, not as a skip. A waiter who cannot
-// answer inside 25 seconds cannot answer at a table either.
+// Running out of time scores as wrong, not as a skip: a waiter who cannot answer inside
+// twenty-five seconds cannot answer at a table either.
 export const TIMEOUT_IS_WRONG = true;
 
-// ── The plan ─────────────────────────────────────────────────────────────────────────
-// Twenty-three questions across six sections. Each section is a moment in the shift, which
-// is what makes the result readable: "strong on the floor, shaky on allergies" is something
-// an owner can act on before the shift, and "72%" is not.
+// ── The safety floor ─────────────────────────────────────────────────────────────────
+// ⚠️ 100% — zero mistakes (user decision, 2026-08-24). An allergy answered wrong is not one
+// question's worth of wrong; it is the only failure mode in this product that ends in an
+// ambulance. A waiter can be excellent everywhere else and still must not be certified
+// while they are guessing here.
 //
-// `floor` is a per-section minimum that must be cleared IN ADDITION to the overall pass
-// mark. Only the safety section carries one — see PASS below.
-export const SECTION_PLAN = [
-  { module: "S4", count: 5, floor: 80 },
-  { module: "S1", count: 3 },
-  { module: "S2", count: 4 },
-  { module: "S3", count: 4 },
-  { module: "S5", count: 4 },
-  { module: "S6", count: 3 },
-  { module: "S7", count: 5 },
-];
+// ⚠️ The cost of 100%, stated so nobody rediscovers it as a bug: ONE mis-tap under the
+// clock fails the whole sitting. That is the intended trade — but it means retakes must
+// stay free and unlimited, and it is why SAFETY_COUNT is small.
+export const SAFETY_FLOOR = 100;
+export const SAFETY_MODULE = "S4";
+const SAFETY_COUNT = 4;
 
 export const DEFAULT_PASS = 75;
 
-// ⚠️ THE SAFETY FLOOR. An allergy question answered wrong is not one question's worth of
-// wrong — it is the only failure mode in this whole product that can put a guest in an
-// ambulance. A waiter can be excellent everywhere else and still must not be certified
-// while they are guessing here. Same reasoning as the "allergens are a closed list" rule in
-// the Edge Function: on this field a false confidence is worse than an admitted gap.
+// Service sections for a standalone service exam. `count` is per section.
+export const SECTION_PLAN = [
+  { module: "S4", count: SAFETY_COUNT, floor: SAFETY_FLOOR },
+  { module: "S1", count: 3 },
+  { module: "S2", count: 3 },
+  { module: "S3", count: 3 },
+  { module: "S5", count: 3 },
+  { module: "S6", count: 2 },
+  { module: "S7", count: 4 },
+];
+
+// In the combined final exam the menu carries its own section, and the service sections
+// shrink so the whole sitting stays inside a coffee break.
+const FINAL_MENU_COUNT = 12;
+
+// ⚠️ The sitting has a TIME BUDGET, not a question count. A waiter who is both floor and bar
+// studies two extra sections, and sizing by question count pushed that sitting to sixteen
+// minutes — straight back into the endurance test this rewrite exists to remove. Sections
+// shrink to fit the budget instead.
+const MAX_EXAM_SECONDS = 13 * 60;
+
+// ── Grading ──────────────────────────────────────────────────────────────────────────
 export function gradeExam(sections, passMark = DEFAULT_PASS) {
   const asked = sections.reduce((n, s) => n + s.questions.length, 0);
   const right = sections.reduce((n, s) => n + s.correct, 0);
@@ -68,16 +80,15 @@ export function gradeExam(sections, passMark = DEFAULT_PASS) {
 
   const bySection = sections.map((s) => {
     const pct = s.questions.length ? Math.round((s.correct / s.questions.length) * 100) : 0;
-    const plan = SECTION_PLAN.find((p) => p.module === s.module);
     return {
-      module: s.module,
-      title: MODULES[s.module]?.title || s.module,
+      key: s.key,
+      title: s.title,
       pct,
       correct: s.correct,
       total: s.questions.length,
-      floor: plan?.floor ?? null,
-      belowFloor: plan?.floor != null && pct < plan.floor,
-      critical: !!MODULES[s.module]?.critical,
+      floor: s.floor ?? null,
+      belowFloor: s.floor != null && pct < s.floor,
+      critical: !!s.floor,
     };
   });
 
@@ -89,46 +100,103 @@ export function gradeExam(sections, passMark = DEFAULT_PASS) {
     bySection,
     passed: score >= passMark && blocked.length === 0,
     blockedBy: blocked.map((s) => s.title),
-    // The single most useful line for the waiter and for the owner: not "72%", but which
+    // The single most useful line for both the waiter and the owner: not "72%", but which
     // moment of the shift to go back over.
     weakest: [...bySection].sort((a, b) => a.pct - b.pct)[0] || null,
   };
 }
 
-// ── Building the sitting ─────────────────────────────────────────────────────────────
-export function buildServiceExam({ role = "floor", standard = {}, confirmed = [], rnd = Math.random } = {}) {
-  const mods = new Set(modulesForRole(role));
+// ── בוחן שירות — one module ───────────────────────────────────────────────────────────
+export function buildServiceQuiz({ module, size = 8, standard = {}, confirmed = [], exam = false, rnd = Math.random } = {}) {
+  const universal = BANK.filter((e) => e.module === module)
+    .map((e, i) => renderQuestion(e, rnd, i))
+    .filter(Boolean);
+  // An unconfirmed house rule may be PRACTISED but never examined — see serviceStandard.js.
+  const house = Object.keys(HOUSE_KEYS)
+    .filter((k) => HOUSE_KEYS[k].module === module && (!exam || confirmed.includes(k)))
+    .map((k) => houseQuestion(k, standard, rnd))
+    .filter(Boolean);
+  return varyShapes(shuffle([...universal, ...house], rnd), rnd).slice(0, size);
+}
 
-  // House rules the owner has confirmed, grouped by the section they belong to. Unconfirmed
-  // rules never reach this function — see serviceStandard.js for why certifying someone
-  // against our own guess is not acceptable.
-  const houseByModule = {};
-  for (const k of Object.keys(HOUSE_KEYS)) {
-    if (!confirmed.includes(k) || !mods.has(HOUSE_KEYS[k].module)) continue;
-    (houseByModule[HOUSE_KEYS[k].module] ||= []).push(k);
+// ── המבחן הסופי — menu AND service ────────────────────────────────────────────────────
+//
+// ⚠️ The allergy section draws from BOTH sides. A menu allergy scenario ("this guest is
+// allergic to sesame — which dish can you serve?") and a service allergy procedure ("who do
+// you tell?") are the same competence, and putting them in different sections would let
+// someone clear a 100% floor while failing the half that happens to sit elsewhere.
+export function buildFinalExam({
+  cards = [], categoryOrder = [], role = "waiter",
+  standard = {}, confirmed = [], menuCount = FINAL_MENU_COUNT, rnd = Math.random,
+} = {}) {
+  const mods = new Set(modulesForRole(role));
+  const sections = [];
+
+  // Over-draw the menu deck so there is something left for the menu section after the
+  // allergy questions are pulled out of it.
+  const menuDeck = buildMenuExamDeck(cards, menuCount + SAFETY_COUNT * 2, rnd, categoryOrder, courseCategories(standard));
+  const isMenuSafety = (q) => q.kind === "allergy" || q.kind === "allergenset";
+  const menuSafety = menuDeck.filter(isMenuSafety);
+  const menuRest = menuDeck.filter((q) => !isMenuSafety(q));
+
+  // 1 — Safety first, and it is the section that can block on its own.
+  const svcSafety = buildServiceQuiz({ module: SAFETY_MODULE, size: 99, standard, confirmed, exam: true, rnd });
+  const safety = shuffle([...svcSafety, ...menuSafety], rnd).slice(0, SAFETY_COUNT);
+  if (safety.length) {
+    sections.push({
+      key: SAFETY_MODULE,
+      title: MODULES[SAFETY_MODULE].title,
+      floor: SAFETY_FLOOR,
+      questions: varyShapes(safety, rnd),
+      correct: 0,
+    });
   }
 
+  // 2 — The menu itself.
+  if (menuRest.length) {
+    sections.push({ key: "menu", title: "התפריט", floor: null, questions: menuRest.slice(0, menuCount), correct: 0 });
+  }
+
+  // 3 — The rest of the shift, one section per moment.
+  for (const plan of SECTION_PLAN) {
+    if (plan.module === SAFETY_MODULE || !mods.has(plan.module)) continue;
+    // Sections are smaller here than in a standalone service exam: the menu section is
+    // already carrying twelve questions of the sitting.
+    const size = Math.max(2, plan.count - 1);
+    const qs = buildServiceQuiz({ module: plan.module, size, standard, confirmed, exam: true, rnd });
+    if (qs.length) sections.push({ key: plan.module, title: MODULES[plan.module].title, floor: null, questions: qs, correct: 0 });
+  }
+
+  return fitBudget(sections);
+}
+
+// Trim the sitting to the time budget by dropping the last question from the longest
+// section, repeatedly.
+//
+// ⚠️ THE SAFETY SECTION IS NEVER TRIMMED, in either direction. It cannot grow (with a 100%
+// floor every extra question is one more chance to fail on a mis-tap) and it cannot shrink
+// (fewer questions makes the floor easier to clear by luck). Its size is a deliberate number,
+// not a leftover of whatever fitted.
+function fitBudget(sections, max = MAX_EXAM_SECONDS) {
+  let guard = 0;
+  while (examSeconds(sections) > max && guard++ < 200) {
+    const trimmable = sections.filter((s) => s.floor == null && s.questions.length > 2);
+    if (!trimmable.length) break;
+    const biggest = trimmable.reduce((a, b) => (b.questions.length > a.questions.length ? b : a));
+    biggest.questions.pop();
+  }
+  return sections.filter((s) => s.questions.length);
+}
+
+// ── Standalone service exam (no menu) ────────────────────────────────────────────────
+export function buildServiceExam({ role = "waiter", standard = {}, confirmed = [], rnd = Math.random } = {}) {
+  const mods = new Set(modulesForRole(role));
   const sections = [];
   for (const plan of SECTION_PLAN) {
     if (!mods.has(plan.module)) continue;
-
-    const universal = BANK.filter((e) => e.module === plan.module)
-      .map((e, i) => renderQuestion(e, rnd, i))
-      .filter(Boolean);
-    const house = (houseByModule[plan.module] || []).map((k) => houseQuestion(k, standard, rnd)).filter(Boolean);
-
-    // Draw fresh each sitting from a pool much larger than the section — that is what makes
-    // a retake a second exam rather than a memory test of the first.
-    const picked = shuffle([...universal, ...house], rnd).slice(0, plan.count);
-    if (!picked.length) continue;
-
-    sections.push({
-      module: plan.module,
-      title: MODULES[plan.module]?.title || plan.module,
-      floor: plan.floor ?? null,
-      questions: varyShapes(picked, rnd),
-      correct: 0,
-    });
+    const qs = buildServiceQuiz({ module: plan.module, size: plan.count, standard, confirmed, exam: true, rnd });
+    if (!qs.length) continue;
+    sections.push({ key: plan.module, title: MODULES[plan.module].title, floor: plan.floor ?? null, questions: qs, correct: 0 });
   }
   return sections;
 }
@@ -136,15 +204,17 @@ export function buildServiceExam({ role = "floor", standard = {}, confirmed = []
 export const examSeconds = (sections) =>
   sections.reduce((n, s) => n + s.questions.reduce((m, q) => m + secondsFor(q), 0), 0);
 
-// Inside a section, avoid two of the same answer shape back to back — the same rhythm rule
-// the practice deck uses. Five identical four-option screens in a row is the texture the
-// user described as "horrible", and it is fixed by ordering, not by content.
+export const examLength = (sections) => sections.reduce((n, s) => n + s.questions.length, 0);
+
+// Inside a section, avoid two of the same ANSWER SHAPE back to back. Five identical
+// four-option screens in a row is the texture the user called "horrible", and it is fixed by
+// ordering rather than by content.
 function varyShapes(list, rnd) {
   const rest = shuffle(list, rnd);
   const out = [];
   while (rest.length) {
     const prev = out[out.length - 1];
-    let i = rest.findIndex((q) => !prev || shapeOf(q.kind) !== shapeOf(prev.kind));
+    let i = rest.findIndex((q) => !prev || shapeOf(q) !== shapeOf(prev));
     if (i < 0) i = 0;
     out.push(rest.splice(i, 1)[0]);
   }

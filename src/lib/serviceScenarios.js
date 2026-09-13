@@ -47,6 +47,16 @@ const shuffleWith = (arr, rnd) => {
 
 export const label = (d) => d.displayName || d.name;
 
+// ⚠️ A category label never goes bare into a sentence. Menu categories are free text per
+// restaurant — Hebrew ("ראשונות"), English ("desserts"), or with a descriptive tail
+// ("מאקי — 6 יחידות"). Gluing one to a Hebrew preposition produced "מנה מdesserts". Quoting
+// it reads correctly whatever the label is, and needs no table to maintain.
+export const catRef = (cat) => `״${String(cat).trim()}״`;
+
+// A dish name after a Hebrew prefix needs the same treatment: "מה יש בAshes & Embers"
+// glues the ב straight onto a Latin name. Studio 2026 is full of them (cocktails, wines).
+export const dishRef = (d) => `״${(d.displayName || d.name || "").trim()}״`;
+
 // ── 1. Pregnancy ──────────────────────────────────────────────────────────────────────
 // "A pregnant guest wants a starter — what do you recommend?" One dish with no pregnancy
 // flag at all, three that carry one. Built per category so the recommendation is actually
@@ -64,7 +74,7 @@ export function qPregnancy(cards, rnd = Math.random) {
     return {
       kind: "pregnancy",
       subjectId: correct.id,
-      prompt: `אורחת בהריון מבקשת המלצה מתוך ${cat}. איזו מנה מתאימה לה?`,
+      prompt: `אורחת בהריון מבקשת המלצה מתוך ${catRef(cat)}. איזו מנה מתאימה לה?`,
       hint: "מנה שאין בה סיכון להריון — דג נא, בשר נא, ביצה חיה וכדומה.",
       options: shuffleWith([correct, ...distractors], rnd).map((d) => ({
         id: d.id, label: label(d), correct: d.id === correct.id,
@@ -93,7 +103,7 @@ export function qAllergy(cards, rnd = Math.random) {
       return {
         kind: "allergy",
         subjectId: correct.id,
-        prompt: `אורח מדווח על אלרגיה ל${allergen}. איזו מנה מ${cat} אפשר להגיש לו?`,
+        prompt: `אורח מדווח על אלרגיה ל${allergen}. איזו מנה מתוך ${catRef(cat)} אפשר להגיש לו?`,
         hint: "המנה היחידה כאן שאין בה את האלרגן הזה.",
         options: shuffleWith([correct, ...shuffleWith(withIt, rnd).slice(0, 3)], rnd).map((d) => ({
           id: d.id, label: label(d), correct: d.id === correct.id,
@@ -133,7 +143,7 @@ export function qWithIngredient(cards, rnd = Math.random) {
         kind: "multi",
         subjectId: withIt[0].id,
         multi: true,
-        prompt: `אורח מבקש המלצה על ${MULTI_TARGET} מנות מ${cat} עם ${ing}. אילו מנות תציע/י?`,
+        prompt: `אורח מבקש המלצה על ${MULTI_TARGET} מנות מתוך ${catRef(cat)} עם ${ing}. אילו מנות תציע/י?`,
         hint: `לבחור בדיוק ${MULTI_TARGET}.`,
         options: options.map((d) => ({
           id: d.id, label: label(d), correct: withIt.some((w) => w.id === d.id),
@@ -150,22 +160,30 @@ export function qWithIngredient(cards, rnd = Math.random) {
 // "which dish contains X", never "which dish is not without X" (QUESTION-QUALITY line 17).
 export function qPitfall(cards, rnd = Math.random) {
   const pitfalls = shuffleWith([...new Set(cards.flatMap((c) => c.pitfalls || []))], rnd);
+  // ⚠️ Distractors come from the SAME CATEGORY, like every other builder here (rule 2 in
+  // QUESTION-QUALITY.md). Drawing from the whole menu produced this on Studio 2026:
+  // "which of these contains tahini?" offered a vermouth and a cocktail alongside a salad —
+  // two options a waiter rules out in a second without knowing anything about the menu.
+  const byCat = groupBy(cards, (c) => c.category);
   for (const p of pitfalls) {
-    const withIt = cards.filter((c) => (c.pitfalls || []).includes(p));
-    const without = cards.filter((c) => (c.pitfalls || []).length && !(c.pitfalls || []).includes(p));
-    // One carrier only — otherwise several options are equally correct.
-    if (withIt.length !== 1 || without.length < 3) continue;
-    const correct = withIt[0];
-    return {
-      kind: "pitfall",
-      subjectId: correct.id,
-      prompt: `אורח שואל אילו מהמנות האלה מכילות ${p}. איזו מהן?`,
-      hint: "אחת בלבד מכילה את זה.",
-      options: shuffleWith([correct, ...shuffleWith(without, rnd).slice(0, 3)], rnd).map((d) => ({
-        id: d.id, label: label(d), correct: d.id === correct.id,
-        why: (d.pitfalls || []).includes(p) ? `מכילה ${p}` : `אין בה ${p}`,
-      })),
-    };
+    for (const cat of shuffleWith(Object.keys(byCat), rnd)) {
+      const items = byCat[cat];
+      const withIt = items.filter((c) => (c.pitfalls || []).includes(p));
+      const without = items.filter((c) => (c.pitfalls || []).length && !(c.pitfalls || []).includes(p));
+      // One carrier only — otherwise several options are equally correct.
+      if (withIt.length !== 1 || without.length < 3) continue;
+      const correct = withIt[0];
+      return {
+        kind: "pitfall",
+        subjectId: correct.id,
+        prompt: `אורח שואל אילו מהמנות האלה מכילות ${p}. איזו מהן?`,
+        hint: "אחת בלבד מכילה את זה.",
+        options: shuffleWith([correct, ...shuffleWith(without, rnd).slice(0, 3)], rnd).map((d) => ({
+          id: d.id, label: label(d), correct: d.id === correct.id,
+          why: (d.pitfalls || []).includes(p) ? `מכילה ${p}` : `אין בה ${p}`,
+        })),
+      };
+    }
   }
   return null;
 }
@@ -190,7 +208,7 @@ export function qCompose(cards, rnd = Math.random) {
     subjectId: it.id,
     multi: true,
     exactSet: true,
-    prompt: `אורח שואל מה יש ב${label(it)}. מה תגיד/י לו?`,
+    prompt: `אורח שואל מה יש ב${dishRef(it)}. מה תגיד/י לו?`,
     hint: "לבחור את כל המרכיבים שבמנה — ורק אותם.",
     options: shuffleWith([
       ...real.map((x) => ({ id: `r:${x}`, label: x, correct: true })),
@@ -286,7 +304,7 @@ export function qAllergenSet(cards, rnd = Math.random) {
     subjectId: it.id,
     multi: true,
     exactSet: true,
-    prompt: `אורח שואל אילו אלרגיות יש ב${label(it)}. מה תגיד/י לו?`,
+    prompt: `אורח שואל אילו אלרגיות יש ב${dishRef(it)}. מה תגיד/י לו?`,
     hint: "לבחור את כל האלרגיות שבמנה — ורק אותן.",
     options: shuffleWith([
       ...real.map((a) => ({ id: `a:${a}`, label: a, correct: true })),
@@ -300,18 +318,56 @@ export function qAllergenSet(cards, rnd = Math.random) {
 // not guess a course from a category name: "ראשונות" reads like a starter to us, but the
 // restaurant that wrote the menu is the only authority on what leaves the pass first, and
 // a wrong answer here teaches the waiter something false about their own service.
-export function qServingOrder(cards, rnd = Math.random, categoryOrder = []) {
+export function qServingOrder(cards, rnd = Math.random, categoryOrder = [], courseCategories = null) {
   const rank = new Map(categoryOrder.map((c, i) => [c, i]));
-  // ⚠️ Food only. Caught live on Studio 2026: "שביל האבנים הצהובות · קמפרי · תה קר
-  // היביסקוס ליים — מה יוצא ראשון?" is three drinks, and no category order makes that a
-  // real answer; drinks reach the table when they are poured. A course order is a question
-  // about food, so a dish qualifies only if the kitchen described it — bar and soft-drink
-  // rows carry neither ingredients nor a description, which is the same signal
-  // MenuCheckQuiz uses to spot a "thin" category.
+  // ⚠️ ONE MENU AT A TIME. The original guard here asked "does the kitchen describe it?"
+  // (ingredients or a description) to keep drinks out of a course-order question. Measured
+  // on Studio 2026 that guard is now worthless: the wine-enrichment feature filled in
+  // ingredients AND descriptions for all 22 wines and 62 spirits, so "סירה, ירדן" and
+  // "סן פלגרינו" sailed through and produced "beef skewer · a Syrah · sparkling water —
+  // what comes out first?", which has no answer at all.
+  //
+  // ⚠️ AND WE CANNOT TELL FOOD FROM DRINK FROM THE CONTENT. Any test we invent is a guess
+  // about someone else's menu — the thing qServingOrder exists to avoid. But the restaurant
+  // has already told us: it split its own menu into groups at import time. So the question
+  // is built INSIDE ONE GROUP, without interpreting a single group name. Comparing a course
+  // from the food menu against one from the bar menu is meaningless whatever they are
+  // called; comparing two courses inside the restaurant's own food menu is exactly the
+  // question. A menu with no groups at all behaves as before.
+  // ⚠️ BOTH guards, because each catches what the other misses:
+  //   isFood      — thin bar rows (no ingredients, no description). The original fix.
+  //   menu group  — ENRICHED bar rows, which isFood can no longer see.
+  // A restaurant with no menu groups at all still gets the original behaviour.
   const isFood = (c) => (c.ingredients?.length > 0) || (c.desc || "").trim().length > 0;
   const usable = cards.filter((c) => rank.has(c.category) && isFood(c));
+  const groups = [...new Set(usable.map((c) => c.menuGroup).filter(Boolean))];
+
+  // ── The restaurant that split its menu has to say which part is food ─────────────
+  // Grouping alone is not enough: a bar menu on its own still produces "a Negroni, a Syrah
+  // and a Chardonnay — what comes out first?", which has no answer either. And there is
+  // NOTHING in the data that separates them: on Studio 2026 every wine and spirit carries
+  // ingredients and a description, because a different feature filled them in.
+  //
+  // So we stop guessing and ask. `courseCategories` is the owner's own list of categories
+  // that leave the kitchen in courses. Without it, a multi-menu restaurant simply gets no
+  // serving-order question — the same rule as everywhere else here: better a missing
+  // question than one that teaches a waiter something false about their own service.
+  if (Array.isArray(courseCategories) && courseCategories.length) {
+    const allow = new Set(courseCategories);
+    const pool = usable.filter((c) => allow.has(c.category));
+    const cats = [...new Set(pool.map((c) => c.category))];
+    return cats.length >= 3 ? orderQuestion(pool, cats, rank, rnd) : null;
+  }
+
+  // A single-menu restaurant keeps the original behaviour: isFood already filters the thin
+  // bar rows there, and that path is the one the drinks regression test covers.
+  if (groups.length > 1) return null;
+
   const cats = [...new Set(usable.map((c) => c.category))];
-  if (cats.length < 3) return null;
+  return cats.length >= 3 ? orderQuestion(usable, cats, rank, rnd) : null;
+}
+
+function orderQuestion(usable, cats, rank, rnd) {
   const chosen = shuffleWith(cats, rnd).slice(0, 3).sort((a, b) => rank.get(a) - rank.get(b));
   const dishes = chosen.map((c) => pick(usable.filter((x) => x.category === c), rnd));
   const first = dishes[0];
@@ -338,7 +394,7 @@ const BUILDERS = [
 // menu can't support — a bar with no pregnancy data simply gets more of the others.
 // Duplicate prompts are dropped: the same "which starter suits a pregnant guest" twice in
 // one exam reads as a bug even when the options differ.
-export function buildMenuExamDeck(cards, size = 40, rnd = Math.random, categoryOrder = []) {
+export function buildMenuExamDeck(cards, size = 40, rnd = Math.random, categoryOrder = [], courseCategories = null) {
   const list = (cards || []).filter((c) => c.id && (c.name || c.displayName));
   const deck = [];
   const seen = new Set();
@@ -346,7 +402,7 @@ export function buildMenuExamDeck(cards, size = 40, rnd = Math.random, categoryO
   while (deck.length < size && guard < size * 12) {
     const build = BUILDERS[guard % BUILDERS.length];
     guard++;
-    const q = build(list, rnd, categoryOrder);
+    const q = build(list, rnd, categoryOrder, courseCategories);
     if (!q) continue;
     const key = `${q.kind}|${q.prompt}`;
     if (seen.has(key)) continue;

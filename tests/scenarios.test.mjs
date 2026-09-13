@@ -208,6 +208,27 @@ console.log("scenarios.test.mjs OK");
 
 const seeded = (seed) => () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
 
+// ── pitfall: distractors come from the same category ──────────────────────────────────
+// Measured on Studio 2026: "which of these contains tahini?" offered a vermouth and a
+// cocktail next to a salad. Two options a waiter eliminates without knowing the menu.
+{
+  const mixed = [
+    { id: "s1", name: "סלט ירקות", category: "ראשונות", pitfalls: ["טחינה"], ingredients: ["חסה"], desc: "סלט" },
+    { id: "s2", name: "גיוזה", category: "ראשונות", pitfalls: ["שום"], ingredients: ["בצק"], desc: "כיסונים" },
+    { id: "s3", name: "אדממה", category: "ראשונות", pitfalls: ["מלח"], ingredients: ["פול"], desc: "פולי סויה" },
+    { id: "s4", name: "נאמס", category: "ראשונות", pitfalls: ["חריף"], ingredients: ["אורז"], desc: "רול אביב" },
+    { id: "b1", name: "דולין יבש", category: "יינות", pitfalls: ["אלכוהול"], ingredients: ["ענבים"], desc: "ורמוט" },
+    { id: "b2", name: "צ׳יטה", category: "קוקטיילים", pitfalls: ["חריף"], ingredients: ["טקילה"], desc: "קוקטייל" },
+    { id: "b3", name: "Ashes", category: "קוקטיילים", pitfalls: ["אלכוהול"], ingredients: ["ויסקי"], desc: "קוקטייל" },
+  ];
+  for (let i = 0; i < 60; i++) {
+    const q = qPitfall(mixed, seeded(i));
+    if (!q) continue;
+    const cats = new Set(q.options.map((o) => mixed.find((x) => x.id === o.id)?.category));
+    assert.equal(cats.size, 1, "every pitfall option must come from one category");
+  }
+}
+
 // ── order: drinks are not a course ─────────────────────────────────────────────────────
 // Live on Studio 2026 the order question once asked which of a cocktail, a Campari and an
 // iced tea "comes out first" — unanswerable, because drinks reach the table when poured.
@@ -230,6 +251,29 @@ const seeded = (seed) => () => { seed = (seed * 1103515245 + 12345) % 2147483648
   const foodOrder = ["סלטים", "עיקריות", "קינוחים", "אלכוהול", "שתייה קלה", "קוקטיילים"];
   const fq = qServingOrder(withFood, seeded(1), foodOrder);
   assert.ok(fq, "food order question should still build");
+
+  // ⚠️ ENRICHED drinks — the regression that defeated the guard above. Measured on Studio
+  // 2026: the wine-enrichment feature filled ingredients AND descriptions for all 22 wines
+  // and 62 spirits, so `isFood` waved them straight through and the exam asked whether a
+  // beef skewer, a Syrah or a sparkling water comes out first. The restaurant's own menu
+  // grouping is what separates them — no name is interpreted.
+  const enriched = [
+    { id: "w1", name: "סירה, ירדן", category: "יינות", menuGroup: "תפריט בר ואלכוהול", ingredients: ["ענבי סירה"], desc: "יין אדום יבש עם פירות אדומים" },
+    { id: "w2", name: "שרדונה", category: "אלכוהול", menuGroup: "תפריט בר ואלכוהול", ingredients: ["ענבי שרדונה"], desc: "יין לבן עם נגיעות חמאה" },
+    { id: "w3", name: "נגרוני", category: "קוקטיילים", menuGroup: "תפריט בר ואלכוהול", ingredients: ["ג׳ין", "קמפרי"], desc: "קוקטייל מריר קלאסי" },
+    { id: "e1", name: "שיפוד בקר", category: "עיקריות", menuGroup: "תפריט המסעדה", ingredients: ["בקר"], desc: "שיפוד על האש עם פירה" },
+    { id: "e2", name: "סלט ירוק", category: "סלטים", menuGroup: "תפריט המסעדה", ingredients: ["חסה"], desc: "עלים עם ויניגרט" },
+    { id: "e3", name: "מרק בצל", category: "מרקים", menuGroup: "תפריט המסעדה", ingredients: ["בצל"], desc: "מרק בצל צרפתי" },
+  ];
+  const mixedOrder = ["סלטים", "מרקים", "עיקריות", "קוקטיילים", "יינות", "אלכוהול"];
+  for (let i = 0; i < 60; i++) {
+    const eq = qServingOrder(enriched, seeded(i), mixedOrder);
+    if (!eq) continue;
+    const groups = new Set(eq.options.map((o) => enriched.find((x) => x.id === o.id)?.menuGroup));
+    assert.equal(groups.size, 1, "an order question must stay inside one menu group");
+    assert.ok(!eq.options.some((o) => ["w1", "w2", "w3"].includes(o.id)),
+      "enriched bar rows must not appear in a course-order question");
+  }
   assert.ok(fq.options.every((o) => ["סלט", "סטייק", "עוגה"].includes(o.label)),
     "order options must be food, got " + fq.options.map((o) => o.label).join(", "));
   console.log("✓ order: drinks excluded, food still works");
