@@ -18,11 +18,26 @@ export const RETRY_STUDY_S = 15 * 60;
 // נספרת 1–1.5 לפי אורך התיאור, והדקות: 1 + 0.2·יחידות, בין 1.5 ל-5.
 // אותו ערך משמש גם לשער הראשון וגם להמתנה אחרי כישלון — קטגוריה של 3 מנות
 // שדרשה 5 דקות לפני ו-15 אחרי הענישה על גודל שאין בה.
-export function requiredStudyS(items) {
-  if (!items?.length) return PRE_STUDY_S;
+// דרגת קושי פר-מסעדה (יותם, 14.9: «בסלון יווני תוריד בחצי את הזמן… נניח 3 דקות,
+// ואחרי שעשו אותו פעם ראשונה צריך 2 דקות ללמוד. בסטודיו תשאיר את זה קשה»).
+// relaxed: תקרה 3 דקות לשער הראשון, וההמתנה אחרי כישלון נחתכת ל-2 דקות קבועות.
+export const LEVEL_CAP_MIN = { relaxed: 3, normal: 5, strict: 5 };
+export const RETRY_CAP_MIN = { relaxed: 2 };
+
+export function requiredStudyS(items, level = "normal") {
+  const cap = LEVEL_CAP_MIN[level] ?? 5;
+  if (!items?.length) return Math.min(PRE_STUDY_S, cap * 60);
   const units = items.reduce((a, it) => a + 1 + Math.min((it.desc || "").length / 400, 0.5), 0);
-  const min = Math.min(5, Math.max(1.5, 1 + 0.2 * units));
+  const min = Math.min(cap, Math.max(1.5, 1 + 0.2 * units));
   return Math.round(min * 60);
+}
+
+// כמה תרגול נדרש **אחרי כישלון**. ברירת המחדל היא אותו ערך כמו לפני (הכלל מ-31.8),
+// ובמסעדה מוקלת זו תקרה נמוכה משלה.
+export function retryStudyS(items, level = "normal") {
+  const base = requiredStudyS(items, level);
+  const cap = RETRY_CAP_MIN[level];
+  return cap ? Math.min(base, cap * 60) : base;
 }
 
 // In-memory fallback so the pure logic is testable under plain node.
@@ -68,16 +83,20 @@ export function noteFail(memberId, category) {
 // { open: true } | { open: false, reason: "pre" | "cooldown", needS, needMin }
 // A passed category is never gated: retaking a quiz you already passed is voluntary
 // review, and the pass is what scope and points key off.
-export function gateFor(memberId, category, { passed, items } = {}) {
+export function gateFor(memberId, category, { passed, items, level = "normal" } = {}) {
   if (passed || !memberId || !category) return { open: true };
   const rec = load(memberId)[category] || { s: 0, fs: 0 };
-  const need = requiredStudyS(items);
   // The cooldown outranks the pre-study gate: after a fail the question is not
   // "have you ever studied this" but "have you studied since".
-  if (rec.f && rec.fs < need) {
-    const needS = need - rec.fs;
-    return { open: false, reason: "cooldown", needS, needMin: Math.ceil(needS / 60) };
+  if (rec.f) {
+    const need = retryStudyS(items, level);
+    if (rec.fs < need) {
+      const needS = need - rec.fs;
+      return { open: false, reason: "cooldown", needS, needMin: Math.ceil(needS / 60) };
+    }
+    return { open: true };
   }
+  const need = requiredStudyS(items, level);
   if (rec.s < need) {
     const needS = need - rec.s;
     return { open: false, reason: "pre", needS, needMin: Math.ceil(needS / 60) };

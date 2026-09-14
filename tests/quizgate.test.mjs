@@ -7,7 +7,7 @@
 // One scaled requirement serves both the first gate and the retry cooldown.
 // Study minutes, not wall-clock — waiting opens nothing.
 
-import { bumpStudy, noteFail, gateFor, requiredStudyS, PRE_STUDY_S } from "../src/lib/quizGate.js";
+import { bumpStudy, noteFail, gateFor, requiredStudyS, retryStudyS, PRE_STUDY_S } from "../src/lib/quizGate.js";
 
 
 
@@ -79,3 +79,31 @@ check("member-3 starts closed", gateFor("member-3", C, {}).open === false);
 
 if (failures) { console.error(`\n${failures} failures`); process.exit(1); }
 console.log("\nall green");
+
+
+// ── דרגת קושי פר-מסעדה (יותם, 14.9) ─────────────────────────────────────────
+// «בסלון יווני תוריד בחצי את הזמן… נניח 3 דקות, ואחרי שעשו אותו פעם ראשונה
+// צריך 2 דקות ללמוד. בסטודיו תשאיר את זה קשה».
+console.log("per-restaurant difficulty:");
+{
+  const big = dishes(17, 150);
+  const m = (s2) => Math.round(s2 / 60);
+  check("relaxed caps the first gate at 3 minutes", m(requiredStudyS(big, "relaxed")) === 3);
+  check("normal stays at 5", m(requiredStudyS(big, "normal")) === 5);
+  check("strict stays at 5", m(requiredStudyS(big, "strict")) === 5);
+  check("relaxed retry is 2 minutes", m(retryStudyS(big, "relaxed")) === 2);
+  check("normal retry is unchanged", m(retryStudyS(big, "normal")) === 5);
+  // קטגוריה שכבר מתחת לתקרה לא נעשית ארוכה יותר בדרגה מוקלת
+  const small = dishes(3);
+  check("relaxed is never longer than normal", requiredStudyS(small, "relaxed") <= requiredStudyS(small, "normal"));
+
+  const M = "QA-level";
+  check("relaxed first gate asks for 3", gateFor(M, "קט", { items: big, level: "relaxed" }).needMin === 3);
+  bumpStudy(M, "קט", 3 * 60);
+  check("3 minutes open it in relaxed", gateFor(M, "קט", { items: big, level: "relaxed" }).open === true);
+  noteFail(M, "קט");
+  check("after a fail relaxed asks for 2", gateFor(M, "קט", { items: big, level: "relaxed" }).needMin === 2);
+  check("after a fail normal still asks for 5", gateFor(M, "קט", { items: big, level: "normal" }).needMin === 5);
+}
+
+if (failures) { console.error(`\n${failures} failing`); process.exit(1); }

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { ChevronRight, ChevronLeft, X } from "lucide-react";
 import { categoryVisual } from "../lib/categoryVisual";
 import { shortCat, nLabel, ingLabel } from "../games/shared";
+import { hasWarning, itemNoun } from "../lib/coachStops";
 import { GROUP_NOTES, ITEM_NOTES } from "../games/WarningBoxes";
 
 // The menu, as a menu (user, 2026-08-20). Not progress, not exams — the thing a waiter
@@ -175,10 +176,6 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   // mainpage").
   useEffect(() => { onDepth?.(menu !== null || cat !== null || idx !== null); },
             [menu, cat, idx, onDepth]);
-  // מדריך ההפעלה קורא את **מצב המסך**, לא את ה-DOM: איפה המלצר נמצא עכשיו ואם פתח הסבר
-  // אזהרה. זה כל מה שהוא צריך כדי להתקדם, ולכן אין בו שום מדידה של אלמנט (ר' CoachBar).
-  useEffect(() => { onStage?.({ menu, cat, idx, explain: groupOpen !== null || legendOpen !== null }); },
-            [menu, cat, idx, groupOpen, legendOpen, onStage]);
   const flat = menus.length <= 1;
   const serviceCats = serviceGuideCategories(cards);
   // ⚠️ The service box is a destination, not a menu_group — filtering dishes by it would
@@ -190,6 +187,17 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
     ? (cards || []).filter((c) => c.category === cat && inMenu(c))
         .sort((a, b) => (a.menuPosition ?? 0) - (b.menuPosition ?? 0))
     : [];
+
+  // מדריך ההפעלה קורא את **מצב המסך**, לא את ה-DOM: איפה המלצר נמצא עכשיו ואם פתח הסבר
+  // אזהרה. זה כל מה שהוא צריך כדי להתקדם, ולכן אין בו שום מדידה של אלמנט (ר' CoachBar).
+  // ⚠️ האפקט יושב **מתחת** ל-`dishes` בכוונה: `warn` דורש את המנה הפתוחה, ורק כאן
+  // יודעים איזו מנה `idx` מצביע עליה (המיון לפי menuPosition קורה כאן). בלי זה
+  // השורה מבטיחה אזהרה גם לפריט שאין בו אחת — יותם, 14.9.
+  useEffect(() => {
+    onStage?.({ menu, cat, idx, warn: hasWarning(idx !== null ? dishes[idx] : null),
+                explain: groupOpen !== null || legendOpen !== null });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menu, cat, idx, groupOpen, legendOpen, onStage, dishes[idx]?.id]);
 
   // Categories of the open menu, in menu order — this is what makes "the next category"
   // a real thing and lets the reader walk the whole menu without returning to a list.
@@ -508,7 +516,12 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
     return (
       <div className="space-y-3.5">
         <Crumb over={menu ? menuLabel : (flat ? null : menu)} title={`${categoryVisual(cat).emoji} ${shortCat(cat)}`} onBack={() => setCat(null)} />
-        <p className="text-[11.5px] text-[#5a5a6e] px-1">{cat.startsWith("הדרכת") ? `${nLabel(dishes.length, "נושא", "נושאים")} · הקשה על נושא פותחת אותו במלואו` : `${nLabel(dishes.length, "מנה", "מנות")} · הקשה על מנה פותחת אותה במלואה`}</p>
+        {/* 🔴 היה מקודד «מנה» לכל דבר שאינו «הדרכת·», ולכן בתפריט האירועים נכתב
+            «5 מנות · הקשה על מנה» על מסלולי אירוע (יותם, 14.9: «כתוב הקש על מנה
+            וזה בפועל לא מנה»). המילה נגזרת עכשיו מהפריטים עצמם. */}
+        {(() => { const n = itemNoun(dishes); return (
+          <p className="text-[11.5px] text-[#5a5a6e] px-1">{nLabel(dishes.length, n.one, n.many)} · {n.tap}</p>
+        ); })()}
         {(() => {
           const hasWarn = (d) => warnGroups.some(({ key }) => ((key === "mokshim" ? mokshimOf(d) : d[key]) || []).length > 0);
           const pick = [dishes.findIndex((d) => !d.knowledge && hasWarn(d)), dishes.findIndex((d) => !d.knowledge), 0].find((k) => k >= 0);

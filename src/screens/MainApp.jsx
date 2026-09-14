@@ -215,7 +215,7 @@ export default function MainApp({ session, onSignOut }) {
   // MainApp מתרנדר כל שנייה, וללא ההשוואה הזו כל טיק היה מפעיל רנדר נוסף.
   const [stage, setStage] = useState({ menu: null, cat: null, idx: null, explain: false });
   const onStage = useCallback((n) => setStage((p) =>
-    (p.menu === n.menu && p.cat === n.cat && p.idx === n.idx && p.explain === n.explain) ? p : n), []);
+    (p.menu === n.menu && p.cat === n.cat && p.idx === n.idx && p.warn === n.warn && p.explain === n.explain) ? p : n), []);
   // מה כבר הוסבר לחבר הזה, ומה מוצג עכשיו. «אחורה» לא מוחק שורה (יותם, 14.9):
   // שורה שהוצגה נשארת «ממתינה» ב-pendingRef עם מונה צעדי «קדימה», וננעלת כנראתה
   // רק ב«הבנתי» או אחרי FORWARD_DISMISS צעדים קדימה. חזרה אחורה ⇒ תופיע שוב.
@@ -268,11 +268,15 @@ export default function MainApp({ session, onSignOut }) {
       }
     }
     prevScreenRef.current = screen;
-    if (!screen) { setStop(null); return; }
+    // ⚠️ מסך בלי שורה אינו מסומן כנראה. `menu-cat` מחזיר null בקטגוריה בלי אזהרות
+    // (אין מה להוסיף על הכותרת שכבר על המסך) — ולולא הבדיקה הוא היה נשרף, ומלצר
+    // שנכנס אחר כך לקטגוריה שכן יש בה אזהרות לא היה מקבל את השורה אף פעם.
+    const catItems = (cards || []).filter((c) => c.category === (tab === "learn" ? catView : stage?.cat));
+    if (!screen || !textFor(screen, { menu: stage?.menu, cat: stage?.cat, items: catItems })) { setStop(null); return; }
     if (seen.has(screen)) { setStop((cur) => (cur === screen ? cur : null)); return; }
     if (!pendingRef.current.has(screen)) pendingRef.current.set(screen, 0);
     setStop(screen);
-  }, [mode, ratedInMode, tab, stage, showAbout, catView, groupView, seen, session?.teamMemberId]);
+  }, [mode, ratedInMode, tab, stage, showAbout, catView, groupView, seen, cards, session?.teamMemberId]);
   // The category whose quiz-gate clock is running right now: a flashcard mode whose whole
   // deck is one category. Mixed decks (the quick round over the full menu) credit no
   // single category — the gate asks for study of THE category being tested. A ref, not
@@ -839,7 +843,8 @@ export default function MainApp({ session, onSignOut }) {
   const quizGateFor = (cat) => {
     if (preview || session?.offline || !session?.teamMemberId) return { open: true };
     if (session?.features?.quiz_gate === false) return { open: true };
-    return gateFor(session.teamMemberId, cat.key, { passed: cat.passed, items: cat.items });
+    return gateFor(session.teamMemberId, cat.key,
+      { passed: cat.passed, items: cat.items, level: session?.features?.exam_level || "normal" });
   };
 
 
@@ -902,8 +907,8 @@ export default function MainApp({ session, onSignOut }) {
     // תכתוב תפריט האירועים וכל הקטגוריות בתוכו, ואז בפנים מסלול האירועים»). בטאב
     // התפריט הוא מגיע מ-`stage`, ובטאב התרגול מ-groupView/catView.
     : textFor(stop, tab === "learn"
-        ? { menu: groupView, cat: catView }
-        : { menu: stage?.menu, cat: stage?.cat });
+        ? { menu: groupView, cat: catView, items: (cards || []).filter((c) => c.category === catView) }
+        : { menu: stage?.menu, cat: stage?.cat, items: (cards || []).filter((c) => c.category === stage?.cat) });
   // דירוג כרטיסייה = לימוד + צעד במונה שפותח את שורת «כמה עוד עד הבוחן».
   const rateCard = (id, r) => { learnItem(id, r, { objective: false }); setRatedInMode((c) => c + 1); };
   // «הבנתי» הוא אחת משתי הדרכים היחידות שנועלות שורה (השנייה: צעדים קדימה).

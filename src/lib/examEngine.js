@@ -331,7 +331,13 @@ export const BASE_FREE = ["לחם", "לחמנייה", "לחמניה", "לחמי�
 const freeWord = (w, q) => [...(q.free || []), ...BASE_FREE].some((f) => wMatch(w, norm(f)));
 
 /* ══ Situation generators — each returns exam moves in the page schema ══ */
-export function generate(menu) {
+// `level` = features.exam_level של המסעדה. הוא מזיז **כמה מרכיבים צריך לזכור**
+// כדי לקבל ציון מלא — יותם, 14.9: «בסלון… יש 5 מרכיבים, 3 מתוך 5 נחשב הצלחה.
+// בסטודיו תשאיר את זה קשה». 5 מרכיבים ⇒ relaxed 3 · normal 4 · strict 4.
+export const ING_RATIO = { relaxed: 0.6, normal: 0.7, strict: 0.8 };
+
+export function generate(menu, { level = "normal" } = {}) {
+  const ingRatio = ING_RATIO[level] ?? ING_RATIO.normal;
   const out = [];
   // תדריכי בטיחות (כרטיס «דגים נאים — מה חובה לומר» של סלון) מבודדים מהתפריט
   // לפני הכל — הם לא מנות, והשאלה היחידה שהם מולידים משויכת לקטגוריית האוכל
@@ -421,7 +427,7 @@ export function generate(menu) {
       // (יותם, 31.8: «כל השאר פחות משנים»).
       minOk: /קוקטייל/.test(d.category || "")
         ? Math.max(2, Math.min(4, ask.filter((t) => ALCOHOL_RE.test(t)).length + 1))
-        : Math.max(2, Math.ceil(ask.length * 0.7)),
+        : Math.max(2, Math.ceil(ask.length * ingRatio)),
       maxInv: 1,
     });
     // S2 — אלרגיות במנה (exact — safety). מנת-ליווי מוחרגת (הלחם של סלון):

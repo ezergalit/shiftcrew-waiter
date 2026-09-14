@@ -117,8 +117,8 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
 
   const bank = useMemo(() => {
     setMenuVocab(fullMenu);
-    return generate(fullMenu);
-  }, [fullMenu]);
+    return generate(fullMenu, { level: examLevel });
+  }, [fullMenu, examLevel]);
 
   // ── הרכב הבוחן (יותם, 6.9) ─────────────────────────────────────────────────
   // מנות: «60-70% מהמנות באקראי — 12 ראשונות ⇒ 7, 7 סלטים ⇒ 5, 4 ומטה ⇒ כולן».
