@@ -12,7 +12,7 @@ import WarningBoxes from "./WarningBoxes";
 //
 // The card is keyed by dish id: advancing remounts it un-flipped, so the next card never
 // plays a reverse-flip animation on its way in.
-export default function Flashcards({ items, session, quick, onRate, onDone, slim = false, merged = false }) {
+export default function Flashcards({ items, session, quick, onRate, onDone, slim = false, merged = false, coachSlot = null }) {
   const [i, setI] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [zoom, setZoom] = useState(null); // full-screen dish photo, or null
@@ -156,6 +156,9 @@ export default function Flashcards({ items, session, quick, onRate, onDone, slim
           </div>
         </div>
       </div>
+      {/* ⚠️ שורת ההסבר בזרימה הרגילה, כאח אחרון של השורש — לא `fixed`. אלה מסכי
+          early-return בלי הסרגל התחתון, ולכן היא יושבת בתחתית המסך מעצמה. */}
+      {coachSlot}
       {/* Full-screen dish photo. Tap anywhere to dismiss — the same overlay the menu
           tab uses. `fixed`, so it sits fine as the last child of the root. */}
       {zoom && (

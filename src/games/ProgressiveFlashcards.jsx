@@ -19,7 +19,7 @@ import WarningBoxes from "./WarningBoxes";
 // exam?" instead. Declining the exam buys ten more refresh cards, then it asks again.
 const CHECKPOINT_EVERY = 10;
 
-export default function ProgressiveFlashcards({ items, label, firstId, initialProgress, onRate, onDone, onExam, examReady, slim = false, merged = false }) {
+export default function ProgressiveFlashcards({ items, label, firstId, initialProgress, onRate, onDone, onExam, examReady, slim = false, merged = false, coachSlot = null }) {
   // Live local copy of the progress map: the parent's state update is async, and the very
   // next pick must already see the rating that was just given.
   const progRef = useRef({ ...(initialProgress || {}) });
@@ -101,6 +101,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
         לא עכשיו — עוד {CHECKPOINT_EVERY} כרטיסיות חזרה
       </button>
       <button onClick={onDone} className="text-xs text-[#8a8aa0] font-bold py-2">הפסקה — חזרה לתפריט</button>
+      {coachSlot}
     </div>
   );
 
@@ -125,6 +126,11 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
       <button onClick={onDone} className="w-full py-3 min-h-[44px] rounded-2xl bg-[#22252b] text-[#eef0f6] text-xs font-black">
         הפסקה — נמשיך אחר כך
       </button>
+      {/* 🔴 זה הרגע שיותם ביקש (14.9): «אחרי שסיימו 10 כרטיסיות אפשר לכתוב נדרש לכם
+          עוד 4 דקות של תרגול». המסך הזה עוצר בדיוק אחרי CHECKPOINT_EVERY=10, והוא
+          גם המסך שמציע את הבוחן כשהוא פתוח — כלומר השורה עונה כאן על «למה לא
+          הציעו לי אותו». */}
+      {coachSlot}
     </div>
   );
 
@@ -242,6 +248,8 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
           שני 5 ברצף = המנה מוכרת לך והיא פורשת מהסבב
         </p>
       </div>
+      {/* ⚠️ שורת ההסבר בזרימה הרגילה, כאח אחרון של השורש — לא `fixed`. */}
+      {coachSlot}
       {/* Full-screen dish photo. Tap anywhere to dismiss — the same overlay the menu
           tab uses. `fixed`, so it sits fine as the last child of the root. */}
       {zoom && (

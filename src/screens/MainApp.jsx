@@ -6,7 +6,7 @@ import MetricsScreen, { DeleteProfile } from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
 import BriefGate, { briefHasContent } from "../components/BriefGate";
 import CoachBar from "../components/CoachBar";
-import { STOPS, screenOf, loadSeen, markSeen, resetSeen } from "../lib/coachStops";
+import { textFor, screenOf, loadSeen, markSeen, resetSeen } from "../lib/coachStops";
 import ColorKey, { needsColorKey, markColorKeySeen } from "../components/ColorKey";
 import TasksTab, { useShiftTasks, PERIOD_LABEL } from "../components/TasksTab";
 import ManagerMessages from "../components/ManagerMessages";
@@ -243,16 +243,20 @@ export default function MainApp({ session, onSignOut }) {
     if (tasksOff && (tab === "home" || tab === "daily")) setTab(trainee ? "learn" : "categories");
   }, [tasksOff, trainee, tab]);
   const [prog, setProg] = useState(null); // { items, label, progress, firstId }
-  // הגעה למסך חדש ⇒ השורה שלו, פעם אחת. ⚠️ בזמן סבב (`mode`/`prog`) הפס לא מרונדר
-  // בכלל — early return — ולכן גם לא מסמנים מסך כנראה מתוך סבב.
+  // כמה כרטיסיות דורגו בסבב הנוכחי. שורת «כמה עוד עד הבוחן» מחכה לעשר (יותם, 14.9)
+  // — לפני זה המספר עוד לא אומר כלום, ושורה שקופצת על הכרטיס הראשון רק חוסמת.
+  // ⚠️ state ולא ref: השורה צריכה להופיע ברגע שהמונה מגיע, והאפקט למטה קורא אותו.
+  const [ratedInMode, setRatedInMode] = useState(0);
+  useEffect(() => { setRatedInMode(0); }, [mode]);
+  // הגעה למסך חדש ⇒ השורה שלו, פעם אחת. הכרטיסיות הן early-return בלי המעטפת,
+  // ולכן הפס מתארח בתוכן דרך `coachSlot`; הבוחן והמבחן נשארים בלי שורה.
   useEffect(() => {
-    if (mode || prog) return;
-    const screen = screenOf({ tab, stage, showAbout, catView, groupView });
-    if (!screen || !STOPS[screen]) { setStop(null); return; }
+    const screen = screenOf({ tab, stage, showAbout, catView, groupView, mode, ratedInMode });
+    if (!screen) { setStop(null); return; }
     if (seen.has(screen)) { setStop((cur) => (cur === screen ? cur : null)); return; }
     setSeen((prev) => markSeen(session?.teamMemberId, screen, prev));
     setStop(screen);
-  }, [mode, prog, tab, stage, showAbout, catView, groupView, seen, session?.teamMemberId]);
+  }, [mode, ratedInMode, tab, stage, showAbout, catView, groupView, seen, session?.teamMemberId]);
   // The category whose quiz-gate clock is running right now: a flashcard mode whose whole
   // deck is one category. Mixed decks (the quick round over the full menu) credit no
   // single category — the gate asks for study of THE category being tested. A ref, not
@@ -862,8 +866,23 @@ export default function MainApp({ session, onSignOut }) {
   if (gatePractice)
     return <BriefGate brief={brief} cards={cards} session={session} practice onClose={() => setGatePractice(false)} />;
 
-  const coachNode = stop && cards?.length > 0
-    ? <CoachBar text={STOPS[stop]} onOk={() => setStop(null)} />
+  // ⚠️ הדקות שהשורה מבטיחה חייבות לצאת מ-`quizGateFor` — אותו שער שהצ׳יפ בטאב
+  // התרגול עובר דרכו. תווית שמבטיחה בוחן בלי לעבור בשער היא בדיוק השקר שתוקן
+  // ב-2.9; השורה הזאת לא תחזיר אותו.
+  const coachStopText = stop === "cards"
+    ? textFor("cards", { needMin: (() => {
+        const key = studyCatRef.current;
+        const cat = key ? (path.categories || []).find((x) => x.key === key) : null;
+        if (!cat || !examable(key)) return 0;
+        if (!cat.examUnlocked) return null;         // הסף עוד לא הושג — אין מספר להבטיח
+        const g = quizGateFor(cat);
+        return g.open ? 0 : g.needMin;
+      })() })
+    : textFor(stop);
+  // דירוג כרטיסייה = לימוד + צעד במונה שפותח את שורת «כמה עוד עד הבוחן».
+  const rateCard = (id, r) => { learnItem(id, r, { objective: false }); setRatedInMode((c) => c + 1); };
+  const coachNode = stop && coachStopText && cards?.length > 0
+    ? <CoachBar text={coachStopText} onOk={() => setStop(null)} />
     : null;
 
   // Full-screen, above the tabs: it is a place you go to, not a tab you live in.
@@ -912,10 +931,10 @@ export default function MainApp({ session, onSignOut }) {
         setModeItems(prog.items);
         setMode("exam");
       } : null}
-      onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={() => { setMode(null); setProg(null); }} /></>;
+      onRate={rateCard} coachSlot={coachNode} onDone={() => { setMode(null); setProg(null); }} /></>;
 
-  if (mode === "flashcards") return <Flashcards slim={aurora} merged={mergedWarnings} items={studySession.deck} session={studySession} onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
-  if (mode === "quick") return <Flashcards slim={aurora} merged={mergedWarnings} items={quickSession.deck} session={quickSession} quick onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
+  if (mode === "flashcards") return <Flashcards slim={aurora} merged={mergedWarnings} items={studySession.deck} session={studySession} onRate={rateCard} coachSlot={coachNode} onDone={exitMode} />;
+  if (mode === "quick") return <Flashcards slim={aurora} merged={mergedWarnings} items={quickSession.deck} session={quickSession} quick onRate={rateCard} coachSlot={coachNode} onDone={exitMode} />;
   // Thin-category study: group cards (front = "שתייה קלה מוגזת", back = the carry list
   // with prices). A per-item flashcard there flips קולה into קולה — teaches nothing.
   if (mode === "groupcards") return <GroupFlashcards items={gameItems} onRate={(id, r) => learnItem(id, r, { objective: false })} onDone={exitMode} />;
@@ -995,7 +1014,11 @@ export default function MainApp({ session, onSignOut }) {
     return seen.sort((a, b) => firstPos(a) - firstPos(b)).map(g => {
       const items = learnCards.filter(x => x.menuGroup === g);
       return { g, items, catCount: new Set(items.map(x => x.category)).size };
-    });
+    })
+    // 🔴 «להוציא את הקטגוריות שאנחנו לא בוחנים עליהם» (יותם, 14.9). הטאב הזה מבטיח
+    // בוחן — תפריט שאין בו אף קטגוריה נבחנת (סיגרים, מסלולי האירוע) שולח את המלצר
+    // לתרגל לקראת מבחן שלא קיים. הם נשארים במלואם בטאב התפריט, שם לומדים אותם.
+    .filter(({ items }) => items.some((x) => examable(x.category)));
   })();
 
   const cats = (() => {
@@ -1549,7 +1572,7 @@ export default function MainApp({ session, onSignOut }) {
             {aurora && <p className="au-label px-1 mt-1">כל הקטגוריות</p>}
             {/* `path.categories` is built from the whole menu — inside a menu, show only
                 that menu's categories, or the header and the list disagree. */}
-            {path.categories.filter((cat) => !groupView || cat.items?.[0]?.menuGroup === groupView).map((cat) => {
+            {path.categories.filter((cat) => examable(cat.key) && (!groupView || cat.items?.[0]?.menuGroup === groupView)).map((cat) => {
               // A category can't be examined on dishes with no ingredients to ask about.
               // Reaching the threshold is the only condition. A category with thin data
               // gets the multiple-choice exam instead of the chip one, but it is never
