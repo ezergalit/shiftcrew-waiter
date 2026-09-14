@@ -291,6 +291,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
     return (
       <Overlay>
         <div className="w-full max-w-md h-full flex flex-col border-x border-[#1a1d23]">
+          {/* גם מסך סוף-הקטגוריה הוא Overlay מלא — הפס חייב להתארח כאן, אחרת הוא נעלם. */}
           <div className="bg-[#16181c] border-b border-[#22252b] px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 flex items-center justify-between flex-shrink-0">
             <button onClick={() => setIdx(null)}
               className="min-h-[44px] px-3.5 py-2 -mr-1.5 rounded-xl bg-[#20232b] border border-[#2a2e37] text-[#c4c4d4] flex items-center gap-1.5 text-[13px] font-black active:scale-95 transition-transform"
@@ -366,6 +367,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
               </button>
             </div>
           </div>
+          {coachSlot}
         </div>
       </Overlay>
     );

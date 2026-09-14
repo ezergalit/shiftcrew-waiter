@@ -1813,8 +1813,11 @@ export default function MainApp({ session, onSignOut }) {
               </div>
 
       {showAbout && <AboutScreen session={session} onClose={() => setShowAbout(false)} />}
-      {/* מחוץ למסך המנה הפס יושב כאן, כאח של הסרגל — אותו רכיב בדיוק. */}
-      {!browseDeep && coachNode}
+      {/* ⚠️ התנאי הוא `stage.idx` ולא `browseDeep`: רק מסך המנה ומסך סוף-הקטגוריה הם
+          Overlay מלא-מסך (portal ל-body), ושם הפס מתארח דרך `coachSlot`. רשימת
+          הקטגוריות והמנות היא inline, ולכן `browseDeep` היה מעלים את הפס בדיוק בצעד
+          «עכשיו פתחו מנה אחת» — ההוראה נעלמה כשהמלצר הגיע למקום לבצע אותה. */}
+      {stage.idx === null && coachNode}
       <BottomNav tab={tab} aurora={aurora} hideTasks={tasksOff}
         setTab={(t) => {
           if (t === tab) {
