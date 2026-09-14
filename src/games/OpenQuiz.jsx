@@ -240,6 +240,8 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const [blocked, setBlocked] = useState(null);   // null = עדיין לא ידוע · 0 = פתוח · >0 = חסום
   const [reviewLeft, setReviewLeft] = useState(REVIEW_S);
   const [reporting, setReporting] = useState(null); // {text} כשכותבים דיווח על טעות
+  // יותם, 14.9: «לא לתת לדווח יותר מ-3 פעמים». אותה תקרה בבוחן ובמבחן.
+  const MAX_REPORTS = 3;
   const [reports, setReports] = useState(0);
   const [reportedCards, setReportedCards] = useState([]);
   const [leftCount, setLeftCount] = useState(0);   // אינדקסים שכבר דווחו — בלי דיווח כפול
@@ -259,7 +261,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   }, [exam, restaurantId, teamMemberId]);
   useEffect(() => {
     // השעון עומד בזמן קריאת התשובה ובזמן כתיבת דיווח — לא לוקח מזמן המבחן
-    if (!started || !briefed || finished || secondsLeft <= 0 || judging || stage2?.judging || (exam && (result || reporting))) return;
+    if (!started || !briefed || finished || secondsLeft <= 0 || judging || stage2?.judging || reporting || (exam && result)) return;
     const t = setTimeout(() => { setSecondsLeft((s) => s - 1); setElapsedQ((e) => e + 1); }, 1000);
     return () => clearTimeout(t);
   }, [started, briefed, finished, secondsLeft, exam, result, reporting, judging, stage2]);
@@ -335,6 +337,9 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   };
   // דיווח על טעות באפליקציה (יותם, 6.9): השאלה נשלחת לבדיקה ולא נספרת — לא לטובה ולא לרעה.
   // 3 דיווחים בישיבה ⇒ «אנחנו מטפלים, אפשר להיבחן מחר» והמבחן נחסם למסעדה (טריגר ⇒ תור המפעיל).
+  // ⭐ יותם, 14.9: «בזמן השאלה שתהיה אופציה לדווח על הבעיה — גם בבוחן וגם במבחן».
+  // שאלה פתוחה שלא הובנה היא בדיוק הרגע שבו צריך לדווח, ואז עוד אין תשובה:
+  // `result` יכול להיות null, ואז answer/verdict נשלחים ריקים.
   const sendReport = async () => {
     const text = (reporting?.text || "").trim();
     if (!text) return;
@@ -342,18 +347,21 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     const { error } = await db.from("exam_reports").insert({
       restaurant_id: restaurantId, team_member_id: teamMemberId, sitting_id: sittingId, dish: c?.dish || null,
       question: c?.set?.ask || c?.rec?.ask || (c?.simple ? c.simple.map((q) => q.ask).join(" | ") : `describe:${c?.dish}`),
-      answer: result?.set ? { typed: result.set.sel } : { parts: (result?.parts || []).map((p) => ({ key: p.key, answer: p.answer ?? p.text ?? null })) },
-      verdict: result?.set ? { lvl: result.set.r.lvl } : { parts: (result?.parts || []).map((p) => ({ key: p.key, lvl: p.g?.lvl, rows: p.leaf?.rows?.map((r) => [r.canonical[0], r.status]) })) },
+      answer: !result ? { unanswered: true } : result.set ? { typed: result.set.sel } : { parts: (result.parts || []).map((p) => ({ key: p.key, answer: p.answer ?? p.text ?? null })) },
+      verdict: !result ? { unanswered: true } : result.set ? { lvl: result.set.r.lvl } : { parts: (result.parts || []).map((p) => ({ key: p.key, lvl: p.g?.lvl, rows: p.leaf?.rows?.map((r) => [r.canonical[0], r.status]) })) },
       explanation: text.slice(0, 500),
     });
     if (error) { setToast("הדיווח לא נשלח — בדוק חיבור ונסה שוב"); console.error("exam_reports:", error.message); return; }
     // רק אחרי שהשליחה הצליחה: השאלה יוצאת מהציון
-    setScores((s) => s.map((x, k) => (k === s.length - 1 ? { ...x, excluded: true } : x)));
+    const answered = !!result;
+    if (answered) setScores((s) => s.map((x, k) => (k === s.length - 1 ? { ...x, excluded: true } : x)));
     setReportedCards((r) => [...r, i]);
     const n = reports + 1;
     setReports(n); setReporting(null);
-    if (n >= 3) { setAborted(true); setFinished(true); return; }
+    if (n >= MAX_REPORTS) { setAborted(true); setFinished(true); return; }
     setToast("הדיווח נשלח. השאלה הזו לא נספרת — לא לטובה ולא לרעה.");
+    // דיווח **לפני** תשובה: אין ציון להוציא, והכרטיס הזה נגמר — ממשיכים הלאה.
+    if (!answered) { next(); return; }
     setReviewLeft(REVIEW_S);
   };
   useEffect(() => { if (result) setTimeout(() => nextRef.current?.scrollIntoView({ block: "end", behavior: "smooth" }), 50); }, [result]);
@@ -753,6 +761,14 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
                 {judging ? "בודק את התשובה… (עד כמה שניות)" : "שליחה"}
               </button>
               {why && <p className="text-[11px] text-[#8a8aa0] text-center -mt-1">{why}</p>}
+              {/* ⭐ הדיווח זמין **בזמן השאלה**, לא רק אחרי תשובה (יותם, 14.9) — שאלה
+                  פתוחה שלא הובנה היא בדיוק הרגע שבו אין מה לענות. */}
+              {teamMemberId && reports < MAX_REPORTS && !reportedCards.includes(i) && (
+                <button onClick={() => setReporting({ text: "" })}
+                  className="w-full py-2 min-h-[40px] rounded-xl border border-[#f3a712]/40 bg-[#33290f]/40 text-[12px] font-black text-[#f3c14b]">
+                  🚩 השאלה לא ברורה או שגויה? דווחו — היא לא תיספר
+                </button>
+              )}
             </>);
           })()}
         </div>
@@ -777,10 +793,10 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       ) : (
         <div className="space-y-3">
           {/* הדיווח למעלה (יותם, 6.9) — לפני הפירוט, כדי שלא צריך לגלול כדי למצוא אותו */}
-          {exam && teamMemberId && !reportedCards.includes(i) && (
+          {teamMemberId && reports < MAX_REPORTS && !reportedCards.includes(i) && (
             <button onClick={() => setReporting({ text: "" })}
               className="w-full py-2.5 min-h-[44px] rounded-xl border border-[#f3a712]/40 bg-[#33290f]/40 text-[12.5px] font-black text-[#f3c14b]">
-              🚩 מצאת טעות באפליקציה? דווח — לא לוקח מזמן המבחן
+              🚩 מצאת טעות באפליקציה? דווחו — הדיווח לא לוקח מהזמן
             </button>
           )}
           {result.set && (

@@ -29,6 +29,22 @@ for (const [label, f] of [["סלון", "menu-95F245"], ["סטודיו", "menu-S2
   const merged = recs.filter((q) => /אילו .+ יש/.test(q.ask));
   if (label === "סלון") ok(merged.length >= 3, `סלון: הקטגוריות הממוזגות נשאלות בשם המלא (${merged.length})`);
   ok(recs.length > 20, `${label}: שאלות בר נבנות (${recs.length})`);
+
+  // «אורח מבקש קוקטייל חמיצות» — הניסוח לוקח את מפתח האשכול (תואר), לא את
+  // המילה שנמצאה בתיאור, שלפעמים היא שם עצם.
+  const nouny = /(ות|יות)\.\s*על מה תמליץ\?$/;
+  const noun = recs.filter((q) => /^אורח מבקש קוקטייל /.test(q.ask) && nouny.test(q.ask));
+  ok(noun.length === 0, `${label}: שם עצם במקום תואר — ${noun.map((q) => q.ask).join(" | ")}`);
+
+  // «עם מילה עליו» נקרא כחלק מבקשת האורח
+  ok(!recs.some((q) => /עם מילה עליו/.test(q.ask)), `${label}: ניסוח «עם מילה עליו» חזר`);
+}
+
+// אות יחס מודבקת לשם קטגוריה — «המלצה מHot Starters»
+for (const [label, f] of [["סלון", "menu-95F245"], ["סטודיו", "menu-S26TLV"]]) {
+  const cards = JSON.parse(readFileSync(new URL(`./fixtures/${f}.json`, import.meta.url), "utf8")).cards;
+  const glued = generate(menuFromCards(cards)).filter((q) => /\sמ[A-Za-z״"]/.test(q.ask));
+  ok(glued.length === 0, `${label}: אות יחס מודבקת — ${glued.slice(0, 3).map((q) => q.ask).join(" | ")}`);
 }
 
 console.log(fail ? `\n🔴 ${fail} כשלים` : "drinkrec.test: כל הבדיקות עברו");

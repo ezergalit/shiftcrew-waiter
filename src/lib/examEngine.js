@@ -332,9 +332,29 @@ const freeWord = (w, q) => [...(q.free || []), ...BASE_FREE].some((f) => wMatch(
 
 /* ══ Situation generators — each returns exam moves in the page schema ══ */
 // `level` = features.exam_level של המסעדה. הוא מזיז **כמה מרכיבים צריך לזכור**
-// כדי לקבל ציון מלא — יותם, 14.9: «בסלון… יש 5 מרכיבים, 3 מתוך 5 נחשב הצלחה.
-// בסטודיו תשאיר את זה קשה». 5 מרכיבים ⇒ relaxed 3 · normal 4 · strict 4.
-export const ING_RATIO = { relaxed: 0.6, normal: 0.7, strict: 0.8 };
+// כדי לקבל ציון מלא.
+// 🔴 יותם, 14.9 (חידוד): «אם יש 3 תיבולים צריך לדעת 1 או 2, ואם יש 6 צריך לדעת 3».
+// כלומר **מחצית**, ולא יחס שנעצר על רצפה של 2 — הרצפה הזאת היא מה ששבר את הכלל
+// במספרים קטנים: עם 2 או 3 מרכיבים היא דרשה 2 בכל מקרה, גם במסעדה מוקלת.
+// relaxed ⇒ 2:1 · 3:2 · 4:2 · 5:3 · 6:3 · 8:4. (5⇒3 הוא בדיוק מה שביקש קודם.)
+// ── ניסוח שם הקטגוריה בתוך שאלה ────────────────────────────────────────────
+// «ציין את כל הראשונות…» עובד למילה עברית אחת; שם באנגלית או ארוך («Greek Oven Breads»,
+// «סלטי גינה מירקות מובחרים») מקבל «המנות ב״…״», ו«ילדים» אינו «הילדים».
+const CAT_SPECIAL = { "ילדים": ["מנות הילדים", "ממנות הילדים"] };
+export function catForms(cat) {
+  if (CAT_SPECIAL[cat]) return { catIn: CAT_SPECIAL[cat][0], catFrom: CAT_SPECIAL[cat][1] };
+  const words = cat.split(/\s+/).filter(Boolean);
+  const latin = /[A-Za-z]/.test(cat);
+  // שתי מילים ומעלה ⇒ ציטוט: «מהרולים מיוחדים» / «מהאינסייד אאוט» אינם עברית
+  if (latin || words.length >= 2) return { catIn: `המנות ב״${cat}״`, catFrom: `מתוך ״${cat}״` };
+  const catIn = /^ה/.test(cat) ? cat : `ה${cat}`;
+  return { catIn, catFrom: `מ${catIn}` };
+}
+
+export const ING_RATIO = { relaxed: 0.5, normal: 0.7, strict: 0.8 };
+export const ingMinFor = (n, level) => (level === "relaxed"
+  ? Math.max(1, Math.round(n / 2))
+  : Math.max(2, Math.ceil(n * (ING_RATIO[level] ?? ING_RATIO.normal))));
 
 // סוגי המשקאות שמהם נבנה שם קטגוריה. קטגוריה שנושאת שניים ומעלה היא **ממוזגת**
 // (איחוד הקטגוריות הקטנות של הבר, יותם 31.8), ואז שם הסוג אינו נכון לכל פריט בה.
@@ -431,7 +451,7 @@ export function generate(menu, { level = "normal" } = {}) {
       // (יותם, 31.8: «כל השאר פחות משנים»).
       minOk: /קוקטייל/.test(d.category || "")
         ? Math.max(2, Math.min(4, ask.filter((t) => ALCOHOL_RE.test(t)).length + 1))
-        : Math.max(2, Math.ceil(ask.length * ingRatio)),
+        : ingMinFor(ask.length, level),
       maxInv: 1,
     });
     // S2 — אלרגיות במנה (exact — safety). מנת-ליווי מוחרגת (הלחם של סלון):
@@ -474,7 +494,10 @@ export function generate(menu, { level = "normal" } = {}) {
       if (ing.length < 3 || !dist.length) continue;
       out.push({
         sit: "build", dish: d.name, k: "fact", secs: 45,
-        ask: `הזמנה על הצ'ק: ${ing.join(", ")}. איזו מנה מ${cat} תדפיס למטבח?`,
+        // 🔴 היה `מ${cat}` — «איזו מנה מGreek Oven Breads», ו«מסלטי גינה» שנקרא
+        // כמילה אחת. `catForms` כבר יודע לצטט שם לועזי או רב-מילתי (יותם, 14.9:
+        // «שאלה פתוחה חייבת להיות מובנת למלצר ב-100%»).
+        ask: `הזמנה על הצ'ק: ${ing.join(", ")}. איזו מנה ${catForms(cat).catFrom} תדפיס למטבח?`,
         req: [dist], ans: d.name,
       });
     }
@@ -528,7 +551,9 @@ export function generate(menu, { level = "normal" } = {}) {
     if (!match.length) continue;
     out.push({
       sit: "drinkrec", dish: `קוקטיילים · בסיס ${spirit}`, cat: cockt[0].category, k: "recall", secs: 60,
-      ask: `אורח מבקש קוקטייל על בסיס ${spirit}, עם מילה עליו. על מה תמליץ?`,
+      // «עם מילה עליו» נקרא כחלק מבקשת האורח ולא כהוראה למלצר — שתי שאלות
+      // מפורשות במקום (יותם, 14.9: שאלה פתוחה חייבת להיות מובנת ב-100%).
+      ask: `אורח מבקש קוקטייל על בסיס ${spirit}. על מה תמליץ, ומה תגיד עליו?`,
       targets: cocktTargets(match),
       free: [spirit, "קוקטייל", ...match.flatMap(d => [...toks(d.desc || ""), ...(d.ingredients || []).flatMap(i => toks(i))])],
       minOk: 1, maxInv: 0,
@@ -550,13 +575,16 @@ export function generate(menu, { level = "normal" } = {}) {
         byTaste.get(hit.canon).match.push(d);
       }
     }
-    for (const [, { display, match }] of byTaste) {
+    // 🔴 מנסחים במפתח האשכול ולא במילה שנמצאה בתיאור: «חמיצות» מופיעה בתיאור
+    // ונתנה «אורח מבקש קוקטייל חמיצות» — שם עצם במקום תואר. display ממשיך
+    // לשמש להתאמה, רק לא לניסוח (יותם, 14.9: השאלה חייבת להיות מובנת למלצר).
+    for (const [canon, { display, match }] of byTaste) {
       if (match.length === cockt.length) continue; // כולם ⇒ לא מבחין
       out.push({
-        sit: "drinkrec", dish: `קוקטיילים · ${display}`, cat: cockt[0].category, k: "recall", secs: 45,
-        ask: `אורח מבקש קוקטייל ${display}. על מה תמליץ?`,
+        sit: "drinkrec", dish: `קוקטיילים · ${canon}`, cat: cockt[0].category, k: "recall", secs: 45,
+        ask: `אורח מבקש קוקטייל ${canon}. על מה תמליץ?`,
         targets: cocktTargets(match),
-        free: [display, "קוקטייל", ...cockt.filter(o => !match.includes(o)).flatMap(o => toks(o.name))],
+        free: [canon, display, "קוקטייל", ...cockt.filter(o => !match.includes(o)).flatMap(o => toks(o.name))],
         minOk: 1, maxInv: 1,
       });
     }
@@ -648,7 +676,7 @@ export function generate(menu, { level = "normal" } = {}) {
       const allAllergens = [...new Set(dishes.flatMap((d2) => d2.allergens || []))];
       for (const a of allAllergens) {
         push(`בלי ${a}`,
-          `אורח אלרגי ל${a} מבקש המלצה מ${cat}. על איזו מנה תמליץ?`,
+          `אורח אלרגי ל${a} מבקש המלצה ${catForms(cat).catFrom}. על איזו מנה תמליץ?`,
           dishes.filter((d2) => !(d2.allergens || []).includes(a)), [a]);
       }
       // pregnancy-safe
@@ -662,7 +690,7 @@ export function generate(menu, { level = "normal" } = {}) {
       const allPitfalls = [...new Set(dishes.flatMap((d2) => d2.pitfalls || []))];
       for (const pf of allPitfalls) {
         push(`אוהב ${pf}`,
-          `אורח שאוהב ${pf} מבקש המלצה מ${cat}. על איזו מנה תמליץ?`,
+          `אורח שאוהב ${pf} מבקש המלצה ${catForms(cat).catFrom}. על איזו מנה תמליץ?`,
           dishes.filter((d2) => (d2.pitfalls || []).includes(pf)), [pf]);
       }
       // taste words from the descriptions
@@ -681,7 +709,7 @@ export function generate(menu, { level = "normal" } = {}) {
       }
       for (const [t, matching] of tastes) {
         push(`משהו ${t}`,
-          `אורח מחפש משהו ${t} מ${cat}. על איזו מנה תמליץ?`,
+          `אורח מחפש משהו ${t} ${catForms(cat).catFrom}. על איזו מנה תמליץ?`,
           matching, [t], { lenient: true });
       }
     }

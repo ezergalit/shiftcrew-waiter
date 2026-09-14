@@ -9,7 +9,7 @@
 // מודול טהור (בלי React, נבדק ב-node): בנק פר-קטגוריה + הרכבת ישיבה + מחזור "נשאל".
 // ⚠️ הכל דטרמיניסטי מהנתונים של המנה — אלרגיות/הריון/מוקשים/מרכיבים — אף פעם לא ניחוש.
 import { askableIngredients } from "./questionEngine.js";
-import { norm } from "./examEngine.js";
+import { norm, catForms } from "./examEngine.js";
 
 // ── גודל הישיבה: 4↓ הכל · 5-8 ⇒ 70% (7⇒5) · 9+ ⇒ 60% (12⇒7) ──────────────────
 // «תעשה את הבחנים קלים יותר» (יותם, 14.9) ⇒ ב-relaxed הבוחן קצר: מחצית מהמנות,
@@ -74,19 +74,9 @@ export function veganSafe(dish) {
   return true;
 }
 
-// ── ניסוח שם הקטגוריה בתוך שאלה ────────────────────────────────────────────
-// «ציין את כל הראשונות…» עובד למילה עברית אחת; שם באנגלית או ארוך («Greek Oven Breads»,
-// «סלטי גינה מירקות מובחרים») מקבל «המנות ב״…״», ו«ילדים» אינו «הילדים».
-const CAT_SPECIAL = { "ילדים": ["מנות הילדים", "ממנות הילדים"] };
-export function catForms(cat) {
-  if (CAT_SPECIAL[cat]) return { catIn: CAT_SPECIAL[cat][0], catFrom: CAT_SPECIAL[cat][1] };
-  const words = cat.split(/\s+/).filter(Boolean);
-  const latin = /[A-Za-z]/.test(cat);
-  // שתי מילים ומעלה ⇒ ציטוט: «מהרולים מיוחדים» / «מהאינסייד אאוט» אינם עברית
-  if (latin || words.length >= 2) return { catIn: `המנות ב״${cat}״`, catFrom: `מתוך ״${cat}״` };
-  const catIn = /^ה/.test(cat) ? cat : `ה${cat}`;
-  return { catIn, catFrom: `מ${catIn}` };
-}
+// ניסוח שם הקטגוריה חי ב-examEngine (המודול שכבר נמצא מתחת לזה) כדי ששני
+// מחוללי השאלות ישתמשו באותו אחד — ר' «איזו מנה מGreek Oven Breads», 14.9.
+export { catForms };
 
 // ── חלוקת המבחן המלא (יותם, 6.9): ממוצע הבחנים — כל קטגוריה לפי מספר המנות שלה ──
 // «12 ראשונות ו-6 עיקריות ⇒ פי 2 ראשונות מעיקריות, והכל נכנס ב-40 שאלות.»
