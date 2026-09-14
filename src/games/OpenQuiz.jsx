@@ -48,7 +48,7 @@ const LVL_SCORE = [0, 50, 100];
 // תווית לשורת תיאור לפי סוגה — מרכיב לפי משקל, ובלי «תיבול» על שורות שאינן מרכיבים.
 // 🔴 ברמת המודול: גרסה ראשונה ישבה בתוך GradeDetail ונקראה ממסך התוצאה של OpenQuiz ⇒
 // ReferenceError בכל שליחה של כרטיס תיאור במבחן (build 51). lint לא תפס — no-undef כבוי.
-const rowTag = (r) => r.kind === "desc" ? "הכנה" : r.kind === "form" ? "צורה והגשה" : r.kind === "core" ? "מרכיב"
+const rowTag = (r) => r.kind === "desc" ? "הכנה" : r.kind === "taste" ? "טעם" : r.kind === "form" ? "צורה והגשה" : r.kind === "core" ? "מרכיב"
   : r.kind === "warn" ? "רגישות" : r.crit ? "בטיחות" : r.w >= 2 ? "מרכזי" : r.w < 1 ? "תיבול" : null;
 
 // «לסכם את כל מה שהוא כן צדק בו כדי לקצר את הרשימה; לחיצה מראה במה צדק» (יותם, 6.9)
@@ -101,7 +101,7 @@ const weightedAvg = (scores) => {
   return wsum ? Math.round(scores.reduce((a, s) => a + s.v * s.w, 0) / wsum) : 0;
 };
 
-export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId, teamMemberId = null, onAnswer, onDone, onFinish, exam = null, quizOff = [], examEasy = false, examLevel = "normal" }) {
+export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId, teamMemberId = null, onAnswer, onDone, onFinish, exam = null, quizOff = [], examEasy = false, examLevel = "normal", preview = false }) {
   const easy = examEasy || examLevel === "relaxed";
   const strict = examLevel === "strict";
   const passMark = PASS_MARK[examLevel] || 70;
@@ -601,7 +601,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
         <p>📍 נדרש לבצע את המבחן <b className="text-[#eef0f6]">במסעדה</b>, ולהודיע למנהל שאתה מתחיל אותו.</p>
         <p>📨 כל פעולה שתבצע במבחן נשלחת למנהל.</p>
         <p>⏱️ יש לך <b className="text-[#eef0f6]">{fmt(total)} דקות</b> ל-{deck.length} שאלות — בערך <b className="text-[#eef0f6]">{fmt(perQ)} לשאלה</b>. אם תיקח יותר על שאלה אחת, יישאר פחות לאחרות (או יותר, תלוי בעומק התשובה).</p>
-        <p>📖 בין השאלות יש <b className="text-[#eef0f6]">{REVIEW_S} שניות</b> לקרוא את התשובה ובמה טעית — הזמן הזה לא נספר.</p>
+        <p>📖 בין השאלות יש <b className="text-[#eef0f6]">{REVIEW_S} שניות</b> לקרוא את המשוב — הזמן הזה לא נספר.</p>
         <p>🚩 מצאת טעות באפליקציה? יש כפתור דיווח עם הסבר. הדיווח לא לוקח מזמן המבחן, והשאלה לא נספרת.</p>
         <p>📵 <b className="text-[#eef0f6]">אסור לצאת מהאפליקציה באמצע.</b> יציאה שלישית מדווחת למנהל.</p>
         <p>🪑 במבחן {deck.length} שאלות — תצטרך להיות פנוי כ-<b className="text-[#eef0f6]">{Math.ceil((total + deck.length * REVIEW_S) / 60)} דקות</b> ברצף.</p>
@@ -849,7 +849,32 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
                   <p className="text-[12px] text-[#8a8aa0] leading-relaxed">התשובה: {p.sq.answerText}</p>
                 </div>
               )}
-              {p.leaf && (
+              {p.leaf && (exam && !preview ? (
+                /* 🔴 במבחן, תיאור חופשי לא מקבל פירוט (יותם, 14.9):
+                   «זה לא יראה לו למה הוא טעה או צדק, ככה ניתן לרמות בשאלון הפתוח
+                   בקלות. אפשר רק לומר שהתיאור לא היה נכון ולהסביר מה לא היה נכון בו.»
+
+                   הפירוט המלא היה מפתח תשובות: «◌ לא הוזכר «צ׳ילי»» מונה בדיוק את מה
+                   שחסר, ובסוף הודפס גם התיאור המלא של הכרטיס. מלצר יכול היה לשלוח
+                   תשובה ריקה, לקרוא את התשובה, ולגשת שוב — או למסור אותה לחבר.
+
+                   מה שכן נשאר: מה שהוא **כתב** ולא נכון. זה משוב על הטקסט שלו, לא על
+                   מה שהיה צריך לכתוב, ולכן הוא לא חושף כלום. בבוחן אין שינוי — שם
+                   המטרה ללמד, ולכן הפירוט והתשובה ממשיכים להופיע. */
+                <div className="space-y-1">
+                  {p.leaf.rows.filter((r) => r.status === "wrong").map((r) => (
+                    <p key={r.id} className="text-[11.5px] font-bold leading-snug text-[#e0315a]">
+                      ✗ {r.crit ? "שללת אזהרה שקיימת במנה" : `מה שכתבת על «${r.canonical[0]}» סותר את הכרטיס`}
+                    </p>
+                  ))}
+                  {p.leaf.foreign.map((f, k) => (
+                    <p key={k} className="text-[11.5px] font-bold text-[#f3a712]">✗ «{f.claim}» — לא במנה{f.why ? ` (${f.why})` : ""}</p>
+                  ))}
+                  {p.g.lvl !== 2 && !p.leaf.rows.some((r) => r.status === "wrong") && !p.leaf.foreign.length && (
+                    <p className="text-[11.5px] font-bold text-[#8a8aa0]">התיאור לא היה שלם. המנהל יעבור על התשובה.</p>
+                  )}
+                </div>
+              ) : (
                 <div className="space-y-1">
                   <OkSummary items={p.leaf.rows.filter((r) => r.status === "ok").map((r) => r.canonical[0])} />
                   {p.leaf.rows.filter((r) => r.status !== "ok").map((r) => (
@@ -868,15 +893,21 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
                   {p.leaf.note && <p className="text-[11.5px] text-[#9b7bff] font-bold">{p.leaf.note}</p>}
                   {/* ככה מתארים אותה — התשובה תמיד, אחרת הבוחן לא מלמד */}
                   {cur.it?.desc && <p className="text-[12px] text-[#8a8aa0] leading-relaxed">ככה מתארים אותה: {cur.it.desc}</p>}
+                  {exam && preview && (
+                    <p className="text-[11.5px] font-bold text-[#9b7bff] leading-snug">
+                      👁 רק אתה רואה את הפירוט הזה. במבחן אמיתי המלצר מקבל רק «התיאור לא היה שלם» —
+                      בלי מה שחסר ובלי התיאור עצמו, כדי שלא יוכל לשלוח תשובה ריקה, לקרוא את התשובה ולגשת שוב.
+                    </p>
+                  )}
                 </div>
-              )}
+              ))}
               {!p.leaf && !p.sq && p.key === "ings" && p.g.lvl === 0 && p.g.detail?.length > 0 && p.g.detail.every((d) => d.status === "free") && (
                 <p className="text-[12px] font-black text-[#f3c14b]">כתבת את שם המנה — השאלה היא מה יש בתוכה{nameIng ? ` מעבר ל${nameIng}` : ""}. הנה:</p>
               )}
               {!p.leaf && !p.sq && <GradeDetail g={p.g} unit={p.key === "rec" ? "המלצות" : "פרטים"} nameToks={p.key === "ings" ? toks(cur.dish || "") : []} />}
               {/* The answer, always — a quiz that says "wrong" without saying what the
                   right answer was teaches nothing. */}
-              {!p.leaf && !p.sq && (
+              {!p.leaf && !p.sq && !(exam && !preview && p.key === "ings") && (
                 <p className="text-[12px] text-[#8a8aa0] leading-relaxed">
                   {p.q.targets.map((t) => t.t).join(" · ")}
                 </p>

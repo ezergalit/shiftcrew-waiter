@@ -34,9 +34,19 @@ const PREP = [
   ["קריספי", ["קריספית", "פריך", "פריכה", "פריכים", "פריכות"], ["קראנצ'י", "פריכות"]],
   ["חריף", ["חריפה", "חריפים", "פיקנטי", "פיקנטית"], ["ספייסי", "חריפות"]],
   ["מתוק", ["מתוקה", "מתקתק", "מתקתקה"], ["מתיקות"]], ["חמוץ", ["חמוצה", "חמצמץ", "חמצמצה"], ["חמיצות"]], ["קרמי", ["קרמית"], ["קרמיות"]],
+  // טעמים נוספים (יותם, 14.9: «בתיאור מנות חשוב שיהיה גם טעמים — רק אם זה מצוין
+  // בתיאור המנה»). הם יושבים ב-PREP ולכן עוברים באותו שער `mentionedExact`: שורה
+  // נוצרת רק כשהמילה כתובה בכרטיס. אנחנו לא מייחסים למנה טעם שהמסעדה לא כתבה.
+  ["מלוח", ["מלוחה", "מלוחים", "מלוחות"], ["מליחות"]], ["מר", ["מרירה", "מריר"], ["מרירות"]],
+  ["עשיר", ["עשירה"], ["עושר"]], ["עדין", ["עדינה"], ["עדינות"]],
+  ["מרענן", ["מרעננת", "רענן", "רעננה"], ["רעננות"]], ["פירותי", ["פירותית"], []],
+  ["אומאמי", [], []], ["חמצמץ", ["חמצמצה"], []],
   ["צרוב", ["צרובה", "צרובים", "צרובות", "צריבה"], ["טאטאקי", "צרוב מבחוץ"]],
 ];
-const PREP_W = { "קריספי": 0.5, "חריף": 0.5, "מתוק": 0.5, "חמוץ": 0.5, "קרמי": 0.5 };
+const TASTE = new Set(["חריף", "מתוק", "חמוץ", "חמצמץ", "קרמי", "מלוח", "מר", "עשיר",
+  "עדין", "מרענן", "פירותי", "אומאמי", "מעושן"]);
+const PREP_W = { "קריספי": 0.5 };
+const TASTE_W = 1;
 // יצירת שורה מהכרטיס — זהות/נטייה בלבד, בלי סובלנות לטעות-אות: «פריכות» יצר שורת «פרוסות»
 // (lev 2 על 6 אותיות) לסלט חלומי, שאף מלצר לא יכול לכסות
 const exactTok = (a, b) => (a.length <= 2 || b.length <= 2) ? bareVav(a) === bareVav(b) : (wExact(a, b) || (stem(a).length >= 3 && stem(a) === stem(b)));
@@ -87,7 +97,7 @@ const PREP_FORMS = Object.fromEntries([...PREP.map(([k, forms]) => [k, [k, ...fo
 export function prepContradictions(rows, text) {
   const at = enToHe(toks(String(text || "")));
   const neg = negIndex(at);
-  const stated = new Set(rows.filter((r) => (r.kind === "desc" || r.kind === "form") && EXCLUSIVE_PREP.includes(r.canonical[0])).map((r) => r.canonical[0]));
+  const stated = new Set(rows.filter((r) => (r.kind === "desc" || r.kind === "form" || r.kind === "taste") && EXCLUSIVE_PREP.includes(r.canonical[0])).map((r) => r.canonical[0]));
   // מנה נאה (שורת בטיחות/ידע של דג נא / בשר נא) — «נא» מוצהר, ולא סותר טמפורה שלצידו
   if (rows.some((r) => /^(crit|warn):(דג|בשר) נא$/.test(r.id))) stated.add("נא");
   if (!stated.size) return [];
@@ -148,7 +158,11 @@ export function buildRows(dish, targets = null, { mode = "all" } = {}) {
     // זיהוי לפי המילה עצמה ונטיותיה בלבד — «מטוגן» בתיאור אינו ראיה לטמפורה (נתפס חי על נאמס: שורת
     // «טמפורה» צצה למנה בלי טמפורה). הנרדפות משמשות רק לזיכוי התשובה, לא לבניית השורה.
     // במצב desc אופן ההכנה הוא «מה זה» (1.5); במצב all (מרכיבים+הכנה) הוא לא יותר ממרכיב רגיל (1)
-    if ([key, ...forms].some(mentionedExact)) rows.push({ id: `desc:${key}`, kind: "desc", canonical: [key], alt: [...forms, ...answerAlts], crit: false, w: mode === "desc" ? (PREP_W[key] ?? 1.5) : 0.5 });
+    if ([key, ...forms].some(mentionedExact)) {
+      const taste = TASTE.has(key);
+      rows.push({ id: `desc:${key}`, kind: taste ? "taste" : "desc", canonical: [key], alt: [...forms, ...answerAlts],
+        crit: false, w: mode === "desc" ? (taste ? TASTE_W : (PREP_W[key] ?? 1.5)) : 0.5 });
+    }
   }
   if (mode === "desc") {
     // שורות צורה/הגשה/אופי — לפי **טוקנים** של התיאור, לא substring: «קר» ישב בתוך «בקר»/«קרם»/
@@ -165,8 +179,8 @@ export function buildRows(dish, targets = null, { mode = "all" } = {}) {
     // תארים (0.5) — לכל היותר שניים; ובסך הכול לא יותר מ-MAX_DESC_ROWS שורות תיאור, הכבדות קודם
     const adj = formRows.filter((r) => r.w === 0.5).slice(0, MAX_ADJ_ROWS);
     rows.push(...formRows.filter((r) => r.w !== 0.5), ...adj);
-    const descRows = rows.filter((r) => r.kind === "desc" || r.kind === "form").sort((a, b) => b.w - a.w).slice(0, MAX_DESC_ROWS);
-    for (let k = rows.length - 1; k >= 0; k--) if ((rows[k].kind === "desc" || rows[k].kind === "form") && !descRows.includes(rows[k])) rows.splice(k, 1);
+    const descRows = rows.filter((r) => r.kind === "desc" || r.kind === "form" || r.kind === "taste").sort((a, b) => b.w - a.w).slice(0, MAX_DESC_ROWS);
+    for (let k = rows.length - 1; k >= 0; k--) if ((rows[k].kind === "desc" || rows[k].kind === "form" || rows[k].kind === "taste") && !descRows.includes(rows[k])) rows.splice(k, 1);
     // «מה זה» כולל גם את מה שיש בה: כל מרכיב שאיל כשורה במשקל חצי (תיבול — רבע) — «יוגורט יווני עם
     // מלפפון» הוא תיאור של צזיקי גם בלי מילת צורה, ורשימת מרכיבים חלקית שווה «חלקי», לא אפס (הבוטים, 6.9).
     // מרכיב שיושב בשם המנה אינו ידע (ניטרלי). המופע הכללי מזכה («ביצה» על «חביתה» — genericAlt).
