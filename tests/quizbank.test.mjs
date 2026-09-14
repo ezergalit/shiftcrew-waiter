@@ -12,6 +12,8 @@ ok(quizSize(4) === 4 && quizSize(3) === 3 && quizSize(2) === 2, "4 ומטה ⇒ 
 ok(quizSize(9) === 5 && quizSize(10) === 6 && quizSize(16) === 10, "9⇒5 · 10⇒6 · 16⇒10 (60%)");
 ok(quizSize(5) === 4 && quizSize(8) === 6, "5⇒4 · 8⇒6 (70%)");
 ok(setCountFor(12, 5) === 2 && setCountFor(7, 5) === 1 && setCountFor(4, 5) === 1 && setCountFor(12, 0) === 0, "1-2 שאלות-סט, 0 כשאין בנק");
+ok(quizSize(12, "relaxed") === 6 && quizSize(7, "relaxed") === 4 && quizSize(16, "relaxed") === 6 && quizSize(4, "relaxed") === 4, "relaxed: מחצית, עד 6, 4 ומטה הכל");
+ok(setCountFor(12, 5, "relaxed") === 1 && setCountFor(12, 0, "relaxed") === 0, "relaxed: שאלת-סט אחת לכל היותר");
 
 // 2. בנק שאלות-סט על קטגוריה סינתטית
 const D = (name, o = {}) => ({ name, category: "ראשונות", ingredients: ["אורז"], allergens: [], pregnancy: [], pitfalls: [], ...o });

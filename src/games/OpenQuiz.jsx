@@ -188,7 +188,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       const seen = loadSeen(restaurantId, cat);
       const { cards: picked, asked } = composeQuiz({
         dishes: cards.map((c) => ({ name: c.dish, starred: !!c.it?.isSpecial })),
-        sets, seen, size: plan ? plan[cat] : null,
+        sets, seen, size: plan ? plan[cat] : null, level: examLevel,
       });
       askedRef.current[cat] = { asked, bank: [...cards.map((c) => `dish:${c.dish}`), ...sets.map((q) => q.id)] };
       for (const c of picked) {
@@ -229,7 +229,10 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   // attempt's 25s was part of why it felt punitive.
   const SECONDS_PER_DISH = SECS_PER_DISH[examLevel] || 60;
   const started = deck.length >= 2;
-  const [secondsLeft, setSecondsLeft] = useState(0);
+  // 🔴 השעון נולד מלא, לא מאופס-ואז-מתמלא: אתחול ל-0 + אפקט «נגמר הזמן ⇒ סיום» גרמו
+  // לכל בוחן להסתיים מיד ב-0% — האפקט קרא את ה-0 של ה-commit הראשון לפני שאפקט המילוי
+  // הספיק להתחיל (במבחן מסך ההסבר הסתיר את זה; בבוחן אין מסך הסבר). נתפס 14.9.
+  const [secondsLeft, setSecondsLeft] = useState(() => deck.length * SECONDS_PER_DISH);
   // מבחן: מסך הסבר לפני שהשעון מתחיל (יותם, 6.9); בוחן — מתחילים מיד
   const [briefed, setBriefed] = useState(!exam);
   const [confirming, setConfirming] = useState(false);   // «אתה בטוח שאתה רוצה להתחיל?» (יותם, 6.9)
@@ -246,7 +249,6 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const [elapsedQ, setElapsedQ] = useState(0);
   const total = deck.length * SECONDS_PER_DISH;
   const perQ = deck.length ? Math.round(total / deck.length) : SECONDS_PER_DISH;
-  useEffect(() => { if (started) setSecondsLeft(total); }, [started, total]);
   // 3 דיווחים פתוחים ב-24 שעות ⇒ המבחן חסום למסעדה עד טיפול (יותם, 6.9)
   useEffect(() => {
     // תצוגת המנהל (preview) אין לה חבר צוות — לא נחסמת ולא מדווחת (ה-RLS ממילא דוחה)

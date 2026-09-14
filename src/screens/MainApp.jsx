@@ -6,7 +6,7 @@ import MetricsScreen, { DeleteProfile } from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
 import BriefGate, { briefHasContent } from "../components/BriefGate";
 import CoachBar from "../components/CoachBar";
-import { textFor, screenOf, loadSeen, markSeen, resetSeen } from "../lib/coachStops";
+import { textFor, screenOf, loadSeen, markSeen, resetSeen, isForward, FORWARD_DISMISS } from "../lib/coachStops";
 import ColorKey, { needsColorKey, markColorKeySeen } from "../components/ColorKey";
 import TasksTab, { useShiftTasks, PERIOD_LABEL } from "../components/TasksTab";
 import ManagerMessages from "../components/ManagerMessages";
@@ -216,10 +216,13 @@ export default function MainApp({ session, onSignOut }) {
   const [stage, setStage] = useState({ menu: null, cat: null, idx: null, explain: false });
   const onStage = useCallback((n) => setStage((p) =>
     (p.menu === n.menu && p.cat === n.cat && p.idx === n.idx && p.explain === n.explain) ? p : n), []);
-  // מה כבר הוסבר לחבר הזה, ומה מוצג עכשיו. `stop` נשאר עד שמקישים «הבנתי» או עוזבים
-  // את המסך — כדי שהשורה לא תיעלם מתחת לאצבע תוך כדי קריאה.
+  // מה כבר הוסבר לחבר הזה, ומה מוצג עכשיו. «אחורה» לא מוחק שורה (יותם, 14.9):
+  // שורה שהוצגה נשארת «ממתינה» ב-pendingRef עם מונה צעדי «קדימה», וננעלת כנראתה
+  // רק ב«הבנתי» או אחרי FORWARD_DISMISS צעדים קדימה. חזרה אחורה ⇒ תופיע שוב.
   const [seen, setSeen] = useState(() => loadSeen(session?.teamMemberId));
   const [stop, setStop] = useState(null);
+  const pendingRef = useRef(new Map());      // screen ⇒ צעדי קדימה מאז שהוצגה
+  const prevScreenRef = useRef(undefined);
   // Depth belongs to the tab you're in, so leaving a tab clears it — otherwise
   // walking into a dish and then tapping another tab leaves that tab's root
   // page without its exit button.
@@ -248,13 +251,26 @@ export default function MainApp({ session, onSignOut }) {
   // ⚠️ state ולא ref: השורה צריכה להופיע ברגע שהמונה מגיע, והאפקט למטה קורא אותו.
   const [ratedInMode, setRatedInMode] = useState(0);
   useEffect(() => { setRatedInMode(0); }, [mode]);
-  // הגעה למסך חדש ⇒ השורה שלו, פעם אחת. הכרטיסיות הן early-return בלי המעטפת,
+  // הגעה למסך ⇒ השורה שלו, כל עוד לא ננעלה. הכרטיסיות הן early-return בלי המעטפת,
   // ולכן הפס מתארח בתוכן דרך `coachSlot`; הבוחן והמבחן נשארים בלי שורה.
+  // ⚠️ אין כאן markSeen על הצגה — זה מה שגרם ל«אחורה מוחק את ההסבר».
   useEffect(() => {
     const screen = screenOf({ tab, stage, showAbout, catView, groupView, mode, ratedInMode });
+    const prev = prevScreenRef.current;
+    if (prev !== undefined && screen !== prev && isForward(prev, screen)) {
+      // צעד קדימה מקדם כל שורה ממתינה — חוץ מזו של המסך שנכנסנו אליו עכשיו.
+      for (const [s, n] of [...pendingRef.current]) {
+        if (s === screen) continue;
+        if (n + 1 >= FORWARD_DISMISS) {
+          pendingRef.current.delete(s);
+          setSeen((p) => markSeen(session?.teamMemberId, s, p));
+        } else pendingRef.current.set(s, n + 1);
+      }
+    }
+    prevScreenRef.current = screen;
     if (!screen) { setStop(null); return; }
     if (seen.has(screen)) { setStop((cur) => (cur === screen ? cur : null)); return; }
-    setSeen((prev) => markSeen(session?.teamMemberId, screen, prev));
+    if (!pendingRef.current.has(screen)) pendingRef.current.set(screen, 0);
     setStop(screen);
   }, [mode, ratedInMode, tab, stage, showAbout, catView, groupView, seen, session?.teamMemberId]);
   // The category whose quiz-gate clock is running right now: a flashcard mode whose whole
@@ -767,7 +783,11 @@ export default function MainApp({ session, onSignOut }) {
   // סיגר אינו מנה: אין לו מרכיבים, אלרגיות או הכנה — יש לו מותג ואורך, וזה לא ידע שנבחנים עליו.
   // מסלול אירוע הוא מחירון (250 ₪ לאדם, מה כלול) — המלצר קורא אותו, לא משנן אותו.
   // שניהם נשארים בתפריט ובכרטיסיות במלואם; רק הבוחן והמבחן מדלגים עליהם.
-  const learnOnly = (c) => !!c && (c.drink === "סיגר" || c.event === true);
+  // «תמחק לגמרי את התרגול על הלחמים — זה מיותר» (יותם, 14.9, סלון יווני): קטגוריות
+  // לימוד-בלבד פר-מסעדה — `features.learn_only_cats` (מערך שמות קטגוריה) מצטרף לכלל
+  // הקבוע. נשארות בתפריט במלואן; יוצאות מהתרגול, מהבוחן ומהמבחן.
+  const learnOnlyCatNames = session?.features?.learn_only_cats || [];
+  const learnOnly = (c) => !!c && (c.drink === "סיגר" || c.event === true || learnOnlyCatNames.includes(c.category));
   const examableCats = useMemo(() => {
     if (session?.features?.exam !== "open" || !cards?.length) return null;
     const menu = menuFromCards(cards);
@@ -800,7 +820,7 @@ export default function MainApp({ session, onSignOut }) {
       ...[...perCat].filter(([, d]) => d.size >= 2).map(([c]) => c),
       ...[...recCount].filter(([, n]) => n >= 2).map(([c]) => c),
     ].filter((c) => !learnOnlyCats.has(c)));
-  }, [cards, session?.features?.exam]);
+  }, [cards, session?.features?.exam, session?.features?.learn_only_cats]);
   const examable = (key) => !examableCats || examableCats.has(key);
   // שתייה קלה נשארת מחוץ לתרגול (31.8 בוקר) אבל מקבלת בוחן «מה יש» קצר (יותם,
   // 31.8 ערב: «איזה שתייה מוגזת יש, איזה מיץ יש? ומעט שאלות»). שער הזמן לא חל —
@@ -881,15 +901,20 @@ export default function MainApp({ session, onSignOut }) {
     : textFor(stop);
   // דירוג כרטיסייה = לימוד + צעד במונה שפותח את שורת «כמה עוד עד הבוחן».
   const rateCard = (id, r) => { learnItem(id, r, { objective: false }); setRatedInMode((c) => c + 1); };
+  // «הבנתי» הוא אחת משתי הדרכים היחידות שנועלות שורה (השנייה: צעדים קדימה).
   const coachNode = stop && coachStopText && cards?.length > 0
-    ? <CoachBar text={coachStopText} onOk={() => setStop(null)} />
+    ? <CoachBar text={coachStopText} onOk={() => {
+        pendingRef.current.delete(stop);
+        setSeen((p) => markSeen(session?.teamMemberId, stop, p));
+        setStop(null);
+      }} />
     : null;
 
   // Full-screen, above the tabs: it is a place you go to, not a tab you live in.
   if (showMetrics && !metricsOff)
     return <><MetricsScreen session={session} cards={cards} masteryById={masteryById} weekly={weekly} leaderboard={leaderboard}
       onDone={() => setShowMetrics(false)}
-      onReplayTour={() => { setShowMetrics(false); setSeen(resetSeen(session?.teamMemberId)); }} /></>;
+      onReplayTour={() => { setShowMetrics(false); pendingRef.current = new Map(); setSeen(resetSeen(session?.teamMemberId)); }} /></>;
 
   // The colour legend, once a day, in front of the first practice of the day: red is an
   // allergy, purple is pregnancy, yellow is a preference. A waiter who reads the chips

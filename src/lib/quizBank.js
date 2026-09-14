@@ -12,16 +12,20 @@ import { askableIngredients } from "./questionEngine.js";
 import { norm } from "./examEngine.js";
 
 // ── גודל הישיבה: 4↓ הכל · 5-8 ⇒ 70% (7⇒5) · 9+ ⇒ 60% (12⇒7) ──────────────────
-export function quizSize(n) {
+// «תעשה את הבחנים קלים יותר» (יותם, 14.9) ⇒ ב-relaxed הבוחן קצר: מחצית מהמנות,
+// לכל היותר 6 — לצד הניקוד המקל שכבר חל (ספי תיאור וציון עובר 60).
+export function quizSize(n, level = "normal") {
   if (n <= 4) return n;
+  if (level === "relaxed") return Math.min(6, Math.ceil(n * 0.5));
   if (n <= 8) return Math.ceil(n * 0.7);
   return Math.round(n * 0.6);
 }
 
-// כמה "מלכודות" (שאלות-סט בלי תיאור) בישיבה: 1-2, רבע מהישיבה
-export function setCountFor(n, available) {
+// כמה "מלכודות" (שאלות-סט בלי תיאור) בישיבה: 1-2, רבע מהישיבה; relaxed ⇒ אחת לכל היותר
+export function setCountFor(n, available, level = "normal") {
   if (!available) return 0;
-  const want = n <= 4 ? 1 : Math.min(2, Math.max(1, Math.round(quizSize(n) * 0.25)));
+  const cap = level === "relaxed" ? 1 : 2;
+  const want = n <= 4 ? 1 : Math.min(cap, Math.max(1, Math.round(quizSize(n, level) * 0.25)));
   return Math.min(want, available);
 }
 
@@ -230,12 +234,12 @@ export function buildSetQuestions(items, catLabel, opts = {}) {
 // seen: מזהי שאלות שכבר נשאלו במכשיר (ישן ⇒ חדש). מחזירה { cards, asked }.
 // cards: [{ kind:"rec"|"list", set }, { kind:"dish", name }] בסדר: המלצה ⇒ המנות שלה ⇒
 // שאר המנות ⇒ שאלות-הסט. מלצר שנכשל לא מקבל את אותה ישיבה: מה שנשאל שוקע לסוף.
-export function composeQuiz({ dishes, sets, seen = [], rand = Math.random, size = null }) {
+export function composeQuiz({ dishes, sets, seen = [], rand = Math.random, size = null, level = "normal" }) {
   const n = dishes.length;
   if (!n) return { cards: [], asked: [] };
   // size (מכסת מבחן) גובר על כלל הבוחן; ואז "4 ומטה ⇒ הכל" לא חל — המכסה קובעת
-  const N = size ?? quizSize(n);
-  const setN = size == null ? setCountFor(n, sets.length) : Math.min(sets.length, N >= 4 ? Math.min(2, Math.max(1, Math.round(N * 0.25))) : (N >= 2 ? 1 : 0));
+  const N = size ?? quizSize(n, level);
+  const setN = size == null ? setCountFor(n, sets.length, level) : Math.min(sets.length, N >= 4 ? Math.min(2, Math.max(1, Math.round(N * 0.25))) : (N >= 2 ? 1 : 0));
   const dishN = size == null && n <= 4 ? n : Math.max(1, N - setN);
   const seenRank = new Map(seen.map((id, i) => [id, i]));          // לא נראה ⇒ -1
   const rank = (id) => (seenRank.has(id) ? seenRank.get(id) : -1);
