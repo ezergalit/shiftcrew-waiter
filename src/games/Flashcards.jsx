@@ -138,9 +138,6 @@ export default function Flashcards({ items, session, quick, onRate, onDone, slim
               </>}
               <div className="pt-1">
                 <p className="text-xs font-bold text-[#8a8aa0] mb-1.5">כמה טוב ידעת?</p>
-                {/* Says plainly that this is practice, not scoring — otherwise a waiter
-                    rates 5s expecting points and quietly gets none. */}
-                <p className="text-[11px] text-[#5a5a6e] mb-1.5">מה שתסמנו כאן קובע על מה נחזור שוב</p>
                 <div className="grid grid-cols-5 gap-1.5">
                   {[1, 2, 3, 4, 5].map(v => (
                     <button key={v} onClick={() => rate(v)} className={`py-3 min-h-[44px] rounded-lg font-black text-base ${RATING_STYLE[v]}`}>{v}</button>
