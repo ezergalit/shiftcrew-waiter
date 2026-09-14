@@ -1,0 +1,48 @@
+/* ============================================================
+   נוצר אוטומטית ע"י tools/gen-theme-css.mjs — אין לערוך ביד.
+   ממפה כל מחלקת Tailwind עם הקס קשיח אל טוקן המסעדה (src/lib/theme.js).
+   מסעדה בלי theme מקבלת בדיוק את הערך שהיה בקוד, ולכן זה ניטרלי.
+   41 כללים · 13 צבעים
+   ============================================================ */
+
+:root .bg-\[\#0c0d10\]{background-color:var(--t-bg)}
+:root .bg-\[\#15302b\]{background-color:var(--t-em-soft)}
+:root .bg-\[\#15302b\]\/50{background-color:rgb(var(--t-em-soft-rgb) / 0.5)}
+:root .bg-\[\#15302b\]\/60{background-color:rgb(var(--t-em-soft-rgb) / 0.6)}
+:root .bg-\[\#16181c\]{background-color:var(--t-surface)}
+:root .bg-\[\#22252b\]{background-color:var(--t-line)}
+:root .bg-\[\#22c08c\]{background-color:var(--t-em)}
+:root .bg-\[\#22c08c\]\/15{background-color:rgb(var(--t-em-rgb) / 0.15)}
+:root .bg-\[\#33290f\]{background-color:var(--t-amber-soft)}
+:root .bg-\[\#33290f\]\/40{background-color:rgb(var(--t-amber-soft-rgb) / 0.4)}
+:root .bg-\[\#33290f\]\/60{background-color:rgb(var(--t-amber-soft-rgb) / 0.6)}
+:root .bg-\[\#3a1d22\]{background-color:var(--t-red-soft)}
+:root .bg-\[\#3a1d22\]\/70{background-color:rgb(var(--t-red-soft-rgb) / 0.7)}
+:root .bg-\[\#e0315a\]{background-color:var(--t-red)}
+:root .bg-\[\#EEF0F6\]{background-color:var(--t-ink)}
+:root .bg-\[\#EEF0F6\]\/15{background-color:rgb(var(--t-ink-rgb) / 0.15)}
+:root .bg-\[\#f3c14b\]{background-color:var(--t-amber)}
+:root .border-\[\#22252b\]{border-color:var(--t-line)}
+:root .border-\[\#22c08c\]{border-color:var(--t-em)}
+:root .border-\[\#22c08c\]\/30{border-color:rgb(var(--t-em-rgb) / 0.3)}
+:root .border-\[\#22c08c\]\/40{border-color:rgb(var(--t-em-rgb) / 0.4)}
+:root .border-\[\#22c08c\]\/50{border-color:rgb(var(--t-em-rgb) / 0.5)}
+:root .border-\[\#22c08c\]\/60{border-color:rgb(var(--t-em-rgb) / 0.6)}
+:root .border-\[\#e0315a\]{border-color:var(--t-red)}
+:root .border-\[\#e0315a\]\/40{border-color:rgb(var(--t-red-rgb) / 0.4)}
+:root .border-\[\#f3c14b\]{border-color:var(--t-amber)}
+:root .border-\[\#f3c14b\]\/40{border-color:rgb(var(--t-amber-rgb) / 0.4)}
+:root .fill-\[\#8a8aa0\]{fill:var(--t-dim)}
+:root .fill-\[\#eef0f6\]{fill:var(--t-ink)}
+:root .text-\[\#06231a\]{color:var(--t-em-ink)}
+:root .text-\[\#22c08c\]{color:var(--t-em)}
+:root .text-\[\#22C08C\]{color:var(--t-em)}
+:root .text-\[\#5a5a6e\]{color:var(--t-faint)}
+:root .text-\[\#8a8aa0\]{color:var(--t-dim)}
+:root .text-\[\#e0315a\]{color:var(--t-red)}
+:root .text-\[\#eef0f6\]{color:var(--t-ink)}
+:root .text-\[\#EEF0F6\]{color:var(--t-ink)}
+:root .text-\[\#EEF0F6\]\/60{color:rgb(var(--t-ink-rgb) / 0.6)}
+:root .text-\[\#EEF0F6\]\/80{color:rgb(var(--t-ink-rgb) / 0.8)}
+:root .text-\[\#EEF0F6\]\/90{color:rgb(var(--t-ink-rgb) / 0.9)}
+:root .text-\[\#f3c14b\]{color:var(--t-amber)}

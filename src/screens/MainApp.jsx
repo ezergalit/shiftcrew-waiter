@@ -19,6 +19,8 @@ import MenuBrowser from "../components/MenuBrowser";
 import { AboutCard, AboutScreen, aboutSubtitle } from "../components/AboutRestaurant";
 import Ring from "../components/Ring";
 import "../aurora.css";
+import "../theme.css";
+import { applyTheme } from "../lib/theme";
 import { isUnderstood } from "../lib/progressiveSession";
 import ProgressiveFlashcards from "../games/ProgressiveFlashcards";
 import { buildStudySession, nextConsecutiveFives, isRetired, QUICK_SESSION_SIZE } from "../lib/studySession";
@@ -206,6 +208,12 @@ export default function MainApp({ session, onSignOut }) {
   // תת-היקף בתוך קטגוריית יינות (יותם, 31.8: «אולי אפילו בתוך היינות לחלק
   // לקטגוריות של אדום ולבן») — צ'יפ מסנן את הרשימה ואת סבב הכרטיסיות.
   const [wineScope, setWineScope] = useState(null);
+  // צבעי המסעדה. `features.theme` מגיע גם מ-team_join וגם מרענון החזית (App.jsx),
+  // ולכן שינוי צבע ב-DB נוחת אצל המלצר בפתיחה הבאה — בלי build ובלי חנות.
+  // מסעדה בלי theme מקבלת את הפלטה שהייתה קשיחה בקוד, כלומר אפס שינוי.
+  const themeKey = JSON.stringify(session?.features?.theme || null);
+  useEffect(() => { applyTheme(session?.features); }, [themeKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => { setWineScope(null); }, [catView]);
   const [groupView, setGroupView] = useState(null); // menu (menu_group) key or null
   // Bumped to remount MenuBrowser at its top level (see the tour's onNavigate).
