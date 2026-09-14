@@ -898,7 +898,12 @@ export default function MainApp({ session, onSignOut }) {
         const g = quizGateFor(cat);
         return g.open ? 0 : g.needMin;
       })() })
-    : textFor(stop);
+    // 🔴 השם שהמסך פתוח עליו נכנס לשורה (יותם, 14.9: «אם מדובר בתפריט אירועים אז
+    // תכתוב תפריט האירועים וכל הקטגוריות בתוכו, ואז בפנים מסלול האירועים»). בטאב
+    // התפריט הוא מגיע מ-`stage`, ובטאב התרגול מ-groupView/catView.
+    : textFor(stop, tab === "learn"
+        ? { menu: groupView, cat: catView }
+        : { menu: stage?.menu, cat: stage?.cat });
   // דירוג כרטיסייה = לימוד + צעד במונה שפותח את שורת «כמה עוד עד הבוחן».
   const rateCard = (id, r) => { learnItem(id, r, { objective: false }); setRatedInMode((c) => c + 1); };
   // «הבנתי» הוא אחת משתי הדרכים היחידות שנועלות שורה (השנייה: צעדים קדימה).
