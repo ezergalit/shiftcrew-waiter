@@ -240,7 +240,9 @@ export default function MainApp({ session, onSignOut }) {
   // The role every task filter actually uses: the profile's, unless the profile says
   // "both" — then today's answer.
   const myRole = profileRole === "both" ? dailyRole : profileRole;
-  const { rows: shiftRows, doneIds: taskDone, toggle: toggleTask } = useShiftTasks(session);
+  // ⚠️ `tasksOff` ⇒ אין טאב משימות, ו-`shiftRows` אינו מרונדר בשום מקום —
+  // המשיכה הייתה הלוך-חזור מבוזבז בכל פתיחה בשלוש המסעדות החיות.
+  const { rows: shiftRows, doneIds: taskDone, toggle: toggleTask } = useShiftTasks(session, !tasksOff);
   // Learning-only mode has no tasks/daily tabs — anything that lands there (old code
   // paths, restored state) snaps back to the learning tab instead of a blank screen.
   useEffect(() => {
@@ -420,7 +422,25 @@ export default function MainApp({ session, onSignOut }) {
         db.from("team_members").update({ last_seen_at: new Date().toISOString() })
           .eq("id", session.teamMemberId).then(() => {}, () => {});
       }
-      const { data: m } = session?.teamMemberId ? await db.from("menu_progress").select("source_item_id, mastery, consecutive_fives, verified").eq("team_member_id", session.teamMemberId) : { data: [] };
+      // 🔴 כל השאילתות שמתחת היו משורשרות ב-await, ולכן כל אחת חיכתה לקודמת — חמישה
+      // גלים של הלוך-חזור לשרת אחרי שהתפריט כבר הגיע (נמדד בתצוגת המנהל: 1,098ms
+      // של המתנה, התוכן נצבע רק אחרי 1.6 שניות). הן **בלתי-תלויות זו בזו**, אז הן
+      // רצות יחד; רק אישור קריאת הבריף תלוי בתוצאה של הבריף ונשאר אחריו.
+      const mid = session?.teamMemberId;
+      const none = Promise.resolve({ data: [] });
+      const today = new Date().toISOString().slice(0, 10);
+      const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+      const wkStart = new Date(dayStart); wkStart.setDate(wkStart.getDate() - wkStart.getDay());
+      const [{ data: m }, { data: l }, { data: cfg }, { data: weekSnaps }, { data: exams }, { data: b, error: bErr }] = await Promise.all([
+        mid ? db.from("menu_progress").select("source_item_id, mastery, consecutive_fives, verified").eq("team_member_id", mid) : none,
+        db.from("leaderboard").select("*").eq("restaurant_id", session?.restaurantId).order("points", { ascending: false }),
+        db.from("exam_config").select("*").eq("restaurant_id", session?.restaurantId).maybeSingle(),
+        // Everything already recorded, so the numbers survive a refresh. One fetch since
+        // Sunday serves both sums: the whole range is the week, today's rows are the day.
+        mid ? db.from("progress_snapshots").select("seconds_delta, taken_at").eq("team_member_id", mid).gte("taken_at", wkStart.toISOString()) : none,
+        mid ? db.from("exam_results").select("category").eq("team_member_id", mid).eq("passed", true) : none,
+        db.from("daily_brief").select("*").eq("restaurant_id", session?.restaurantId).eq("date", today).maybeSingle(),
+      ]);
       if (alive && !preview) {   // preview = admin עם 100% (אפקט נפרד) — לא לדרוס
         // Points follow VERIFIED mastery only — a self-reported 5 doesn't count here.
         setMastered(new Set((m || []).filter(r => (r.mastery ?? 0) >= 4 && r.verified).map(r => r.source_item_id)));
@@ -429,30 +449,17 @@ export default function MainApp({ session, onSignOut }) {
         // Consecutive perfect ratings, for retiring a dish from the study rotation.
         setFivesById(Object.fromEntries((m || []).map(r => [r.source_item_id, r.consecutive_fives ?? 0])));
       }
-      const { data: l } = await db.from("leaderboard").select("*").eq("restaurant_id", session?.restaurantId).order("points", { ascending: false });
       if (alive) setLeaderboard(l || []);
       // Weekly was only ever fetched after a scoring event or a realtime ping, so a
       // fresh load showed an empty weekly board even when points existed for this week.
       void refetchWeekly();
-      const { data: cfg } = await db.from("exam_config").select("*").eq("restaurant_id", session?.restaurantId).maybeSingle();
       if (alive) setExamConfig(cfg || {});
-      // Everything already recorded, so the numbers survive a refresh. One fetch since
-      // Sunday serves both sums: the whole range is the week, today's rows are the day.
-      const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-      const wkStart = new Date(dayStart); wkStart.setDate(wkStart.getDate() - wkStart.getDay());
-      const { data: weekSnaps } = session?.teamMemberId ? await db.from("progress_snapshots")
-        .select("seconds_delta, taken_at").eq("team_member_id", session.teamMemberId)
-        .gte("taken_at", wkStart.toISOString()) : { data: [] };
       if (alive) {
         setWeekSeconds((weekSnaps || []).reduce((n, r) => n + (r.seconds_delta || 0), 0));
         setTodaySeconds((weekSnaps || []).filter((r) => new Date(r.taken_at) >= dayStart)
           .reduce((n, r) => n + (r.seconds_delta || 0), 0));
       }
-      const { data: exams } = session?.teamMemberId ? await db.from("exam_results")
-        .select("category").eq("team_member_id", session.teamMemberId).eq("passed", true) : { data: [] };
       if (alive && !preview) setPassedCats([...new Set((exams || []).map(r => r.category))]);
-      const today = new Date().toISOString().slice(0, 10);
-      const { data: b, error: bErr } = await db.from("daily_brief").select("*").eq("restaurant_id", session?.restaurantId).eq("date", today).maybeSingle();
       // A brief that fails to load looks exactly like a day with no brief — the same
       // shape of silent failure that hid the empty team tab on the owner side.
       if (bErr) console.error("daily_brief", bErr.message, bErr.details, bErr.hint, bErr.code);
@@ -461,9 +468,9 @@ export default function MainApp({ session, onSignOut }) {
       // recorded automatically on load: that measured "opened the app", and the owner saw
       // a ✓ next to people who never looked. It is now an explicit action plus one
       // question drawn from the brief itself — see BriefAck.
-      if (b && session?.teamMemberId) {
+      if (b && mid) {
         const { data: ack } = await db.from("daily_brief_reads")
-          .select("read_at, correct").eq("team_member_id", session.teamMemberId).eq("date", today).maybeSingle();
+          .select("read_at, correct").eq("team_member_id", mid).eq("date", today).maybeSingle();
         if (alive) setBriefAck(ack || null);
       }
     })();

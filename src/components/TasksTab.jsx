@@ -225,14 +225,14 @@ export default function TasksTab({ tasks, onDone, children }) {
 }
 
 // The manager's own shift instructions plus today's completions for this member.
-export function useShiftTasks(session) {
+export function useShiftTasks(session, enabled = true) {
   const [rows, setRows] = useState([]);
   const [doneIds, setDoneIds] = useState(new Set());
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      if (session?.offline || !session?.restaurantId) return;
+      if (!enabled || session?.offline || !session?.restaurantId) return;
       const [t, d] = await Promise.all([
         // expires_on (owner side, 2026-08-20): a task the manager added "for today
         // only". Expired rows stay in the table as history — filtered here, not deleted.
@@ -259,7 +259,7 @@ export function useShiftTasks(session) {
       ));
     })();
     return () => { alive = false; };
-  }, [session]);
+  }, [session, enabled]);
 
   const toggle = async (taskId, next) => {
     setDoneIds((prev) => {
