@@ -152,24 +152,28 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     const drinkCat = !exam && food.some((i) => i.drink);
     askedRef.current = {};
 
+    // שאלות המלצה לקטגוריה, עם מחזור «מה כבר נשאל» פר-מכשיר. חולץ מתוך מסלול
+    // המשקאות כדי שגם מסלול המנות יוכל ליפול עליו — ר' ההערה על המבוי הסתום למטה.
+    const pickRecs = (catName, limit) => {
+      const recPool = catName ? bank.filter((q) => (q.sit === "drinkrec" || q.sit === "dishrec") && q.cat === catName) : [];
+      if (!recPool.length) return [];
+      const key = `menu-app-recasked:${restaurantId || "r"}:${catName}`;
+      let seen = [];
+      try { seen = JSON.parse(localStorage.getItem(key)) || []; } catch { /* fresh */ }
+      const fresh = shuffle(recPool.filter((q) => !seen.includes(q.dish)));
+      const used = shuffle(recPool.filter((q) => seen.includes(q.dish)));
+      const recs = [...fresh, ...used].slice(0, limit).map((q) => ({ rec: q, dish: q.ask }));
+      try {
+        const asked = recs.map((r) => r.rec.dish);
+        localStorage.setItem(key, JSON.stringify(fresh.length >= recs.length ? [...seen, ...asked] : asked));
+      } catch { /* private mode */ }
+      return recs;
+    };
+
     // ── משקאות (לא במבחן המלא): ההרכב של 31.8 ללא שינוי ──
     if (drinkCat) {
       const withItem = food.map(dishCard).filter(Boolean);
-      const catName = food[0]?.category;
-      const recPool = catName ? bank.filter((q) => (q.sit === "drinkrec" || q.sit === "dishrec") && q.cat === catName) : [];
-      let recs = [];
-      if (recPool.length) {
-        const key = `menu-app-recasked:${restaurantId || "r"}:${catName}`;
-        let seen = [];
-        try { seen = JSON.parse(localStorage.getItem(key)) || []; } catch { /* fresh */ }
-        const fresh = shuffle(recPool.filter((q) => !seen.includes(q.dish)));
-        const used = shuffle(recPool.filter((q) => seen.includes(q.dish)));
-        recs = [...fresh, ...used].slice(0, 6).map((q) => ({ rec: q, dish: q.ask }));
-        try {
-          const asked = recs.map((r) => r.rec.dish);
-          localStorage.setItem(key, JSON.stringify(fresh.length >= recs.length ? [...seen, ...asked] : asked));
-        } catch { /* private mode */ }
-      }
+      const recs = pickRecs(food[0]?.category, 6);
       const dishCards = shuffle(withItem).sort((a, b) => (b.it?.isSpecial ? 1 : 0) - (a.it?.isSpecial ? 1 : 0));
       return [...dishCards.slice(0, 2), ...recs];
     }
@@ -195,6 +199,17 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
         if (c.kind === "dish") { const e = cards.find((x) => x.dish === c.name); if (e) out.push(e); }
         else out.push({ set: c.set, cat, pool: shuffle(pool), poolDishes: catItems });
       }
+    }
+    // 🔴 מבוי סתום: `examableCats` מסמן קטגוריה כנבחנת גם על שתי שאלות המלצה בלבד
+    // (ההחלטה של 31.8 — בירה וסאקה נבחנות בהמלצות), אבל **רק** מסלול המשקאות אסף
+    // אותן. קטגוריה עם המלצות ובלי כרטיסי תיאור שאינה נושאת `drink` — קוקטיילים,
+    // שתייה קלה, וקטגוריית אוכל שרוב מנותיה פשוטות — בנתה חפיסה ריקה, והמלצר שלחץ
+    // «בוחן» קיבל «אין מספיק מנות לבוחן כאן» מהכפתור שהאפליקציה עצמה הציעה לו.
+    // ⚠️ לא מרככים את השער (`deck.length >= 2`) — הוא נכון; מה שהיה חסר הוא המקור.
+    if (!exam && out.length < 2) {
+      const catName = cats[0];
+      const recs = pickRecs(catName, 6).filter((r) => !out.some((c) => c.rec?.dish === r.rec.dish));
+      out.push(...recs);
     }
     return out;
   });
@@ -244,6 +259,9 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const MAX_REPORTS = 3;
   const [reports, setReports] = useState(0);
   const [reportedCards, setReportedCards] = useState([]);
+  // 🔴 כרטיס שדווח **לפני** שנענה לא מייצר שורת ציון, ולכן `missing` במבחן המלא ספר
+  // אותו כאפס — בדיוק ההפך מ«לא לטובה ולא לרעה» שהמסך מבטיח. נספר כאן ומנוכה משם.
+  const [skippedReports, setSkippedReports] = useState(0);
   const [leftCount, setLeftCount] = useState(0);   // אינדקסים שכבר דווחו — בלי דיווח כפול
   const [aborted, setAborted] = useState(false);
   const [toast, setToast] = useState("");
@@ -324,7 +342,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const examAvg = () => {
     const counted = scores.filter((x) => !x.excluded);
     if (!exam) return weightedAvg(counted);
-    const missing = Math.max(0, deck.length - scores.length);
+    const missing = Math.max(0, deck.length - scores.length - skippedReports);
     return weightedAvg([...counted, ...Array.from({ length: missing }, () => ({ v: 0, w: 1 }))]);
   };
   // «כל פעולה שתבצע תישלח למנהל» — לוג של כל תשובה במבחן (fire-and-forget)
@@ -355,6 +373,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     // רק אחרי שהשליחה הצליחה: השאלה יוצאת מהציון
     const answered = !!result;
     if (answered) setScores((s) => s.map((x, k) => (k === s.length - 1 ? { ...x, excluded: true } : x)));
+    else setSkippedReports((n) => n + 1);
     setReportedCards((r) => [...r, i]);
     const n = reports + 1;
     setReports(n); setReporting(null);

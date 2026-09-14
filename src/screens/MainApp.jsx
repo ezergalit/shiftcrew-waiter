@@ -6,7 +6,7 @@ import MetricsScreen, { DeleteProfile } from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
 import BriefGate, { briefHasContent } from "../components/BriefGate";
 import CoachBar from "../components/CoachBar";
-import { textFor, screenOf, loadSeen, markSeen, resetSeen, isForward, FORWARD_DISMISS } from "../lib/coachStops";
+import { textFor, screenOf, loadSeen, markSeen, resetSeen, isForward, FORWARD_DISMISS, itemNoun, nounCount, nounForms } from "../lib/coachStops";
 import ColorKey, { needsColorKey, markColorKeySeen } from "../components/ColorKey";
 import TasksTab, { useShiftTasks, PERIOD_LABEL } from "../components/TasksTab";
 import ManagerMessages from "../components/ManagerMessages";
@@ -74,6 +74,31 @@ const DAILY_BONUS = 50;
 // המסך שהוא עומד בו — בפעם הראשונה שהוא מגיע אליו, בכל סדר. הטקסטים והמיפוי:
 // `lib/coachStops.js`.
 
+// 🔴 סוג המשקה נקבע לפי **המילה הראשונה** של הקטגוריה, לא לפי substring כלשהו בתוכה.
+// «סלטים ועניינים» (האחים) נתפסה ע"י `יינ` שבתוך וענ**יינ**ים, ו«בקטנה ליד האוזו»
+// (אוזריה) ע"י `אוזו` — שתיהן קטגוריות אוכל חיות. באוזריה זה ייצר בפרודקשן 17 שאלות
+// «המלץ על אוזו» על מזטים, ובאחים «אורח מבקש שתתאר לו את היין ״חומוס הבית״».
+// קטגוריה שנקראת על שם משקה **מתחילה בו**; קטגוריה שרק מזכירה אותו — לא.
+// ⚠️ בלי קילוף אותיות שימוש: «וודקה» מתחילה ב-ו', וקילוף היה הורס אותה.
+const headOf = (cat) => String(cat || "").trim().split(/[\s,·|/-]+/)[0] || "";
+export function drinkKindOf(cat) {
+  const h = headOf(cat);
+  if (/^(יין|יינ|רוזה|מבעבע|שמפניה)/.test(h)) return "יין";
+  if (/^סאקה/.test(h)) return "סאקה";
+  if (/^ביר(ה|ות)/.test(h)) return "בירה";
+  if (/^וודקה/.test(h)) return "וודקה";
+  if (/^(וויסקי|ויסקי)/.test(h)) return "וויסקי";
+  if (/^טקילה/.test(h)) return "טקילה";
+  if (/^ג['\u05f3]ין/.test(h)) return "ג'ין";
+  if (/^(ערק|אוזו|אניס)/.test(h)) return "ערק או אוזו";
+  if (/^(קוניאק|ברנדי)/.test(h)) return "קוניאק";
+  if (/^ליקר/.test(h)) return "ליקר";
+  if (/^רום/.test(h)) return "רום";
+  if (/^(אפריטיף|ורמוט)/.test(h)) return "אפריטיף";
+  if (/^סיגר/.test(h)) return "סיגר";
+  return null;
+}
+
 function pubToCard(p) {
   const ing = (p.ingredients || []).filter(Boolean);
   // displayName is filled in by withDisplayNames once the whole menu is loaded — whether a
@@ -85,7 +110,7 @@ function pubToCard(p) {
   // the older flag some seeded dishes still carry. Either one lights the star — reading
   // only the old column silently disconnected the manager's button from the waiter side.
   isSpecial: !!(p.starred || p.is_special),
-  // A drink is learned by its character, not a recipe (user, 30-31.8: wine first,
+// A drink is learned by its character, not a recipe (user, 30-31.8: wine first,
   // then "תחשוב על שאר הקטגוריות כמו סאקה… או כל אלכוהול"): the chips hold תיאור
   // descriptors, and every "מרכיבים" label reads "תיאור" for these. The kind is the
   // word the exam uses ("שתתאר לו את הסאקה").
@@ -95,19 +120,7 @@ function pubToCard(p) {
   // never "what's in Belvedere") — every kind here is asked by offering, bottle and
   // serving, and only wine and cigars are ever asked to be DESCRIBED.
   // רוזה ומבעבעים הם יין גם כשהמילה «יין» לא בשם הקטגוריה (הבר של סלון).
-  drink: /יין|יינ|רוזה|מבעבע|שמפניה/.test(p.category || "") ? "יין"
-       : /סאקה/.test(p.category || "") ? "סאקה"
-       : /ביר(ה|ות)/.test(p.category || "") ? "בירה"
-       : /וודקה/.test(p.category || "") ? "וודקה"
-       : /וויסקי|ויסקי/.test(p.category || "") ? "וויסקי"
-       : /טקילה/.test(p.category || "") ? "טקילה"
-       : /ג['׳]ין/.test(p.category || "") ? "ג'ין"
-       : /ערק|אוזו|אניס/.test(p.category || "") ? "ערק או אוזו"
-       : /קוניאק|ברנדי/.test(p.category || "") ? "קוניאק"
-       : /ליקר/.test(p.category || "") ? "ליקר"
-       : /רום/.test(p.category || "") ? "רום"
-       : /אפריטיף|ורמוט/.test(p.category || "") ? "אפריטיף"
-       : /סיגר/.test(p.category || "") ? "סיגר" : null,
+  drink: drinkKindOf(p.category),
   // Real dish photo, shown in the menu browser only — learning cards stay photo-free on purpose.
   imageUrl: p.image_url || null,
   // An events-menu item is a package: its chips are the dishes/benefits it includes,
@@ -234,6 +247,18 @@ export default function MainApp({ session, onSignOut }) {
   const [stop, setStop] = useState(null);
   const pendingRef = useRef(new Map());      // screen ⇒ צעדי קדימה מאז שהוצגה
   const prevScreenRef = useRef(undefined);
+  // 🔴 השער והמסך חישבו את הטקסט פעמיים, עם הקשר שונה — וזו מחלקת הבאגים, לא מקרה
+  // יחיד. שורת הכרטיסיות היא הדוגמה: השער קרא `textFor("cards", {...})` בלי `needMin`
+  // ⇒ קיבל את משפט ברירת המחדל וסימן את המסך כממתין, בזמן שהמסך חישב `needMin`
+  // אמיתי שמחזיר `false` בקטגוריה בלי בוחן ⇒ `null` ⇒ הפס לא הוצג מעולם. שלושה
+  // צעדים קדימה נעלו שורה שאיש לא ראה. מעכשיו הרינדור מחשב פעם אחת, מסנכרן לכאן,
+  // והאפקט קורא מכאן — אי אפשר שהשניים יחלקו.
+  // 🔴 ולמה state ולא ref: ref אינו מפעיל את האפקט, ולשים את `path` בתלויות שלו
+  // קורס — **מערך התלויות נבנה בזמן הרינדור**, ו-`path` מוגדר 450 שורות מתחת ⇒
+  // `Cannot access 'path' before initialization`, ה-build ירוק והמסך לבן.
+  // הדפוס כאן הוא derived state: השוואה לפי ערך, setState בזמן רינדור, רינדור אחד
+  // נוסף — ואז האפקט רואה טקסט מעודכן בלי לגעת בשום מזהה שעדיין ב-TDZ.
+  const [coach, setCoach] = useState({ screen: null, text: null });
   // Depth belongs to the tab you're in, so leaving a tab clears it — otherwise
   // walking into a dish and then tapping another tab leaves that tab's root
   // page without its exit button.
@@ -268,7 +293,7 @@ export default function MainApp({ session, onSignOut }) {
   // ולכן הפס מתארח בתוכן דרך `coachSlot`; הבוחן והמבחן נשארים בלי שורה.
   // ⚠️ אין כאן markSeen על הצגה — זה מה שגרם ל«אחורה מוחק את ההסבר».
   useEffect(() => {
-    const screen = screenOf({ tab, stage, showAbout, catView, groupView, mode, ratedInMode });
+    const { screen, text } = coach;
     const prev = prevScreenRef.current;
     if (prev !== undefined && screen !== prev && isForward(prev, screen)) {
       // צעד קדימה מקדם כל שורה ממתינה — חוץ מזו של המסך שנכנסנו אליו עכשיו.
@@ -284,12 +309,11 @@ export default function MainApp({ session, onSignOut }) {
     // ⚠️ מסך בלי שורה אינו מסומן כנראה. `menu-cat` מחזיר null בקטגוריה בלי אזהרות
     // (אין מה להוסיף על הכותרת שכבר על המסך) — ולולא הבדיקה הוא היה נשרף, ומלצר
     // שנכנס אחר כך לקטגוריה שכן יש בה אזהרות לא היה מקבל את השורה אף פעם.
-    const catItems = (cards || []).filter((c) => c.category === (tab === "learn" ? catView : stage?.cat));
-    if (!screen || !textFor(screen, { menu: stage?.menu, cat: stage?.cat, items: catItems, hasGuide: !!session?.restaurantServiceNotes })) { setStop(null); return; }
+    if (!screen || !text) { setStop(null); return; }
     if (seen.has(screen)) { setStop((cur) => (cur === screen ? cur : null)); return; }
     if (!pendingRef.current.has(screen)) pendingRef.current.set(screen, 0);
     setStop(screen);
-  }, [mode, ratedInMode, tab, stage, showAbout, catView, groupView, seen, cards, session?.teamMemberId]);
+  }, [coach, seen, session?.teamMemberId]);
   // The category whose quiz-gate clock is running right now: a flashcard mode whose whole
   // deck is one category. Mixed decks (the quick round over the full menu) credit no
   // single category — the gate asks for study of THE category being tested. A ref, not
@@ -888,6 +912,36 @@ export default function MainApp({ session, onSignOut }) {
     setModeItems(cat.items); setExamCategory({ key: cat.key, label: catLabel(cat.key) }); setMode("exam");
   };
 
+  // ══ שורת ההסבר: מסך אחד, הקשר אחד, טקסט אחד ══
+  // מדריך האירוח קיים רק אם המנהל כתב אותו — ב-14.9 הוא ריק בכל המסעדות.
+  const hasGuide = !!session?.restaurantServiceNotes;
+  const coachScreen = screenOf({ tab, stage, showAbout, catView, groupView, mode, ratedInMode });
+  // ⚠️ הדקות שהשורה מבטיחה חייבות לצאת מ-`quizGateFor` — אותו שער שהצ׳יפ בטאב
+  // התרגול עובר דרכו. תווית שמבטיחה בוחן בלי לעבור בשער היא בדיוק השקר שתוקן
+  // ב-2.9; השורה הזאת לא תחזיר אותו.
+  const coachStopText = coachScreen === "cards"
+    ? textFor("cards", { needMin: (() => {
+        const key = studyCatRef.current;
+        const cat = key ? (path.categories || []).find((x) => x.key === key) : null;
+        // 🔴 היה `return 0` — ו-0 פירושו «הבוחן פתוח לכם». כלומר סבב על קטגוריה
+        // שאין עליה בוחן בכלל (סיגרים, אירועים, learn_only), או סבב מעורבב בלי
+        // קטגוריה אחת, הבטיחו בוחן שלא קיים בשום מקום באפליקציה. `false` ⇒ אין שורה.
+        if (!cat || !examable(key)) return false;
+        if (!cat.examUnlocked) return null;         // הסף עוד לא הושג — אין מספר להבטיח
+        const g = quizGateFor(cat);
+        return g.open ? 0 : g.needMin;
+      })() })
+    // 🔴 השם שהמסך פתוח עליו נכנס לשורה (יותם, 14.9: «אם מדובר בתפריט אירועים אז
+    // תכתוב תפריט האירועים וכל הקטגוריות בתוכו, ואז בפנים מסלול האירועים»). בטאב
+    // התפריט הוא מגיע מ-`stage`, ובטאב התרגול מ-groupView/catView.
+    : coachScreen
+      ? textFor(coachScreen, tab === "learn"
+          ? { menu: groupView, cat: catView, items: (cards || []).filter((c) => c.category === catView), hasGuide }
+          : { menu: stage?.menu, cat: stage?.cat, items: (cards || []).filter((c) => c.category === stage?.cat), hasGuide })
+      : null;
+  // השוואה לפי ערך: בלעדיה אובייקט חדש בכל רנדר היה מפיל לולאה אינסופית.
+  if (coach.screen !== coachScreen || coach.text !== coachStopText) setCoach({ screen: coachScreen, text: coachStopText });
+
   if (!session?.offline && !preview && !tasksOff && cards?.length > 0 && !profileRole)
     return (
       <ProfileGate
@@ -909,33 +963,12 @@ export default function MainApp({ session, onSignOut }) {
   if (gatePractice)
     return <BriefGate brief={brief} cards={cards} session={session} practice onClose={() => setGatePractice(false)} />;
 
-  // מדריך האירוח קיים רק אם המנהל כתב אותו — ב-14.9 הוא ריק בכל המסעדות.
-  const hasGuide = !!session?.restaurantServiceNotes;
-  // ⚠️ הדקות שהשורה מבטיחה חייבות לצאת מ-`quizGateFor` — אותו שער שהצ׳יפ בטאב
-  // התרגול עובר דרכו. תווית שמבטיחה בוחן בלי לעבור בשער היא בדיוק השקר שתוקן
-  // ב-2.9; השורה הזאת לא תחזיר אותו.
-  const coachStopText = stop === "cards"
-    ? textFor("cards", { needMin: (() => {
-        const key = studyCatRef.current;
-        const cat = key ? (path.categories || []).find((x) => x.key === key) : null;
-        // 🔴 היה `return 0` — ו-0 פירושו «הבוחן פתוח לכם». כלומר סבב על קטגוריה
-        // שאין עליה בוחן בכלל (סיגרים, אירועים, learn_only), או סבב מעורבב בלי
-        // קטגוריה אחת, הבטיחו בוחן שלא קיים בשום מקום באפליקציה. `false` ⇒ אין שורה.
-        if (!cat || !examable(key)) return false;
-        if (!cat.examUnlocked) return null;         // הסף עוד לא הושג — אין מספר להבטיח
-        const g = quizGateFor(cat);
-        return g.open ? 0 : g.needMin;
-      })() })
-    // 🔴 השם שהמסך פתוח עליו נכנס לשורה (יותם, 14.9: «אם מדובר בתפריט אירועים אז
-    // תכתוב תפריט האירועים וכל הקטגוריות בתוכו, ואז בפנים מסלול האירועים»). בטאב
-    // התפריט הוא מגיע מ-`stage`, ובטאב התרגול מ-groupView/catView.
-    : textFor(stop, tab === "learn"
-        ? { menu: groupView, cat: catView, items: (cards || []).filter((c) => c.category === catView), hasGuide }
-        : { menu: stage?.menu, cat: stage?.cat, items: (cards || []).filter((c) => c.category === stage?.cat), hasGuide });
   // דירוג כרטיסייה = לימוד + צעד במונה שפותח את שורת «כמה עוד עד הבוחן».
   const rateCard = (id, r) => { learnItem(id, r, { objective: false }); setRatedInMode((c) => c + 1); };
   // «הבנתי» הוא אחת משתי הדרכים היחידות שנועלות שורה (השנייה: צעדים קדימה).
-  const coachNode = stop && coachStopText && cards?.length > 0
+  // ⚠️ `stop === coachScreen` הוא מה שמבטיח שהטקסט המוצג הוא של המסך שנפתח —
+  // ומכיוון שהוא מחושב ברינדור, המספר בשורת הכרטיסיות יורד בזמן אמת.
+  const coachNode = stop && stop === coachScreen && coachStopText && cards?.length > 0
     ? <CoachBar text={coachStopText} onOk={() => {
         pendingRef.current.delete(stop);
         setSeen((p) => markSeen(session?.teamMemberId, stop, p));
@@ -1165,7 +1198,7 @@ export default function MainApp({ session, onSignOut }) {
     dayTasks.push({
       id: "focus", group: "general",
       title: studiedEnough ? `לתרגל ${shortCat(focusCat.key)}` : `ללמוד ${shortCat(focusCat.key)} מהתפריט`,
-      subtitle: `${focusCat.pct}% · ${nLabel(focusCat.items?.length || 0, "מנה", "מנות")} בקטגוריה`,
+      subtitle: `${focusCat.pct}% · ${nounCount(focusCat.items || [])} בקטגוריה`,
       done: todaySeconds >= goalMinutes * 60, cta: studiedEnough ? "לתרגול ←" : "ללימוד ←",
       onOpen: () => (studiedEnough ? startProgressive(focusCat.key) : setTab("categories")),
     });
@@ -1214,7 +1247,9 @@ export default function MainApp({ session, onSignOut }) {
     const recGate = rec.examUnlocked ? quizGateFor(rec) : { open: true };
     // A category with no exam gets a plain practice line — never an exam promise.
     if (!examable(rec.key)) {
-      return heroCard(rec, left > 0 ? `נשארו ${left} ${left === 1 ? "מנה" : "מנות"} להכיר` : "אתם מכירים כאן את כל המנות — חזרה קצרה תמיד עוזרת");
+      return heroCard(rec, left > 0
+        ? `נשארו ${nounCount(rec.items, left)} להכיר`
+        : `אתם מכירים כאן את כל ה${nounForms(rec.items).many} — חזרה קצרה תמיד עוזרת`);
     }
     const line = rec.examUnlocked
       // The hero must not promise a quiz the gate below will refuse — when the
@@ -1225,7 +1260,7 @@ export default function MainApp({ session, onSignOut }) {
             ? `לא עברתם — עוד ${nLabel(recGate.needMin, "דקה", "דקות")} של תרגול ואפשר לגשת שוב`
             : `עוד ${nLabel(recGate.needMin, "דקה", "דקות")} של תרגול והבוחן ייפתח`)
       : left > 0
-        ? `נשארו ${left} ${left === 1 ? "מנה" : "מנות"} ואפשר לגשת לבוחן`
+        ? `נשארו ${nounCount(rec.items, left)} ואפשר לגשת לבוחן`
         : "עוד קצת תרגול ואפשר לגשת לבוחן";
     return heroCard(rec, line);
   };
@@ -1568,7 +1603,7 @@ export default function MainApp({ session, onSignOut }) {
             {/* The whole-menu exam is the goal this tab exists for, so it sits at the top
                 level rather than one drill-down in. */}
             {aurora && <h2 className="text-[23px] font-extrabold">תרגול ובחינה</h2>}
-            <p className={aurora ? "au-label leading-relaxed" : "text-[11px] text-[#8a8aa0] px-1 leading-relaxed"}>בוחרים תפריט, מתרגלים את המנות שבו, וכשמוכנים — נבחנים.</p>
+            <p className={aurora ? "au-label leading-relaxed" : "text-[11px] text-[#8a8aa0] px-1 leading-relaxed"}>בוחרים תפריט, נכנסים לקטגוריה, וכשמוכנים — נבחנים.</p>
             {learnHero()}
             {generalExamCard()}
             {aurora && <p className="au-label px-1 mt-1">כל התפריטים</p>}
@@ -1579,8 +1614,11 @@ export default function MainApp({ session, onSignOut }) {
               // calling 14 service cards "14 מנות" is the kind of small wrongness that makes
               // a waiter distrust every other number on the screen.
               const allKnowledge = items.length > 0 && items.every((i) => i.knowledge);
-              const n = allKnowledge ? items.length : items.filter((i) => !i.knowledge).length;
-              const nWord = allKnowledge ? nLabel(n, "נושא", "נושאים") : nLabel(n, "מנה", "מנות");
+              // ⚠️ תפריט מעורב סופר רק את מה שלומדים כמנות, אבל תפריט בר שלם הוא משקאות
+              // ותפריט הדרכה הוא נושאים — `itemNoun` יודע את כל הסולם, והבדיקה הידנית
+              // הכירה רק ידע/מנות («32 מנות» על הבר של סטודיו).
+              const counted = allKnowledge ? items : items.filter((i) => !i.knowledge);
+              const nWord = nounCount(counted);
               return (
                 aurora ? (
                 <button key={g} data-tour="learn-menu" onClick={() => setGroupView(g)} className="glass cat">
@@ -1627,7 +1665,7 @@ export default function MainApp({ session, onSignOut }) {
             {aurora && !groupView && <h2 className="text-[23px] font-extrabold">תרגול ובחינה</h2>}
             <p className={aurora ? "au-label leading-relaxed" : "text-[11px] text-[#8a8aa0] px-1 leading-relaxed"}>
               {/* No order is imposed — steer, never block. */}
-              בוחרים קטגוריה, מתרגלים את המנות שבה, וכשמוכנים — נבחנים.
+              בוחרים קטגוריה, מתרגלים אותה, וכשמוכנים — נבחנים.
               {!aurora && path.recommended ? ` ממליצים להתחיל ב${shortCat(path.recommended.key)}.` : ""}
             </p>
             {!groupView && learnHero()}
@@ -1664,7 +1702,7 @@ export default function MainApp({ session, onSignOut }) {
                           <div className="h-full transition-all" style={{ width: `${cat.pct}%`, background: cat.passed ? "#22c08c" : "#1aa376" }} />
                         </div>
                         <p className="text-[11px] text-[#8a8aa0] mt-1">
-                          {nLabel(cat.items.length, "מנה", "מנות")} · {gz("לחץ/י כדי לתרגל")}
+                          {nounCount(cat.items)} · {gz("לחץ/י כדי לתרגל")}
                           {cat.passed ? " · נכלל בתרגול" : path.recommended?.key === cat.key ? " · מומלץ להתחיל כאן" : ""}
                         </p>
                       </>
@@ -1678,7 +1716,7 @@ export default function MainApp({ session, onSignOut }) {
                         {shortCat(cat.key)}
                       </h3>
                       <p>
-                        {nLabel(cat.items.length, "מנה", "מנות")}
+                        {nounCount(cat.items)}
                         {(() => { const m = cat.items.filter((it) => (fivesById?.[it.id] || 0) >= 2).length; return m > 0 ? ` · ${m} שאתם כבר מכירים` : ""; })()}
                       </p>
                       {hasExam && (() => {

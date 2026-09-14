@@ -14,6 +14,12 @@ const db = supabase.schema("menu_app");
 
 export default function TeamLogin({ onGranted }) {
   const [teamCode, setTeamCode] = useState("");
+  // הקוד שהמנהל בוחר הוא תמיד אותיות גדולות וספרות (`^[A-Z0-9]{4,12}$` בשרת), ומלצר
+  // שמקליד בטלפון מקבל אות קטנה או מקלדת עברית — ואז «הקוד לא נמצא» על קוד נכון
+  // לגמרי (יותם, 14.9). השדה מתקן בעצמו: אנגלית עולה לאותיות גדולות, וכל תו שאינו
+  // A-Z/0-9 פשוט לא נכנס. ⚠️ תו שנזרק בשקט נראה כמו מקלדת תקועה, ולכן עברית מציגה
+  // שורת הסבר במקום להיעלם בלי אומר.
+  const [hebrewTyped, setHebrewTyped] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -161,9 +167,20 @@ export default function TeamLogin({ onGranted }) {
 
           <div>
             <p className="text-[12px] font-bold text-[#8a8aa0] mb-1.5 px-1">קוד הצוות (מהמנהל/ת שלך)</p>
-            <input value={teamCode} onChange={(e) => setTeamCode(e.target.value)}
+            <input value={teamCode}
+              onChange={(e) => {
+                const raw = e.target.value;
+                setHebrewTyped(/[\u0590-\u05FF]/.test(raw));
+                setTeamCode(raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12));
+              }}
               placeholder="הקוד שקיבלת מהמנהל/ת" dir="ltr" autoComplete="off"
-              className="w-full bg-[#0c0d10] border border-[#22252b] rounded-2xl px-3.5 py-3 text-sm font-bold text-[#eef0f6] text-center placeholder:text-[#b4b4c4] focus:outline-none focus:border-[#22c08c]" />
+              inputMode="text" autoCapitalize="characters" autoCorrect="off" spellCheck={false}
+              className="w-full bg-[#0c0d10] border border-[#22252b] rounded-2xl px-3.5 py-3 text-sm font-bold text-[#eef0f6] text-center tracking-[0.15em] placeholder:text-[#b4b4c4] placeholder:tracking-normal focus:outline-none focus:border-[#22c08c]" />
+            {hebrewTyped && (
+              <p className="text-[11px] text-[#f3a712] mt-1.5 px-1 leading-relaxed">
+                הקוד באותיות אנגליות ובספרות בלבד — אפשר להחליף שפה במקלדת.
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-2">

@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { ChevronRight, ChevronLeft, X } from "lucide-react";
 import { categoryVisual } from "../lib/categoryVisual";
 import { shortCat, nLabel, ingLabel } from "../games/shared";
-import { hasWarning, itemNoun } from "../lib/coachStops";
+import { hasWarning, itemNoun, nounCount, nounForms } from "../lib/coachStops";
 import { GROUP_NOTES, ITEM_NOTES } from "../games/WarningBoxes";
 
 // The menu, as a menu (user, 2026-08-20). Not progress, not exams — the thing a waiter
@@ -94,8 +94,9 @@ function catRowFor(cards, c, onOpen) {
   const inCat = (cards || []).filter((x) => x.category === c);
   const vis = categoryVisual(c);
   const photo = inCat.find((x) => x.imageUrl)?.imageUrl;
-  const knowledge = inCat.length > 0 && inCat.every((x) => x.knowledge);
-  const nWord = knowledge ? nLabel(inCat.length, "נושא", "נושאים") : nLabel(inCat.length, "מנה", "מנות");
+  // 🔴 היה: ידע ⇒ «נושאים», כל השאר ⇒ «מנות» — כלומר סיגרים, מסלולי אירוע ותפריט
+  // שתייה שלם נספרו כמנות. אותו `itemNoun` שהמדריך משתמש בו (יותם, 14.9).
+  const nWord = nounCount(inCat);
   return (
     <button key={c} className="glass cat" data-tour="browse-category" onClick={() => onOpen(c)}>
       <span className="icon" aria-hidden>{photo ? <img src={photo} alt="" loading="lazy" /> : vis.emoji}</span>
@@ -326,7 +327,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
             <div className="space-y-2">
               <h2 className="text-[24px] font-black text-[#eef0f6] leading-tight">עברת על כל {shortCat(cat)}</h2>
               <p className="text-[14px] text-[#8a8aa0] leading-relaxed">
-                {nLabel(dishes.length, "מנה", "מנות")}. לחזור עליהן שוב מההתחלה, או להמשיך הלאה?
+                {nounCount(dishes)}. לחזור {nounForms(dishes).them} שוב מההתחלה, או להמשיך הלאה?
               </p>
             </div>
 
@@ -367,9 +368,11 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
                         onClick={() => { const c = cat; setIdx(null); setCat(null); onPractice(c); }}>
                         {/* Never promise a quiz a category can't run (user, 31.8) — soft
                             drinks and the like still practise, they just aren't examined. */}
+                        {/* בלי «מנות» לפני שם הקטגוריה: «לתרגול מנות סיגרים» גם שגוי
+                            וגם כופל את השם. השם לבדו נכון בכל קטגוריה. */}
                         {!examableFor || examableFor(cat)
-                          ? `לתרגול מנות ${shortCat(cat)} לקראת הבוחן`
-                          : `לתרגול מנות ${shortCat(cat)} בכרטיסיות`}
+                          ? `לתרגול ${shortCat(cat)} לקראת הבוחן`
+                          : `לתרגול ${shortCat(cat)} בכרטיסיות`}
                       </Choice>
                     )}
 
@@ -383,7 +386,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
                 onClick={() => setIdx(dishes.length - 1)}
                 className="w-full py-2.5 text-[12px] font-bold text-[#8a8aa0]"
               >
-                חזרה למנה האחרונה
+                חזרה ל{nounForms(dishes).last}
               </button>
             </div>
           </div>
@@ -619,7 +622,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
               )}
               <span className="flex-1 min-w-0">
                 <span className="block text-[18px] font-black text-[#eef0f6] line-clamp-1">{shortCat(c)}</span>
-                <span className="block text-[12px] text-[#8a8aa0] mt-1.5">{c.startsWith("הדרכת") ? nLabel(n, "נושא", "נושאים") : nLabel(n, "מנה", "מנות")}</span>
+                <span className="block text-[12px] text-[#8a8aa0] mt-1.5">{nounCount(inCat, n)}</span>
               </span>
               <ChevronLeft size={18} className="text-[#5a5a6e] flex-shrink-0" />
             </button>
@@ -700,7 +703,8 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
     const nCats = new Set(inG.map((c) => c.category)).size;
     // ⚠️ Count dishes, not items. A food category carries a "מה חשוב לדעת" card at the
     // top, and calling it a dish overstates every menu by the number of its guides.
-    const nDishes = inG.filter((c) => !c.knowledge).length;
+    const food = inG.filter((c) => !c.knowledge);
+    const nDishes = food.length;
     const photo = inG.find((x) => x.imageUrl)?.imageUrl;
     const vis = categoryVisual(inG[0]?.category || m2);
     return (
@@ -708,7 +712,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
         <span className="icon" aria-hidden>{photo ? <img src={photo} alt="" loading="lazy" /> : vis.emoji}</span>
         <span className="flex-1 min-w-0">
           <h3 className="line-clamp-1">{m2}</h3>
-          <p>{nLabel(nCats, "קטגוריה", "קטגוריות")} · {nLabel(nDishes, "מנה", "מנות")}</p>
+          <p>{nLabel(nCats, "קטגוריה", "קטגוריות")} · {nounCount(food, nDishes)}</p>
         </span>
         <ChevronLeft size={16} className="chev" />
       </button>
@@ -760,7 +764,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
       ) : (
         <div className="flex flex-col gap-3">
           {nameCats.map(catRow)}
-          {dishMatches.length > 0 && <p className="au-label px-1">{nLabel(dishMatches.length, "מנה", "מנות")} שנמצאו</p>}
+          {dishMatches.length > 0 && <p className="au-label px-1">{nounCount(dishMatches)} שנמצאו</p>}
           {dishMatches.map(dishRow)}
           {nameCats.length === 0 && dishMatches.length === 0 && (
             <p className="au-label px-1">לא נמצא כלום עבור ״{nq}״ — נסו שם מנה, מרכיב או קטגוריה.</p>
