@@ -145,7 +145,7 @@ export default function BriefGate({ brief, cards, session, practice = false, onP
   const rows = [
     { label: "חסר היום", color: "#f3c14b", items: brief?.missing_items },
     { label: "ממליצים על", color: "#22c08c", items: brief?.new_items },
-    { label: "מלאי מוגבל", color: "#6d5efc", items: brief?.oven_items },
+    { label: "מלאי מוגבל", color: "#e08f2c", items: brief?.oven_items },
   ].filter((r) => (r.items || []).length > 0);
 
   return (
@@ -160,7 +160,7 @@ export default function BriefGate({ brief, cards, session, practice = false, onP
       {stage === "read" && (
         <>
           <p className="text-lg font-black flex items-center gap-2 mb-2">
-            <ClipboardList size={18} className="text-[#6d5efc]" /> לפני שמתחילים — מה קורה היום
+            <ClipboardList size={18} className="text-[#22c08c]" /> לפני שמתחילים — מה קורה היום
           </p>
           <div className="flex-1 overflow-y-auto">
             {rows.map((r) => (
@@ -185,7 +185,7 @@ export default function BriefGate({ brief, cards, session, practice = false, onP
             <button
               disabled={cooldown > 0}
               onClick={() => { setQIdx(0); setStage("quiz"); }}
-              className="w-full py-3.5 min-h-[48px] rounded-xl bg-[#6d5efc] text-white text-sm font-black disabled:opacity-40"
+              className="w-full py-3.5 min-h-[48px] rounded-xl bg-[#22c08c] text-[#06231a] text-sm font-black disabled:opacity-40"
             >
               קראתי — לשאלות
             </button>
@@ -194,7 +194,7 @@ export default function BriefGate({ brief, cards, session, practice = false, onP
             <button
               disabled={saving}
               onClick={finish}
-              className="w-full py-3.5 min-h-[48px] rounded-xl bg-[#6d5efc] text-white text-sm font-black disabled:opacity-50"
+              className="w-full py-3.5 min-h-[48px] rounded-xl bg-[#22c08c] text-[#06231a] text-sm font-black disabled:opacity-50"
             >
               {saving ? "שומר…" : "קראתי את העדכון"}
             </button>

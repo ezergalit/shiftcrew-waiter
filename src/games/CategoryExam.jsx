@@ -114,7 +114,7 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
         <p className="text-sm text-[#c4c4d4] max-w-xs leading-relaxed">
           {passed ? "עברת! הקטגוריה הזו כבר מוכרת לך היטב." : "עוד לא עברת — עוד קצת תרגול ואפשר לגשת שוב."}
         </p>
-        <button onClick={onDone} className="px-5 py-3 rounded-2xl bg-[#6d5efc] text-white font-black text-sm">סיום</button>
+        <button onClick={onDone} className="px-5 py-3 rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm">סיום</button>
       </div>
     );
   }
@@ -174,8 +174,8 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
   // Post-submit colouring: green = you got it, red = you picked it and it's not in the dish,
   // amber outline = it was in the dish and you missed it.
   const chipClass = (label, isSelected, isCorrect) => {
-    if (!result) return isSelected ? "bg-[#6d5efc] text-white border-[#6d5efc]" : "bg-[#16181c] text-[#c4c4d4] border-[#22252b]";
-    if (isSelected && isCorrect) return "bg-[#22c08c] text-white border-[#22c08c]";
+    if (!result) return isSelected ? "bg-[#22c08c] text-[#06231a] border-[#22c08c]" : "bg-[#16181c] text-[#c4c4d4] border-[#22252b]";
+    if (isSelected && isCorrect) return "bg-[#22c08c] text-[#06231a] border-[#22c08c]";
     if (isSelected && !isCorrect) return "bg-[#e0315a] text-white border-[#e0315a]";
     if (!isSelected && isCorrect) return "bg-[#33290f] text-[#f3a712] border-[#f3a712]";
     return "bg-[#16181c] text-[#4a4a5a] border-[#22252b]";
@@ -238,7 +238,7 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
               onClick={submit}
               disabled={pickedIng.size === 0}
               className={`w-full py-3.5 rounded-2xl font-black text-sm ${
-                pickedIng.size > 0 ? "bg-[#6d5efc] text-white" : "bg-[#22252b] text-[#b4b4c4]"
+                pickedIng.size > 0 ? "bg-[#22c08c] text-[#06231a]" : "bg-[#22252b] text-[#b4b4c4]"
               }`}
             >
               שליחה
@@ -273,7 +273,7 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
                 <p className="text-sm text-[#c4c4d4] leading-relaxed">{q.it.desc}</p>
               </div>
             )}
-            <button onClick={next} className="w-full py-3.5 rounded-2xl font-black text-sm bg-[#6d5efc] text-white">
+            <button onClick={next} className="w-full py-3.5 rounded-2xl font-black text-sm bg-[#22c08c] text-[#06231a]">
               {i + 1 >= deck.length ? "לתוצאה" : "לשאלה הבאה"}
             </button>
           </div>

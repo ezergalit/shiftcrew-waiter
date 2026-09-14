@@ -33,7 +33,7 @@ export function ProfileGate({ onDone }) {
               onClick={() => onDone(r.id)}
               className="w-full py-3.5 min-h-[56px] rounded-2xl bg-[#16181c] border border-[#22252b] flex items-center gap-3 px-4 active:scale-[0.98] transition-transform"
             >
-              <Icon size={18} className="text-[#a79bff] flex-shrink-0" />
+              <Icon size={18} className="text-[#22c08c] flex-shrink-0" />
               <span className="flex-1 text-right">
                 <span className="block text-sm font-black text-[#eef0f6]">{gz(r.label)}</span>
                 <span className="block text-[11px] text-[#5a5a6e]">{r.hint}</span>
@@ -73,7 +73,7 @@ export function ShiftGate({ profileRole, onPick }) {
                   onClick={() => setDayRole(r.id)}
                   className="py-4 min-h-[64px] rounded-2xl bg-[#16181c] border border-[#22252b] flex flex-col items-center gap-1 active:scale-[0.98] transition-transform"
                 >
-                  <Icon size={18} className="text-[#a79bff]" />
+                  <Icon size={18} className="text-[#22c08c]" />
                   <span className="text-sm font-black text-[#eef0f6]">{gz(r.label)}</span>
                 </button>
               );
@@ -135,7 +135,7 @@ export function ShiftQuestion({ profileRole, onPick, onResetProfile }) {
                   onClick={() => setDayRole(r.id)}
                   className="py-3 min-h-[52px] rounded-xl bg-[#20232b] border border-[#22252b] flex flex-col items-center gap-1 active:scale-[0.98] transition-transform"
                 >
-                  <Icon size={17} className="text-[#a79bff]" />
+                  <Icon size={17} className="text-[#22c08c]" />
                   <span className="text-xs font-black text-[#eef0f6]">{gz(r.label)}</span>
                 </button>
               );

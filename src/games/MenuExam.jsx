@@ -78,7 +78,7 @@ export default function MenuExam({ items, deckSize = 40, passMark = 70, category
             השאלות נבנות מהמרכיבים, מהאלרגיות ומהאזהרות של המנות. ככל שהתפריט מפורט יותר —
             המבחן שלם יותר.
           </p>
-          <button onClick={onDone} className="px-5 py-3 min-h-[44px] rounded-2xl bg-[#6d5efc] text-white font-black text-sm">חזרה</button>
+          <button onClick={onDone} className="px-5 py-3 min-h-[44px] rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm">חזרה</button>
         </div>
       </div>
     );
@@ -100,7 +100,7 @@ export default function MenuExam({ items, deckSize = 40, passMark = 70, category
             ? "עברת! אפשר לסמוך עליך בהמלצה — גם כשלאורח יש הגבלה."
             : `צריך ${passMark}% כדי לעבור. עוברים שוב על התפריט וניגשים שוב — בכל פעם שרוצים.`}
         </p>
-        <button onClick={onDone} className="px-5 py-3 min-h-[44px] rounded-2xl bg-[#6d5efc] text-white font-black text-sm">סיום</button>
+        <button onClick={onDone} className="px-5 py-3 min-h-[44px] rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm">סיום</button>
       </div>
     );
   }
@@ -135,7 +135,7 @@ export default function MenuExam({ items, deckSize = 40, passMark = 70, category
 
   const optClass = (o) => {
     const sel = picked.has(o.id);
-    if (!result) return sel ? "bg-[#6d5efc] text-white border-[#6d5efc]" : "bg-[#16181c] text-[#eef0f6] border-[#22252b]";
+    if (!result) return sel ? "bg-[#22c08c] text-[#06231a] border-[#22c08c]" : "bg-[#16181c] text-[#eef0f6] border-[#22252b]";
     if (o.correct) return "bg-[#15302b] text-[#22c08c] border-[#22c08c]";
     if (sel) return "bg-[#3a1d22] text-[#e0315a] border-[#e0315a]";
     return "bg-[#16181c] text-[#4a4a5a] border-[#22252b]";
@@ -159,7 +159,7 @@ export default function MenuExam({ items, deckSize = 40, passMark = 70, category
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         <div className="bg-[#16181c] rounded-2xl p-4 space-y-1.5">
-          <span className="inline-block text-[10px] font-black text-[#a79bff] bg-[#6d5efc]/15 rounded px-2 py-0.5">
+          <span className="inline-block text-[10px] font-black text-[#22c08c] bg-[#22c08c]/15 rounded px-2 py-0.5">
             {KIND_TAG[q.kind] || "שאלה"}
           </span>
           {/* The question is the headline — it used to be grey 11px under a big dish name,
@@ -199,7 +199,7 @@ export default function MenuExam({ items, deckSize = 40, passMark = 70, category
             <button
               onClick={() => grade(picked)}
               disabled={picked.size === 0}
-              className={`w-full py-3.5 min-h-[44px] rounded-2xl font-black text-sm ${picked.size ? "bg-[#6d5efc] text-white" : "bg-[#22252b] text-[#b4b4c4]"}`}
+              className={`w-full py-3.5 min-h-[44px] rounded-2xl font-black text-sm ${picked.size ? "bg-[#22c08c] text-[#06231a]" : "bg-[#22252b] text-[#b4b4c4]"}`}
             >
               שליחה
             </button>
@@ -226,7 +226,7 @@ export default function MenuExam({ items, deckSize = 40, passMark = 70, category
                 </p>
               )}
             </div>
-            <button onClick={next} className="w-full py-3.5 min-h-[44px] rounded-2xl font-black text-sm bg-[#6d5efc] text-white">
+            <button onClick={next} className="w-full py-3.5 min-h-[44px] rounded-2xl font-black text-sm bg-[#22c08c] text-[#06231a]">
               {i + 1 >= deck.length ? "לתוצאה" : "לשאלה הבאה"}
             </button>
           </div>

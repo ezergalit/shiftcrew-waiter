@@ -159,7 +159,7 @@ export default function MetricsScreen({ session, cards, masteryById, weekly = []
 
   // Each card carries its own accent so the screen reads as sections at a glance rather
   // than one long grey column.
-  const Card = ({ title, accent = "#6d5efc", children }) => (
+  const Card = ({ title, accent = "#22c08c", children }) => (
     <div className="bg-[#16181c] rounded-2xl p-4 border border-[#22252b] relative overflow-hidden">
       <span className="absolute top-0 right-0 h-full w-[3px]" style={{ background: accent }} />
       <p className="text-xs font-black mb-3" style={{ color: accent }}>{title}</p>
@@ -228,8 +228,8 @@ export default function MetricsScreen({ session, cards, masteryById, weekly = []
             </Card>
           );
         })()}
-        <p className="text-[11px] font-black text-[#6d5efc]">התקדמות</p>
-        <Card title="שליטה בתפריט" accent="#6d5efc">
+        <p className="text-[11px] font-black text-[#22c08c]">התקדמות</p>
+        <Card title="שליטה בתפריט" accent="#22c08c">
           <div className="flex items-center gap-3">
             <Ring pct={stats.pct} counts={stats.counts} total={stats.total} />
             <div className="flex-1 space-y-2.5">
@@ -347,7 +347,7 @@ function Board({ session, weekly, leaderboard }) {
             onClick={() => setScope(o.k)}
             className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${
               scope === o.k
-                ? "bg-[#6d5efc] text-white border-[#6d5efc]"
+                ? "bg-[#22c08c] text-[#06231a] border-[#22c08c]"
                 : "bg-[#16181c] text-[#8a8aa0] border-[#22252b]"
             }`}
           >
@@ -371,10 +371,10 @@ function Board({ session, weekly, leaderboard }) {
             <span className="text-xs font-black w-5" style={{ color: ["#f3c14b", "#c7ccd6", "#cd8b5b"][i] || "#8a8aa0" }}>{i + 1}</span>
             <span className="w-6 h-6 rounded-full text-[9px] font-black flex items-center justify-center text-white flex-shrink-0" style={{ background: colorFor(r.name) }}>{r.name[0]}</span>
             <div className="flex-1">
-              <p className={`text-xs font-bold ${r.team_member_id === session?.teamMemberId ? "text-[#6d5efc]" : "text-[#eef0f6]"}`}>{r.name}{r.team_member_id === session?.teamMemberId ? " (אני)" : ""}</p>
+              <p className={`text-xs font-bold ${r.team_member_id === session?.teamMemberId ? "text-[#22c08c]" : "text-[#eef0f6]"}`}>{r.name}{r.team_member_id === session?.teamMemberId ? " (אני)" : ""}</p>
               <p className="text-[11px] text-[#8a8aa0] flex items-center gap-1">{r.mastered_count} נלמדו{r.streak > 1 && <span className="flex items-center gap-0.5"><Flame size={9} className="text-[#ff7a59]" />{r.streak}</span>}</p>
             </div>
-            <p className="text-xs font-black text-[#6d5efc]">{r.points}</p>
+            <p className="text-xs font-black text-[#22c08c]">{r.points}</p>
           </div>
         ))}
       </div>

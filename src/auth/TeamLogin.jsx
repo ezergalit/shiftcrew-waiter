@@ -121,7 +121,7 @@ export default function TeamLogin({ onGranted }) {
     return (
       <div className="h-full max-w-md mx-auto flex flex-col items-center justify-center px-7 bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
         <div className="bg-[#16181c] border border-[#22252b] rounded-3xl p-6 w-full text-center space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-[#1c1e22] text-[#6d5efc] flex items-center justify-center mx-auto">
+          <div className="w-14 h-14 rounded-2xl bg-[#1c1e22] text-[#22c08c] flex items-center justify-center mx-auto">
             <UserCheck size={26} />
           </div>
           <div>
@@ -130,7 +130,7 @@ export default function TeamLogin({ onGranted }) {
           </div>
           <p className="text-[11px] text-[#8a8aa0]">אם כן, נמשיך עם ההתקדמות הקיימת שלך. אם זה מישהו אחר, ניצור פרופיל חדש.</p>
           <div className="flex flex-col gap-2 pt-1">
-            <button disabled={busy} onClick={() => confirmMatch(true)} className="w-full py-3.5 rounded-2xl font-black text-sm bg-[#6d5efc] text-white active:bg-[#5b4ef0]">
+            <button disabled={busy} onClick={() => confirmMatch(true)} className="w-full py-3.5 rounded-2xl font-black text-sm bg-[#22c08c] text-[#06231a] active:bg-[#1aa376]">
               {busy ? <Loader2 size={16} className="animate-spin mx-auto" /> : `כן, זה אני`}
             </button>
             <button disabled={busy} onClick={() => confirmMatch(false)} className="w-full py-3.5 rounded-2xl font-black text-sm bg-[#1c1e22] text-[#c4c4d4]">
@@ -163,7 +163,7 @@ export default function TeamLogin({ onGranted }) {
             <p className="text-[12px] font-bold text-[#8a8aa0] mb-1.5 px-1">קוד הצוות (מהמנהל/ת שלך)</p>
             <input value={teamCode} onChange={(e) => setTeamCode(e.target.value)}
               placeholder="הקוד שקיבלת מהמנהל/ת" dir="ltr" autoComplete="off"
-              className="w-full bg-[#0c0d10] border border-[#22252b] rounded-2xl px-3.5 py-3 text-sm font-bold text-[#eef0f6] text-center placeholder:text-[#b4b4c4] focus:outline-none focus:border-[#6d5efc]" />
+              className="w-full bg-[#0c0d10] border border-[#22252b] rounded-2xl px-3.5 py-3 text-sm font-bold text-[#eef0f6] text-center placeholder:text-[#b4b4c4] focus:outline-none focus:border-[#22c08c]" />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -171,13 +171,13 @@ export default function TeamLogin({ onGranted }) {
               <p className="text-[12px] font-bold text-[#8a8aa0] mb-1.5 px-1">שם פרטי</p>
               <input value={firstName} onChange={(e) => setFirstName(e.target.value)}
                 placeholder="דנה" dir="rtl"
-                className="w-full bg-[#0c0d10] border border-[#22252b] rounded-2xl px-3.5 py-3 text-sm font-bold text-[#eef0f6] text-right placeholder:text-[#b4b4c4] focus:outline-none focus:border-[#6d5efc]" />
+                className="w-full bg-[#0c0d10] border border-[#22252b] rounded-2xl px-3.5 py-3 text-sm font-bold text-[#eef0f6] text-right placeholder:text-[#b4b4c4] focus:outline-none focus:border-[#22c08c]" />
             </div>
             <div>
               <p className="text-[12px] font-bold text-[#8a8aa0] mb-1.5 px-1">שם משפחה</p>
               <input value={lastName} onChange={(e) => setLastName(e.target.value)}
                 placeholder="כהן" dir="rtl"
-                className="w-full bg-[#0c0d10] border border-[#22252b] rounded-2xl px-3.5 py-3 text-sm font-bold text-[#eef0f6] text-right placeholder:text-[#b4b4c4] focus:outline-none focus:border-[#6d5efc]" />
+                className="w-full bg-[#0c0d10] border border-[#22252b] rounded-2xl px-3.5 py-3 text-sm font-bold text-[#eef0f6] text-right placeholder:text-[#b4b4c4] focus:outline-none focus:border-[#22c08c]" />
             </div>
           </div>
 
@@ -185,7 +185,7 @@ export default function TeamLogin({ onGranted }) {
 
           <button type="submit" disabled={!canSubmit}
             className={`w-full rounded-2xl py-4 font-black text-base flex items-center justify-center gap-2 transition-colors ${
-              canSubmit ? "bg-[#6d5efc] text-white active:bg-[#5b4ef0] shadow-[0_6px_18px_rgba(109,94,252,0.35)]" : "bg-[#22252b] text-[#b4b4c4] cursor-not-allowed"
+              canSubmit ? "bg-[#22c08c] text-[#06231a] active:bg-[#1aa376] shadow-[0_6px_18px_rgba(34,192,140,0.35)]" : "bg-[#22252b] text-[#b4b4c4] cursor-not-allowed"
             }`}>
             {busy ? <><Loader2 size={18} className="animate-spin" /> בודק…</> : "הצטרפות"}
           </button>

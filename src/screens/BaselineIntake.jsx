@@ -186,7 +186,7 @@ export default function BaselineIntake({ session, onDone }) {
       <Shell>
         <div className="flex-1 flex flex-col items-center justify-center text-center gap-4 px-2">
           <div className="w-16 h-16 rounded-3xl flex items-center justify-center text-white"
-            style={{ background: "linear-gradient(135deg,#6d5efc,#9b7bff)" }}>
+            style={{ background: "linear-gradient(135deg,#22c08c,#1aa376)" }}>
             <ClipboardCheck size={30} />
           </div>
           <h1 className="text-xl font-black text-[#eef0f6]">{"בואו נראה מאיפה מתחילים"}</h1>
@@ -199,7 +199,7 @@ export default function BaselineIntake({ session, onDone }) {
           <button
             onClick={() => (enough ? setPhase("self") : onDone(null))}
             className="w-full py-3 rounded-xl font-bold text-sm text-white"
-            style={{ background: "linear-gradient(135deg,#6d5efc,#9b7bff)" }}>
+            style={{ background: "linear-gradient(135deg,#22c08c,#1aa376)" }}>
             {enough ? "מתחילים" : "לאפליקציה"}
           </button>
           {enough && (
@@ -225,7 +225,7 @@ export default function BaselineIntake({ session, onDone }) {
                   return (
                     <button key={opt} onClick={() => setRatings((r) => ({ ...r, [q.id]: opt }))}
                       className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors ${
-                        on ? "bg-[#6d5efc] text-white" : "bg-[#16181c] text-[#c4c4d4] border border-[#22252b]"}`}>
+                        on ? "bg-[#22c08c] text-[#06231a]" : "bg-[#16181c] text-[#c4c4d4] border border-[#22252b]"}`}>
                       {gz(opt)}
                     </button>
                   );
@@ -237,7 +237,7 @@ export default function BaselineIntake({ session, onDone }) {
         <button disabled={!allAnswered} onClick={startExam}
           className={`w-full py-3 rounded-xl font-bold text-sm mt-4 ${
             allAnswered ? "text-white" : "bg-[#16181c] text-[#5a5a6e]"}`}
-          style={allAnswered ? { background: "linear-gradient(135deg,#6d5efc,#9b7bff)" } : undefined}>
+          style={allAnswered ? { background: "linear-gradient(135deg,#22c08c,#1aa376)" } : undefined}>
           למבחן ההיכרות
         </button>
       </Shell>
@@ -262,21 +262,21 @@ export default function BaselineIntake({ session, onDone }) {
           <p className="text-xs font-black text-[#f3c14b] flex items-center gap-1"><Timer size={13} />{mm}:{ss}</p>
         </div>
         <div className="h-1 rounded-full bg-[#16181c] mb-4 overflow-hidden">
-          <div className="h-full bg-[#6d5efc] transition-all" style={{ width: `${(i / deck.length) * 100}%` }} />
+          <div className="h-full bg-[#22c08c] transition-all" style={{ width: `${(i / deck.length) * 100}%` }} />
         </div>
         {/* The prompt was 10px gray — testers read only the dish name and missed
             what was being asked. The question leads now, same as the game screens. */}
         <div className="bg-[#16181c] rounded-xl p-4 mb-3">
           <p className={`text-xl font-black text-[#eef0f6] leading-snug ${q.showSubject === false ? "" : "mb-2"}`}>{q.prompt}</p>
           {q.showSubject !== false && (
-            <p className={`font-bold text-[#a79bff] ${q.subjectKind === "desc" ? "text-sm leading-relaxed" : "text-base"}`}>{q.subject}</p>
+            <p className={`font-bold text-[#22c08c] ${q.subjectKind === "desc" ? "text-sm leading-relaxed" : "text-base"}`}>{q.subject}</p>
           )}
         </div>
         <div className="space-y-2">
           {q.options.map((opt, j) => (
             <button key={j} disabled={!!picked} onClick={() => answer(opt)}
               className={`w-full py-2.5 px-3 rounded-lg font-bold text-xs text-right leading-snug transition-colors ${
-                picked === opt ? "bg-[#6d5efc] text-white" : "bg-[#16181c] text-[#c4c4d4] border border-[#22252b]"}`}>
+                picked === opt ? "bg-[#22c08c] text-[#06231a]" : "bg-[#16181c] text-[#c4c4d4] border border-[#22252b]"}`}>
               {opt}
             </button>
           ))}
@@ -313,7 +313,7 @@ export default function BaselineIntake({ session, onDone }) {
         )}
         <button onClick={() => onDone(result.pct)}
           className="w-full py-3 rounded-xl font-bold text-sm text-white mt-3 flex items-center justify-center gap-2"
-          style={{ background: "linear-gradient(135deg,#6d5efc,#9b7bff)" }}>
+          style={{ background: "linear-gradient(135deg,#22c08c,#1aa376)" }}>
           למסלול הלמידה <ArrowLeft size={16} />
         </button>
       </div>

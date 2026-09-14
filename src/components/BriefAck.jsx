@@ -100,7 +100,7 @@ export default function BriefAck({ brief, cards, session, ack, onAcked }) {
       <button
         onClick={() => save(null)}
         disabled={saving}
-        className="w-full py-2.5 rounded-lg bg-[#6d5efc] text-white text-xs font-black disabled:opacity-50"
+        className="w-full py-2.5 rounded-lg bg-[#22c08c] text-[#06231a] text-xs font-black disabled:opacity-50"
       >
         {saving ? "שומר…" : "קראתי את העדכון"}
       </button>
@@ -124,7 +124,7 @@ export default function BriefAck({ brief, cards, session, ack, onAcked }) {
               disabled={!!picked}
               onClick={() => save(opt)}
               className={`w-full py-2 px-3 rounded-lg text-[11px] font-bold text-right transition-colors ${
-                right ? "bg-[#22c08c] text-white"
+                right ? "bg-[#22c08c] text-[#06231a]"
                   : wrong ? "bg-[#e0315a] text-white"
                   : "bg-[#16181c] text-[#c4c4d4] border border-[#22252b]"
               }`}

@@ -45,7 +45,7 @@ export default function GroupFlashcards({ items, onRate, onDone }) {
     <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-4 bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <Trophy size={40} className="text-[#f3c14b]" />
       <p className="font-black text-lg">עברת על כל {shortCat(catName)}!</p>
-      <button onClick={onDone} className="px-4 py-3 min-h-[44px] rounded-lg bg-[#6d5efc] text-white font-bold text-sm">חזור</button>
+      <button onClick={onDone} className="px-4 py-3 min-h-[44px] rounded-lg bg-[#22c08c] text-[#06231a] font-bold text-sm">חזור</button>
     </div>
   );
   const g = groups[i];
@@ -76,11 +76,11 @@ export default function GroupFlashcards({ items, onRate, onDone }) {
               </span>
               <p className="text-2xl font-black text-[#eef0f6]">{g.title}</p>
               <p className="text-xs font-bold text-[#8a8aa0]">מה אנחנו מגישים כאן, ובאיזה מחיר?</p>
-              <span className="text-xs font-bold text-[#6d5efc] mt-1">{gz("הקש/י להפוך את הכרטיס")}</span>
+              <span className="text-xs font-bold text-[#22c08c] mt-1">{gz("הקש/י להפוך את הכרטיס")}</span>
             </button>
 
             {/* back — the carry list with prices: this is the answer being memorised */}
-            <div className="flip-face flip-back bg-[#16181c] border border-[#6d5efc]/40 rounded-2xl p-5 w-full text-center space-y-2.5 min-h-[240px] flex flex-col justify-center">
+            <div className="flip-face flip-back bg-[#16181c] border border-[#22c08c]/40 rounded-2xl p-5 w-full text-center space-y-2.5 min-h-[240px] flex flex-col justify-center">
               <p className="text-base font-black text-[#eef0f6]">{g.title}</p>
               <div className="space-y-1 text-right">
                 {g.members.map((m) => (

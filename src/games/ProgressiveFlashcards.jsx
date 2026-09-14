@@ -37,7 +37,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
     return (
       <div className="h-screen flex flex-col items-center justify-center gap-3 bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
         <p>אין פריטים</p>
-        <button onClick={onDone} className="px-4 py-3 rounded-lg bg-[#6d5efc] text-white font-bold text-sm min-h-[44px]">חזור</button>
+        <button onClick={onDone} className="px-4 py-3 rounded-lg bg-[#22c08c] text-[#06231a] font-bold text-sm min-h-[44px]">חזור</button>
       </div>
     );
   }
@@ -95,11 +95,11 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
           הציע בוחן על קטגוריה שאין לה בוחן, ועקף את שער הזמן — בדיוק הפרצה שנסגרה
           ב-31.8. מסך ה«break» שלמטה כבר עשה את זה נכון. */}
       {examReady && onExam ? (
-        <button onClick={onExam} className="w-full py-3.5 min-h-[48px] rounded-2xl bg-[#22c08c] text-white text-sm font-black active:scale-[0.99] transition-transform">
+        <button onClick={onExam} className="w-full py-3.5 min-h-[48px] rounded-2xl bg-[#22c08c] text-[#06231a] text-sm font-black active:scale-[0.99] transition-transform">
           כן — לבוחן {label}
         </button>
       ) : (
-        <button onClick={onDone} className="w-full py-3.5 min-h-[48px] rounded-2xl bg-[#22c08c] text-white text-sm font-black">סיום</button>
+        <button onClick={onDone} className="w-full py-3.5 min-h-[48px] rounded-2xl bg-[#22c08c] text-[#06231a] text-sm font-black">סיום</button>
       )}
       <button onClick={() => setCheckpoint(null)} className="w-full py-3 min-h-[44px] rounded-2xl bg-[#22252b] text-[#eef0f6] text-xs font-black">
         לא עכשיו — עוד {CHECKPOINT_EVERY} כרטיסיות חזרה
@@ -112,7 +112,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
   if (checkpoint === "break") return (
     <div className="h-screen max-w-md mx-auto flex flex-col items-center justify-center gap-4 px-8 text-center bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <div className="w-20 h-20 rounded-3xl bg-[#1e1b33] flex items-center justify-center">
-        <Coffee size={34} className="text-[#a79bff]" />
+        <Coffee size={34} className="text-[#22c08c]" />
       </div>
       <p className="text-xl font-black">עברת {CHECKPOINT_EVERY} כרטיסיות 💪</p>
       <p className="text-sm text-[#8a8aa0]">הכרת {understoodCount} מתוך {nLabel(items.length, "מנה", "מנות")} ב{label}. ממשיכים?</p>
@@ -124,7 +124,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
           יש לך מספיק ידע — לבוחן {label}
         </button>
       )}
-      <button onClick={() => setCheckpoint(null)} className={`w-full py-3.5 min-h-[48px] rounded-2xl text-sm font-black active:scale-[0.99] transition-transform ${examReady && onExam ? "bg-[#22252b] text-[#eef0f6]" : "bg-[#6d5efc] text-white"}`}>
+      <button onClick={() => setCheckpoint(null)} className={`w-full py-3.5 min-h-[48px] rounded-2xl text-sm font-black active:scale-[0.99] transition-transform ${examReady && onExam ? "bg-[#22252b] text-[#eef0f6]" : "bg-[#22c08c] text-[#06231a]"}`}>
         עוד סיבוב
       </button>
       <button onClick={onDone} className="w-full py-3 min-h-[44px] rounded-2xl bg-[#22252b] text-[#eef0f6] text-xs font-black">
@@ -185,11 +185,11 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
                   ].filter(Boolean).join(" · ")}
                 </p>
               )}
-              <span className="text-xs font-bold text-[#6d5efc] mt-1">{gz("הקש/י להפוך את הכרטיס")}</span>
+              <span className="text-xs font-bold text-[#22c08c] mt-1">{gz("הקש/י להפוך את הכרטיס")}</span>
             </button>
 
             {/* back */}
-            <div className="flip-face flip-back bg-[#16181c] border border-[#6d5efc]/40 rounded-2xl p-5 w-full text-center space-y-2.5 min-h-[260px] flex flex-col justify-center">
+            <div className="flip-face flip-back bg-[#16181c] border border-[#22c08c]/40 rounded-2xl p-5 w-full text-center space-y-2.5 min-h-[260px] flex flex-col justify-center">
               <div className="flex items-center gap-2.5 w-full text-right">
                 {/* 52px is enough to recognise the plate, not to study it — tapping it
                     opens the photo full screen (user, 2026-08-28). */}

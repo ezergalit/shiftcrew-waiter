@@ -1377,8 +1377,8 @@ export default function MainApp({ session, onSignOut }) {
             {/* Picked up where you stopped. Above everything else because it is the one
                 card that expires — dismissing it removes it for good. */}
             {resumeOffer && (
-              <div className="bg-[#16181c] border border-[#6d5efc] rounded-xl p-3 flex items-center gap-3">
-                <Repeat size={16} className="text-[#6d5efc] flex-shrink-0" />
+              <div className="bg-[#16181c] border border-[#22c08c] rounded-xl p-3 flex items-center gap-3">
+                <Repeat size={16} className="text-[#22c08c] flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-black text-[#eef0f6]">להמשיך מאיפה שהפסקתם?</p>
                   <p className="text-[11px] font-bold text-[#8a8aa0]">
@@ -1395,7 +1395,7 @@ export default function MainApp({ session, onSignOut }) {
                     setMode(resumeOffer.mode);
                     setResumeOffer(null);
                   }}
-                  className="px-3 py-1.5 rounded-lg bg-[#6d5efc] text-white text-[11px] font-black flex-shrink-0"
+                  className="px-3 py-1.5 rounded-lg bg-[#22c08c] text-[#06231a] text-[11px] font-black flex-shrink-0"
                 >
                   להמשיך
                 </button>
@@ -1502,7 +1502,7 @@ export default function MainApp({ session, onSignOut }) {
                   else if (thin) { setModeItems(items); setMode("groupcards"); }
                   else startProgressive(catView);
                 }}
-                className="w-full py-3 min-h-[48px] rounded-xl bg-[#6d5efc] text-white text-sm font-black active:scale-[0.99] transition-transform">
+                className="w-full py-3 min-h-[48px] rounded-xl bg-[#22c08c] text-[#06231a] text-sm font-black active:scale-[0.99] transition-transform">
                 תרגול {scopeFn ? `יינות ${wineScope}` : shortCat(catView)}
               </button>
               {/* The exam belongs inside the category page too (user, 2026-08-20) —
@@ -1531,7 +1531,7 @@ export default function MainApp({ session, onSignOut }) {
                 return (
                   <button
                     onClick={() => { setModeItems(cat.items); setExamCategory({ key: cat.key, label: catLabel(cat.key) }); setMode("exam"); }}
-                    className="w-full py-3 min-h-[48px] rounded-xl font-black text-sm flex items-center justify-center gap-1.5 active:scale-[0.99] transition-transform bg-[#22c08c] text-white"
+                    className="w-full py-3 min-h-[48px] rounded-xl font-black text-sm flex items-center justify-center gap-1.5 active:scale-[0.99] transition-transform bg-[#22c08c] text-[#06231a]"
                   >
                     <GraduationCap size={15} />
                     {cat.passed ? "עברת את הבוחן! אפשר לגשת שוב" : `בוחן ${shortCat(catView)}`}
@@ -1550,7 +1550,7 @@ export default function MainApp({ session, onSignOut }) {
                     </div>
                     {it.desc && <p className="text-[11px] text-[#8a8aa0] mt-0.5 line-clamp-1">{it.desc}</p>}
                     <div className="h-1 bg-[#22252b] rounded-full overflow-hidden mt-1.5 max-w-[110px]">
-                      <div className="h-full" style={{ width: `${done ? 100 : m * 20}%`, background: done ? "#22c08c" : "#6d5efc" }} />
+                      <div className="h-full" style={{ width: `${done ? 100 : m * 20}%`, background: done ? "#22c08c" : "#1aa376" }} />
                     </div>
                   </button>
                 );
@@ -1598,7 +1598,7 @@ export default function MainApp({ session, onSignOut }) {
                     <span className="text-xs font-black" style={{ color: pct >= 50 ? "#22c08c" : pct > 0 ? "#f3a712" : "#5a5a6e" }}>{pct}%</span>
                   </div>
                   <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden mt-2">
-                    <div className="h-full transition-all" style={{ width: `${pct}%`, background: pct >= 50 ? "#22c08c" : "#6d5efc" }} />
+                    <div className="h-full transition-all" style={{ width: `${pct}%`, background: pct >= 50 ? "#22c08c" : "#1aa376" }} />
                   </div>
                   <p className="text-[11px] text-[#8a8aa0] mt-1.5">{nLabel(catCount, "קטגוריה", "קטגוריות")} · {nWord}</p>
                   <p className="text-[11px] font-black text-[#22c08c] mt-1.5">לתרגול {g} ←</p>
@@ -1658,10 +1658,10 @@ export default function MainApp({ session, onSignOut }) {
                             {cat.passed && <Check size={12} className="text-[#22c08c] flex-shrink-0" />}
                             {catLabel(cat.key)}
                           </p>
-                          <span className="text-[11px] font-bold text-[#6d5efc] flex-shrink-0">{cat.pct}%</span>
+                          <span className="text-[11px] font-bold text-[#22c08c] flex-shrink-0">{cat.pct}%</span>
                         </div>
                         <div className="h-1.5 bg-[#22252b] rounded-full overflow-hidden">
-                          <div className="h-full transition-all" style={{ width: `${cat.pct}%`, background: cat.passed ? "#22c08c" : "#6d5efc" }} />
+                          <div className="h-full transition-all" style={{ width: `${cat.pct}%`, background: cat.passed ? "#22c08c" : "#1aa376" }} />
                         </div>
                         <p className="text-[11px] text-[#8a8aa0] mt-1">
                           {nLabel(cat.items.length, "מנה", "מנות")} · {gz("לחץ/י כדי לתרגל")}
@@ -1825,10 +1825,10 @@ export default function MainApp({ session, onSignOut }) {
           </button>
           <div className="bg-[#16181c] border border-[#8b5cf6]/40 rounded-2xl p-3.5 space-y-2 relative overflow-hidden">
             <span className="absolute top-0 right-0 h-full w-[3px]" style={{ background: "linear-gradient(180deg,#8b5cf6,#6d28d9)" }} />
-            <p className="text-xs font-black text-[#a79bff] mb-2">עדכון יומי של המסעדה</p>
+            <p className="text-xs font-black text-[#22c08c] mb-2">עדכון יומי של המסעדה</p>
             {brief?.missing_items?.length > 0 && <div><span className="text-[10px] font-bold text-[#f3c14b]">❌ חסרים:</span><p className="text-xs text-[#f3c14b] mt-0.5">{brief.missing_items.join(", ")}</p></div>}
             {brief?.new_items?.length > 0 && <div><span className="text-[10px] font-bold text-[#22c08c]">⭐ חדש:</span><p className="text-xs text-[#22c08c] mt-0.5">{brief.new_items.join(", ")}</p></div>}
-            {brief?.oven_items?.length > 0 && <div><span className="text-[10px] font-bold text-[#6d5efc]">📦 מעלה:</span><p className="text-xs text-[#6d5efc] mt-0.5">{brief.oven_items.join(", ")}</p></div>}
+            {brief?.oven_items?.length > 0 && <div><span className="text-[10px] font-bold text-[#22c08c]">📦 מעלה:</span><p className="text-xs text-[#22c08c] mt-0.5">{brief.oven_items.join(", ")}</p></div>}
             {brief?.notes && <div><span className="text-[11px] font-bold text-[#8a8aa0]">הערה:</span><p className="text-xs text-[#8a8aa0] mt-0.5">{brief.notes}</p></div>}
             {!brief?.missing_items?.length && !brief?.new_items?.length && !brief?.oven_items?.length && !brief?.notes && (
               <div className="text-center py-3 space-y-2">
@@ -1836,7 +1836,7 @@ export default function MainApp({ session, onSignOut }) {
                 <p className="text-xs text-[#8a8aa0]">אבל תמיד כדאי לנצל את הזמן לחזרה על התפריט</p>
                 <button
                   onClick={() => { setModeItems(null); setMode("quick"); }}
-                  className="px-5 py-2.5 min-h-[44px] rounded-lg bg-[#6d5efc] text-white text-xs font-black"
+                  className="px-5 py-2.5 min-h-[44px] rounded-lg bg-[#22c08c] text-[#06231a] text-xs font-black"
                 >
                   ללמידה — 5 דקות לפני משמרת ←
                 </button>

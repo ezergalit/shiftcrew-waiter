@@ -52,8 +52,8 @@ export default function WelcomeVideo({ session, onDone }) {
 
           {session?.restaurantServiceNotes && (
             <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-3.5 flex items-start gap-2.5">
-              <span className="w-8 h-8 rounded-lg bg-[#6d5efc]/15 flex items-center justify-center flex-shrink-0">
-                <Store size={15} className="text-[#a79bff]" />
+              <span className="w-8 h-8 rounded-lg bg-[#22c08c]/15 flex items-center justify-center flex-shrink-0">
+                <Store size={15} className="text-[#22c08c]" />
               </span>
               <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-black text-[#eef0f6]">כללי הבית מחכים לכם בפנים</p>

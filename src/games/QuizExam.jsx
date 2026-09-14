@@ -61,7 +61,7 @@ export default function QuizExam({ items, facets, categoryLabel, deckSize = DEFA
     <div className="h-screen flex flex-col items-center justify-center gap-3 px-8 text-center bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <p className="text-sm">אין מספיק פרטים במנות של {categoryLabel} כדי לבנות מבחן.</p>
       <p className="text-xs text-[#8a8aa0]">כדאי לבקש מהמנהל/ת להשלים תיאורים או מרכיבים.</p>
-      <button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white text-xs font-bold">חזרה</button>
+      <button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#22c08c] text-[#06231a] text-xs font-bold">חזרה</button>
     </div>
   );
 
@@ -73,7 +73,7 @@ export default function QuizExam({ items, facets, categoryLabel, deckSize = DEFA
       <p className="text-4xl font-black" style={{ color: passed ? "#22c08c" : "#e0315a" }}>{score}%</p>
       <p className="text-sm font-bold">{passed ? "עברת! הקטגוריה הזו כבר מוכרת לך היטב." : "עוד לא עברת — עוד קצת תרגול ואפשר לגשת שוב."}</p>
       <p className="text-xs text-[#8a8aa0]">{correctCount}/{deck.length} תשובות נכונות</p>
-      <button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#6d5efc] text-white text-xs font-bold mt-2">חזרה</button>
+      <button onClick={onDone} className="px-4 py-2 rounded-lg bg-[#22c08c] text-[#06231a] text-xs font-bold mt-2">חזרה</button>
     </div>
   );
 
@@ -116,7 +116,7 @@ export default function QuizExam({ items, facets, categoryLabel, deckSize = DEFA
             return (
               <button key={j} disabled={!!picked} onClick={() => answer(opt)}
                 className={`w-full py-2.5 px-3 rounded-lg font-bold text-xs text-right leading-snug transition-colors ${
-                  isCorrect ? "bg-[#22c08c] text-white" : isWrong ? "bg-[#e0315a] text-white" : "bg-[#16181c] text-[#c4c4d4] border border-[#22252b]"}`}>
+                  isCorrect ? "bg-[#22c08c] text-[#06231a]" : isWrong ? "bg-[#e0315a] text-white" : "bg-[#16181c] text-[#c4c4d4] border border-[#22252b]"}`}>
                 {opt}
               </button>
             );

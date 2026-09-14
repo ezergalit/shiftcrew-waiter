@@ -20,8 +20,8 @@ export function AboutCard({ session, onOpen }) {
       onClick={onOpen}
       className="w-full flex items-center gap-2.5 bg-[#16181c] border border-[#22252b] rounded-2xl px-3.5 py-3 mb-3 text-right"
     >
-      <span className="w-8 h-8 rounded-lg bg-[#6d5efc]/15 flex items-center justify-center flex-shrink-0">
-        <Store size={15} className="text-[#a79bff]" />
+      <span className="w-8 h-8 rounded-lg bg-[#22c08c]/15 flex items-center justify-center flex-shrink-0">
+        <Store size={15} className="text-[#22c08c]" />
       </span>
       <span className="flex-1 min-w-0">
         <span className="block text-[13px] font-black text-[#eef0f6]">אודות המסעדה</span>

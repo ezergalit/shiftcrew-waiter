@@ -36,7 +36,7 @@ export default function Flashcards({ items, session, quick, onRate, onDone, slim
       {session?.allRetired && (
         <p className="text-xs text-[#8a8aa0]">אתם מכירים כאן את כל המנות — זו הייתה חזרה</p>
       )}
-      <button onClick={onDone} className="px-4 py-3 rounded-lg bg-[#6d5efc] text-white font-bold text-sm mt-1 min-h-[44px]">חזור</button>
+      <button onClick={onDone} className="px-4 py-3 rounded-lg bg-[#22c08c] text-[#06231a] font-bold text-sm mt-1 min-h-[44px]">חזור</button>
     </div>
   );
   const it = items[i];
@@ -93,11 +93,11 @@ export default function Flashcards({ items, session, quick, onRate, onDone, slim
                   ].filter(Boolean).join(" · ")}
                 </p>
               )}
-              <span className="text-xs font-bold text-[#6d5efc] mt-1">{gz("הקש/י להפוך את הכרטיס")}</span>
+              <span className="text-xs font-bold text-[#22c08c] mt-1">{gz("הקש/י להפוך את הכרטיס")}</span>
             </button>
 
             {/* back */}
-            <div className="flip-face flip-back bg-[#16181c] border border-[#6d5efc]/40 rounded-2xl p-5 w-full text-center space-y-2.5 min-h-[260px] flex flex-col justify-center">
+            <div className="flip-face flip-back bg-[#16181c] border border-[#22c08c]/40 rounded-2xl p-5 w-full text-center space-y-2.5 min-h-[260px] flex flex-col justify-center">
               <div className="flex items-center gap-2.5 w-full text-right">
                 {/* 52px is enough to recognise the plate, not to study it — tapping it
                     opens the photo full screen (user, 2026-08-28). */}
