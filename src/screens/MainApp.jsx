@@ -6,6 +6,7 @@ import MetricsScreen, { DeleteProfile } from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
 import BriefGate, { briefHasContent } from "../components/BriefGate";
 import CoachBar from "../components/CoachBar";
+import { STOPS, screenOf, loadSeen, markSeen, resetSeen } from "../lib/coachStops";
 import ColorKey, { needsColorKey, markColorKeySeen } from "../components/ColorKey";
 import TasksTab, { useShiftTasks, PERIOD_LABEL } from "../components/TasksTab";
 import ManagerMessages from "../components/ManagerMessages";
@@ -64,18 +65,10 @@ const MODE_LABELS = {
 };
 const DAILY_BONUS = 50;
 
-// First-run tour flag, device-scoped like the welcome slides.
-const TOUR_DONE_KEY = "menu-app-apptour-done";
-// ══ מדריך ההפעלה — חמישה צעדים על האפליקציה האמיתית ══
-// לא מסך משלו ולא שכבה מעל. המלצר עובד באפליקציה, והפס מעל הסרגל (CoachBar) אומר מה
-// לעשות עכשיו; כל צעד נסגר מ**מצב האפליקציה** ולא מהקשה על אלמנט שצריך למצוא ולמדוד.
-const COACH_TEXT = [
-  "נתחיל מהתפריט — פתחו אחד מהתפריטים שברשימה.",
-  "עכשיו פתחו מנה אחת, כדי לראות איך היא נראית.",
-  "גללו למטה — יש שם אזהרות בצבע. הקישו על אחת כדי לראות אילו פריטים היא כוללת.",
-  "יופי. עכשיו עברו לטאב ״תרגול ובחינה״ בסרגל למטה.",
-  "בחרו קטגוריה והתחילו סבב כרטיסיות — ככה לומדים כאן.",
-];
+// ══ מדריך ההפעלה — צ׳קפוינטים לפי מסך ══
+// לא מסך משלו ולא שכבה מעל. המלצר עובד באפליקציה, והפס מעל הסרגל (CoachBar) מסביר את
+// המסך שהוא עומד בו — בפעם הראשונה שהוא מגיע אליו, בכל סדר. הטקסטים והמיפוי:
+// `lib/coachStops.js`.
 
 function pubToCard(p) {
   const ing = (p.ingredients || []).filter(Boolean);
@@ -223,7 +216,10 @@ export default function MainApp({ session, onSignOut }) {
   const [stage, setStage] = useState({ menu: null, cat: null, idx: null, explain: false });
   const onStage = useCallback((n) => setStage((p) =>
     (p.menu === n.menu && p.cat === n.cat && p.idx === n.idx && p.explain === n.explain) ? p : n), []);
-  const [coachAt, setCoachAt] = useState(0);
+  // מה כבר הוסבר לחבר הזה, ומה מוצג עכשיו. `stop` נשאר עד שמקישים «הבנתי» או עוזבים
+  // את המסך — כדי שהשורה לא תיעלם מתחת לאצבע תוך כדי קריאה.
+  const [seen, setSeen] = useState(() => loadSeen(session?.teamMemberId));
+  const [stop, setStop] = useState(null);
   // Depth belongs to the tab you're in, so leaving a tab clears it — otherwise
   // walking into a dish and then tapping another tab leaves that tab's root
   // page without its exit button.
@@ -240,14 +236,6 @@ export default function MainApp({ session, onSignOut }) {
   // The role every task filter actually uses: the profile's, unless the profile says
   // "both" — then today's answer.
   const myRole = profileRole === "both" ? dailyRole : profileRole;
-  const [tourOpen, setTourOpen] = useState(() =>
-    // Every mode has fitting steps now (user, 1.9: the tour is back for everyone —
-    // the 2-tab world gets AURORA_STEPS, the classic task world keeps STEPS).
-    // ⚠️ A restaurant with its own welcome video has ALREADY walked the new waiter through
-    // the app, so the video still suppresses the automatic tour — but the videos were
-    // cleared for now (1.9: the video is advertising material, not the in-app tutorial).
-    !session?.welcomeVideoUrl &&
-    !!session?.teamMemberId && localStorage.getItem(`menu-app-apptour-done-${session.teamMemberId}`) !== "1");
   const { rows: shiftRows, doneIds: taskDone, toggle: toggleTask } = useShiftTasks(session);
   // Learning-only mode has no tasks/daily tabs — anything that lands there (old code
   // paths, restored state) snaps back to the learning tab instead of a blank screen.
@@ -255,19 +243,16 @@ export default function MainApp({ session, onSignOut }) {
     if (tasksOff && (tab === "home" || tab === "daily")) setTab(trainee ? "learn" : "categories");
   }, [tasksOff, trainee, tab]);
   const [prog, setProg] = useState(null); // { items, label, progress, firstId }
-  // הצעד נסגר כשהמלצר באמת עשה את הדבר. ⚠️ קדימה בלבד — יציאה ממנה לא מחזירה צעד אחורה.
+  // הגעה למסך חדש ⇒ השורה שלו, פעם אחת. ⚠️ בזמן סבב (`mode`/`prog`) הפס לא מרונדר
+  // בכלל — early return — ולכן גם לא מסמנים מסך כנראה מתוך סבב.
   useEffect(() => {
-    if (!tourOpen) return;
-    const reached =
-      coachAt === 0 ? (stage.menu !== null || stage.cat !== null)
-      : coachAt === 1 ? stage.idx !== null
-      // מנה בלי אזהרות אינה מלכודת: יציאה ממנה סוגרת את הצעד בדיוק כמו פתיחת ההסבר.
-      : coachAt === 2 ? (stage.explain || stage.idx === null)
-      : coachAt === 3 ? tab === "learn"
-      : coachAt === 4 ? (!!prog || !!mode)
-      : false;
-    if (reached) setCoachAt((a) => a + 1);
-  }, [tourOpen, coachAt, stage, tab, prog, mode]);
+    if (mode || prog) return;
+    const screen = screenOf({ tab, stage, showAbout, catView, groupView });
+    if (!screen || !STOPS[screen]) { setStop(null); return; }
+    if (seen.has(screen)) { setStop((cur) => (cur === screen ? cur : null)); return; }
+    setSeen((prev) => markSeen(session?.teamMemberId, screen, prev));
+    setStop(screen);
+  }, [mode, prog, tab, stage, showAbout, catView, groupView, seen, session?.teamMemberId]);
   // The category whose quiz-gate clock is running right now: a flashcard mode whose whole
   // deck is one category. Mixed decks (the quick round over the full menu) credit no
   // single category — the gate asks for study of THE category being tested. A ref, not
@@ -877,28 +862,15 @@ export default function MainApp({ session, onSignOut }) {
   if (gatePractice)
     return <BriefGate brief={brief} cards={cards} session={session} practice onClose={() => setGatePractice(false)} />;
 
-  const coachOn = tourOpen && cards?.length > 0;
-  const closeCoach = () => {
-    setTourOpen(false);
-    setCoachAt(0);
-    if (session?.teamMemberId) localStorage.setItem(`${TOUR_DONE_KEY}-${session.teamMemberId}`, "1");
-  };
-  const coachNode = coachOn ? (
-    <CoachBar
-      text={coachAt >= COACH_TEXT.length ? "זהו — הכול אצלכם. בהצלחה!" : COACH_TEXT[coachAt]}
-      index={Math.min(coachAt, COACH_TEXT.length - 1)}
-      total={COACH_TEXT.length}
-      done={coachAt >= COACH_TEXT.length}
-      onSkip={closeCoach}
-      onDone={closeCoach}
-    />
-  ) : null;
+  const coachNode = stop && cards?.length > 0
+    ? <CoachBar text={STOPS[stop]} onOk={() => setStop(null)} />
+    : null;
 
   // Full-screen, above the tabs: it is a place you go to, not a tab you live in.
   if (showMetrics && !metricsOff)
     return <><MetricsScreen session={session} cards={cards} masteryById={masteryById} weekly={weekly} leaderboard={leaderboard}
       onDone={() => setShowMetrics(false)}
-      onReplayTour={() => { setShowMetrics(false); setTourOpen(true); }} /></>;
+      onReplayTour={() => { setShowMetrics(false); setSeen(resetSeen(session?.teamMemberId)); }} /></>;
 
   // The colour legend, once a day, in front of the first practice of the day: red is an
   // allergy, purple is pregnancy, yellow is a preference. A waiter who reads the chips
@@ -914,7 +886,7 @@ export default function MainApp({ session, onSignOut }) {
   // ⚠️ Not while the tour is up (13.9): the tour's dim panes cover this screen's only button,
   // so a first-day waiter on a colour-key restaurant (CREWDEMO) was stuck behind it. The tour
   // teaches the colours itself; the key shows on the next visit to the menu tab.
-  if (tab === "categories" && !tourOpen && session?.features?.color_key !== false && !colorKeySeen && (preview || needsColorKey(session?.teamMemberId)))
+  if (tab === "categories" && !stop && session?.features?.color_key !== false && !colorKeySeen && (preview || needsColorKey(session?.teamMemberId)))
     //  stays mounted on top, like the metrics branch below — without it, the
     // tour's "tap the menu tab" step navigated a first-day waiter straight into this
     // screen and the tour overlay silently vanished under it.
@@ -1812,12 +1784,12 @@ export default function MainApp({ session, onSignOut }) {
         )}
               </div>
 
-      {showAbout && <AboutScreen session={session} onClose={() => setShowAbout(false)} />}
+      {showAbout && <AboutScreen session={session} onClose={() => setShowAbout(false)} coachSlot={coachNode} />}
       {/* ⚠️ התנאי הוא `stage.idx` ולא `browseDeep`: רק מסך המנה ומסך סוף-הקטגוריה הם
           Overlay מלא-מסך (portal ל-body), ושם הפס מתארח דרך `coachSlot`. רשימת
           הקטגוריות והמנות היא inline, ולכן `browseDeep` היה מעלים את הפס בדיוק בצעד
           «עכשיו פתחו מנה אחת» — ההוראה נעלמה כשהמלצר הגיע למקום לבצע אותה. */}
-      {stage.idx === null && coachNode}
+      {stage.idx === null && !showAbout && coachNode}
       <BottomNav tab={tab} aurora={aurora} hideTasks={tasksOff}
         setTab={(t) => {
           if (t === tab) {

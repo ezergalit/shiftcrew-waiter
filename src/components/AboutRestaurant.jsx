@@ -71,7 +71,7 @@ function GuideLine({ line }) {
   );
 }
 
-export function AboutScreen({ session, onClose }) {
+export function AboutScreen({ session, onClose, coachSlot = null }) {
   const guide = parseGuide(session?.restaurantServiceNotes);
   const hasGuide = guide.intro.length > 0 || guide.sections.length > 0;
 
@@ -131,6 +131,9 @@ export function AboutScreen({ session, onClose }) {
           <p className="text-sm text-[#8a8aa0] text-center py-8">אין עדיין פרטים — המנהל/ת יכול/ה להוסיף אותם באפליקציית הניהול.</p>
         )}
       </div>
+      {/* ⚠️ המסך הזה הוא `fixed inset-0 z-[55]`, ולכן פס ההנחיה שיושב מעל הסרגל נשאר
+          מאחוריו (נמדד: `elementFromPoint` החזיר את גוף המסך הזה). הוא מתארח כאן. */}
+      {coachSlot}
     </div>
   );
 }
