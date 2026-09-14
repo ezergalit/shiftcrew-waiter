@@ -6,6 +6,12 @@ import { Store, ChevronLeft, X, AlertTriangle } from "lucide-react";
 // teases it; the full content lives here, one tap from the menu tab, for trainees and
 // veterans alike.
 
+// 🔴 «איך אנחנו מארחים» הובטח גם כשאין מדריך. `service_notes` ריק בכל ארבע
+// המסעדות — התוכן עבר לקטגוריות «הדרכת·» שיושבות בתפריט עצמו — ולכן המסך מציג
+// את התיאור בלבד, והשורה אומרת רק אותו (יותם, 14.9: «תעבור על כל האפליקציה»).
+export const aboutSubtitle = (session) =>
+  (session?.restaurantServiceNotes ? "מי אנחנו ואיך אנחנו מארחים" : "מי אנחנו");
+
 export function AboutCard({ session, onOpen }) {
   const has = session?.restaurantDescription || session?.restaurantServiceNotes;
   if (!has) return null;
@@ -19,7 +25,7 @@ export function AboutCard({ session, onOpen }) {
       </span>
       <span className="flex-1 min-w-0">
         <span className="block text-[13px] font-black text-[#eef0f6]">אודות המסעדה</span>
-        <span className="block text-[11px] text-[#8a8aa0]">מי אנחנו ואיך אנחנו מארחים</span>
+        <span className="block text-[11px] text-[#8a8aa0]">{aboutSubtitle(session)}</span>
       </span>
       <ChevronLeft size={16} className="text-[#5a5a6e] flex-shrink-0" />
     </button>

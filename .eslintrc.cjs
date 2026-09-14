@@ -14,6 +14,10 @@ module.exports = {
   rules: {
     "react-hooks/rules-of-hooks": "error",
     "react-hooks/exhaustive-deps": "off", // noisy here, and not the failure mode we hit
+    // 🔴 14.9: מזהה שנמחק מרשימת ה-import ונשאר בשימוש. קרה פעמיים באותו יום
+    // (`STOPS` בניהול, `aboutSubtitle` כאן) — `check-jsx-refs` קורא **JSX בלבד**
+    // ולכן הוא עיוור לקריאת פונקציה רגילה, וה-build ירוק. זה השער שתופס את שניהם.
+    "no-undef": "error",
   },
   ignorePatterns: ["dist", "node_modules", "android", "ios", "supabase"],
 };

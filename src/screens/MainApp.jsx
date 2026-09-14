@@ -16,7 +16,7 @@ import {
   saveDailyRole, gz, taskFitsShift, taskFitsRole,
 } from "../lib/shiftChoice";
 import MenuBrowser from "../components/MenuBrowser";
-import { AboutCard, AboutScreen } from "../components/AboutRestaurant";
+import { AboutCard, AboutScreen, aboutSubtitle } from "../components/AboutRestaurant";
 import Ring from "../components/Ring";
 import "../aurora.css";
 import { isUnderstood } from "../lib/progressiveSession";
@@ -272,7 +272,7 @@ export default function MainApp({ session, onSignOut }) {
     // (אין מה להוסיף על הכותרת שכבר על המסך) — ולולא הבדיקה הוא היה נשרף, ומלצר
     // שנכנס אחר כך לקטגוריה שכן יש בה אזהרות לא היה מקבל את השורה אף פעם.
     const catItems = (cards || []).filter((c) => c.category === (tab === "learn" ? catView : stage?.cat));
-    if (!screen || !textFor(screen, { menu: stage?.menu, cat: stage?.cat, items: catItems })) { setStop(null); return; }
+    if (!screen || !textFor(screen, { menu: stage?.menu, cat: stage?.cat, items: catItems, hasGuide: !!session?.restaurantServiceNotes })) { setStop(null); return; }
     if (seen.has(screen)) { setStop((cur) => (cur === screen ? cur : null)); return; }
     if (!pendingRef.current.has(screen)) pendingRef.current.set(screen, 0);
     setStop(screen);
@@ -891,6 +891,8 @@ export default function MainApp({ session, onSignOut }) {
   if (gatePractice)
     return <BriefGate brief={brief} cards={cards} session={session} practice onClose={() => setGatePractice(false)} />;
 
+  // מדריך האירוח קיים רק אם המנהל כתב אותו — ב-14.9 הוא ריק בכל המסעדות.
+  const hasGuide = !!session?.restaurantServiceNotes;
   // ⚠️ הדקות שהשורה מבטיחה חייבות לצאת מ-`quizGateFor` — אותו שער שהצ׳יפ בטאב
   // התרגול עובר דרכו. תווית שמבטיחה בוחן בלי לעבור בשער היא בדיוק השקר שתוקן
   // ב-2.9; השורה הזאת לא תחזיר אותו.
@@ -907,8 +909,8 @@ export default function MainApp({ session, onSignOut }) {
     // תכתוב תפריט האירועים וכל הקטגוריות בתוכו, ואז בפנים מסלול האירועים»). בטאב
     // התפריט הוא מגיע מ-`stage`, ובטאב התרגול מ-groupView/catView.
     : textFor(stop, tab === "learn"
-        ? { menu: groupView, cat: catView, items: (cards || []).filter((c) => c.category === catView) }
-        : { menu: stage?.menu, cat: stage?.cat, items: (cards || []).filter((c) => c.category === stage?.cat) });
+        ? { menu: groupView, cat: catView, items: (cards || []).filter((c) => c.category === catView), hasGuide }
+        : { menu: stage?.menu, cat: stage?.cat, items: (cards || []).filter((c) => c.category === stage?.cat), hasGuide });
   // דירוג כרטיסייה = לימוד + צעד במונה שפותח את שורת «כמה עוד עד הבוחן».
   const rateCard = (id, r) => { learnItem(id, r, { objective: false }); setRatedInMode((c) => c + 1); };
   // «הבנתי» הוא אחת משתי הדרכים היחידות שנועלות שורה (השנייה: צעדים קדימה).
@@ -1743,7 +1745,7 @@ export default function MainApp({ session, onSignOut }) {
               aurora ? (
                 <button onClick={() => setShowAbout(true)} className="glass cat" data-name="אודות המסעדה">
                   <span className="icon" aria-hidden>🏛️</span>
-                  <span className="flex-1 min-w-0"><h3>אודות המסעדה</h3><p>מי אנחנו ואיך אנחנו מארחים</p></span>
+                  <span className="flex-1 min-w-0"><h3>אודות המסעדה</h3><p>{aboutSubtitle(session)}</p></span>
                   <ChevronLeft size={16} className="chev" />
                 </button>
               ) : <AboutCard session={session} onOpen={() => setShowAbout(true)} />
