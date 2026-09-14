@@ -150,7 +150,7 @@ function ExplainBox({ groupKey, items = [], onClose }) {
   );
 }
 
-export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, aurora = false, merged = false, onDepth, examableFor, onExam, examOpenFor, walkCountFor, noteWalk }) {
+export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomSlot = null, aurora = false, merged = false, onDepth, onStage, coachSlot = null, examableFor, onExam, examOpenFor, walkCountFor, noteWalk }) {
   // ⚠️ Not `groups` — that name already means the restaurant's MENU groups in this file.
   const warnGroups = merged ? MERGED_GROUPS : FLAG_GROUPS;
   // Search on the menu door (the handoff page's dynamic): a query matches a category by
@@ -175,6 +175,10 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   // mainpage").
   useEffect(() => { onDepth?.(menu !== null || cat !== null || idx !== null); },
             [menu, cat, idx, onDepth]);
+  // מדריך ההפעלה קורא את **מצב המסך**, לא את ה-DOM: איפה המלצר נמצא עכשיו ואם פתח הסבר
+  // אזהרה. זה כל מה שהוא צריך כדי להתקדם, ולכן אין בו שום מדידה של אלמנט (ר' CoachBar).
+  useEffect(() => { onStage?.({ menu, cat, idx, explain: groupOpen !== null || legendOpen !== null }); },
+            [menu, cat, idx, groupOpen, legendOpen, onStage]);
   const flat = menus.length <= 1;
   const serviceCats = serviceGuideCategories(cards);
   // ⚠️ The service box is a destination, not a menu_group — filtering dishes by it would
@@ -468,6 +472,11 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
             <img src={zoom} alt="" className="max-w-full max-h-full rounded-2xl object-contain" />
           </button>
         )}
+
+        {/* מסך המנה הוא overlay מלא, ולכן פס ההנחיה של מדריך ההפעלה חייב להתארח גם כאן —
+            אחרת הצעד «הקישו על קבוצת אזהרה» מתרחש מעל הוראה שהמלצר לא רואה. אותו רכיב,
+            בזרימה, מעל סרגל החצים. */}
+        {coachSlot}
 
         {/* Walking the category is the study loop — the arrows are the main control here,
             not an afterthought, so they get a full bar of their own. */}

@@ -1,11 +1,11 @@
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {ChevronLeft, BookOpen, BarChart3, Home, LogOut, WifiOff, Check, ChevronRight, ListChecks, GraduationCap, Repeat, Layers, HelpCircle, Puzzle, Zap, ShieldAlert, FileText, Lock, Eye} from "lucide-react";
 import { supabase } from "../lib/supabase";
 import MetricsScreen, { DeleteProfile } from "../components/MetricsScreen";
 import BriefAck from "../components/BriefAck";
 import BriefGate, { briefHasContent } from "../components/BriefGate";
-import Tutorial from "./Tutorial";
+import CoachBar from "../components/CoachBar";
 import ColorKey, { needsColorKey, markColorKeySeen } from "../components/ColorKey";
 import TasksTab, { useShiftTasks, PERIOD_LABEL } from "../components/TasksTab";
 import ManagerMessages from "../components/ManagerMessages";
@@ -66,6 +66,16 @@ const DAILY_BONUS = 50;
 
 // First-run tour flag, device-scoped like the welcome slides.
 const TOUR_DONE_KEY = "menu-app-apptour-done";
+// ══ מדריך ההפעלה — חמישה צעדים על האפליקציה האמיתית ══
+// לא מסך משלו ולא שכבה מעל. המלצר עובד באפליקציה, והפס מעל הסרגל (CoachBar) אומר מה
+// לעשות עכשיו; כל צעד נסגר מ**מצב האפליקציה** ולא מהקשה על אלמנט שצריך למצוא ולמדוד.
+const COACH_TEXT = [
+  "נתחיל מהתפריט — פתחו אחד מהתפריטים שברשימה.",
+  "עכשיו פתחו מנה אחת, כדי לראות איך היא נראית.",
+  "גללו למטה — יש שם אזהרות בצבע. הקישו על אחת כדי לראות אילו פריטים היא כוללת.",
+  "יופי. עכשיו עברו לטאב ״תרגול ובחינה״ בסרגל למטה.",
+  "בחרו קטגוריה והתחילו סבב כרטיסיות — ככה לומדים כאן.",
+];
 
 function pubToCard(p) {
   const ing = (p.ingredients || []).filter(Boolean);
@@ -207,6 +217,13 @@ export default function MainApp({ session, onSignOut }) {
   const [groupView, setGroupView] = useState(null); // menu (menu_group) key or null
   // Bumped to remount MenuBrowser at its top level (see the tour's onNavigate).
   const [browseDeep, setBrowseDeep] = useState(false);
+  // ── מדריך ההפעלה ─────────────────────────────────────────────────────────────
+  // מה פתוח עכשיו בעמוד התפריט. ⚠️ `setStage` מחזיר את אותו אובייקט כשכלום לא השתנה —
+  // MainApp מתרנדר כל שנייה, וללא ההשוואה הזו כל טיק היה מפעיל רנדר נוסף.
+  const [stage, setStage] = useState({ menu: null, cat: null, idx: null, explain: false });
+  const onStage = useCallback((n) => setStage((p) =>
+    (p.menu === n.menu && p.cat === n.cat && p.idx === n.idx && p.explain === n.explain) ? p : n), []);
+  const [coachAt, setCoachAt] = useState(0);
   // Depth belongs to the tab you're in, so leaving a tab clears it — otherwise
   // walking into a dish and then tapping another tab leaves that tab's root
   // page without its exit button.
@@ -238,6 +255,19 @@ export default function MainApp({ session, onSignOut }) {
     if (tasksOff && (tab === "home" || tab === "daily")) setTab(trainee ? "learn" : "categories");
   }, [tasksOff, trainee, tab]);
   const [prog, setProg] = useState(null); // { items, label, progress, firstId }
+  // הצעד נסגר כשהמלצר באמת עשה את הדבר. ⚠️ קדימה בלבד — יציאה ממנה לא מחזירה צעד אחורה.
+  useEffect(() => {
+    if (!tourOpen) return;
+    const reached =
+      coachAt === 0 ? (stage.menu !== null || stage.cat !== null)
+      : coachAt === 1 ? stage.idx !== null
+      // מנה בלי אזהרות אינה מלכודת: יציאה ממנה סוגרת את הצעד בדיוק כמו פתיחת ההסבר.
+      : coachAt === 2 ? (stage.explain || stage.idx === null)
+      : coachAt === 3 ? tab === "learn"
+      : coachAt === 4 ? (!!prog || !!mode)
+      : false;
+    if (reached) setCoachAt((a) => a + 1);
+  }, [tourOpen, coachAt, stage, tab, prog, mode]);
   // The category whose quiz-gate clock is running right now: a flashcard mode whose whole
   // deck is one category. Mixed decks (the quick round over the full menu) credit no
   // single category — the gate asks for study of THE category being tested. A ref, not
@@ -847,27 +877,22 @@ export default function MainApp({ session, onSignOut }) {
   if (gatePractice)
     return <BriefGate brief={brief} cards={cards} session={session} practice onClose={() => setGatePractice(false)} />;
 
-  // ══ המדריך: מסך מלא, לא שכבה ══
-  // הסיור הקודם היה overlay מעל האפליקציה החיה — מדידת אלרגמנטים, החשכה, והמתנה להקשה
-  // במקום הנכון. משם הגיעו ה«דיליי» וה«קצב שלא מתאים» (יותם, 13.9). `Tutorial` הוא מסך
-  // עצמאי שמרנדר את המסעדה הזו מהנתונים שכבר נטענו — ולכן אין לו במה להיתקע.
-  if (tourOpen && cards?.length > 0)
-    return (
-      <Tutorial
-        session={session}
-        cards={cards}
-        onDone={() => {
-          setTourOpen(false);
-          // נוחתים על המסך הראשי ובראשו — לא במקום שבו המדריך נגמר.
-          setShowMetrics(false);
-          setTab(trainee ? "learn" : tasksOff ? "categories" : "home");
-          setMode(null); setProg(null);
-          setCatView(null); setGroupView(null);
-          setBrowseKey((k) => k + 1);
-          if (session?.teamMemberId) localStorage.setItem(`${TOUR_DONE_KEY}-${session.teamMemberId}`, "1");
-        }}
-      />
-    );
+  const coachOn = tourOpen && cards?.length > 0;
+  const closeCoach = () => {
+    setTourOpen(false);
+    setCoachAt(0);
+    if (session?.teamMemberId) localStorage.setItem(`${TOUR_DONE_KEY}-${session.teamMemberId}`, "1");
+  };
+  const coachNode = coachOn ? (
+    <CoachBar
+      text={coachAt >= COACH_TEXT.length ? "זהו — הכול אצלכם. בהצלחה!" : COACH_TEXT[coachAt]}
+      index={Math.min(coachAt, COACH_TEXT.length - 1)}
+      total={COACH_TEXT.length}
+      done={coachAt >= COACH_TEXT.length}
+      onSkip={closeCoach}
+      onDone={closeCoach}
+    />
+  ) : null;
 
   // Full-screen, above the tabs: it is a place you go to, not a tab you live in.
   if (showMetrics && !metricsOff)
@@ -1682,7 +1707,7 @@ export default function MainApp({ session, onSignOut }) {
             only, so checking a dish mid-shift never touches the waiter's score. */}
         {tab === "categories" && (
           <MenuBrowser key={browseKey} cards={cards} onPractice={(c) => startProgressive(c)} aurora={aurora} merged={mergedWarnings}
-            onDepth={setBrowseDeep} examableFor={examable}
+            onDepth={setBrowseDeep} onStage={onStage} coachSlot={coachNode} examableFor={examable}
             onExam={launchExam} examOpenFor={examOpenFor} walkCountFor={walkCountFor} noteWalk={noteWalk}
             bottomSlot={
               aurora ? (
@@ -1788,6 +1813,8 @@ export default function MainApp({ session, onSignOut }) {
               </div>
 
       {showAbout && <AboutScreen session={session} onClose={() => setShowAbout(false)} />}
+      {/* מחוץ למסך המנה הפס יושב כאן, כאח של הסרגל — אותו רכיב בדיוק. */}
+      {!browseDeep && coachNode}
       <BottomNav tab={tab} aurora={aurora} hideTasks={tasksOff}
         setTab={(t) => {
           if (t === tab) {
