@@ -58,7 +58,17 @@ export default function App() {
                 restaurantCuisineTypes: data.restaurant.cuisine_types,
                 restaurantServiceStyle: data.restaurant.service_style,
                 restaurantServiceNotes: data.restaurant.service_notes,
-                features: data.restaurant.features || {},
+                // ‏?theme= בתצוגת המנהל בלבד — סטודיו הצבעים שולח לכאן פלטה
+                // לניסיון, כדי שאפשר יהיה לגלגל צבעים ולראות אותם מיד על
+                // האפליקציה האמיתית בלי לכתוב ל-DB בכל גרירה. מלצר אמיתי לעולם
+                // לא עובר במסלול הזה — הוא נכנס ב-team_join, לא ב-team_preview.
+                features: (() => {
+                  const base = data.restaurant.features || {};
+                  const raw = new URLSearchParams(window.location.search).get("theme");
+                  if (!raw) return base;
+                  try { return { ...base, theme: JSON.parse(decodeURIComponent(escape(atob(raw)))) }; }
+                  catch { return base; }
+                })(),
               });
               setPhase("app");
             }
