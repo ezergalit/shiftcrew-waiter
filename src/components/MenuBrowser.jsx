@@ -194,7 +194,13 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
   // יודעים איזו מנה `idx` מצביע עליה (המיון לפי menuPosition קורה כאן). בלי זה
   // השורה מבטיחה אזהרה גם לפריט שאין בו אחת — יותם, 14.9.
   useEffect(() => {
-    onStage?.({ menu, cat, idx, warn: hasWarning(idx !== null ? dishes[idx] : null),
+    // ⚠️ `menuLabel` ולא `menu`: תיבת ההדרכות נושאת sentinel פנימי (`SERVICE = " service"`)
+    // ולא שם תצוגה, והוא הודפס מילולית בשורת ההסבר — «service — כל הקטגוריות שבפנים»
+    // מתחת לאריח שכתוב עליו «הדרכות שירות» (נתפס בסבב הבודקים, 14.9).
+    // ⚠️ `end` — `idx` מעבר לאורך הרשימה הוא מסך סוף-הקטגוריה, לא מנה פתוחה.
+    const atEnd = idx !== null && !!cat && idx >= dishes.length;
+    onStage?.({ menu: menu === SERVICE ? menuLabel : menu, cat, idx, end: atEnd,
+                warn: hasWarning(atEnd || idx === null ? null : dishes[idx]),
                 explain: groupOpen !== null || legendOpen !== null });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menu, cat, idx, groupOpen, legendOpen, onStage, dishes[idx]?.id]);

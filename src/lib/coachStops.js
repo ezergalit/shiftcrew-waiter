@@ -113,6 +113,9 @@ export const STOPS = {
 // שלושה מצבים, ו**אסור לאחד אותם**: `0` = השער פתוח · מספר = כמה תרגול נשאר ·
 // `null` = סף ה-50% עוד לא הושג, ואז אין מספר דקות להבטיח ואומרים מה כן נכון.
 export function cardsText(needMin) {
+  // `false` = אין בוחן על מה שמתרגלים עכשיו ⇒ אין שורה. אסור להחזיר כאן משפט:
+  // כל משפט כאן מדבר על בוחן, וזו בדיוק ההבטחה שאין לה כיסוי.
+  if (needMin === false) return null;
   if (needMin === 0) return "סיימתם מספיק תרגול — הבוחן פתוח לכם.";
   if (needMin == null) return "כל כרטיסייה מקרבת אתכם לבוחן של הקטגוריה.";
   return `נדרש לכם עוד ${needMin === 1 ? "דקה" : `${needMin} דקות`} של תרגול על מנת להיכנס לבוחן.`;
@@ -140,6 +143,10 @@ export function screenOf({ tab, stage, showAbout, catView, groupView, mode, rate
   if (tab === "categories") {
     // ⚠️ ריבוע ההסבר הוא overlay ב-z-90 שמכסה את הפס, ולכן אין לו עצירה משלו —
     // השורה של מסך המנה כבר אומרת להקיש על אזהרה.
+    // ⚠️ `idx` אינו רק אינדקס מנה: MenuBrowser מציב אותו **מעבר** לאורך הרשימה כדי
+    // לפתוח את מסך סוף-הקטגוריה, ואז אין מנה פתוחה בכלל. בלי הבדיקה הזאת אותו מסך
+    // קיבל את שורת המנה (נתפס בסבב הבודקים, 14.9).
+    if (stage?.end) return null;
     // אזהרה ⇒ שורה שמלמדת להקיש עליה; בלי אזהרה ⇒ שורה שלא מבטיחה מה שאין.
     if (stage?.idx !== null && stage?.idx !== undefined) return stage?.warn ? "menu-dish" : "menu-dish-plain";
     if (stage?.cat) return "menu-cat";

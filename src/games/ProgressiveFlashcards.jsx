@@ -90,7 +90,11 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
       </div>
       <p className="text-xl font-black">סיימת ללמוד {label}! 🎉</p>
       <p className="text-sm text-[#8a8aa0] leading-relaxed">הכרת את כל המנות — שני 5 ברצף על כל אחת. רוצה לגשת לבוחן?</p>
-      {onExam ? (
+      {/* 🔴 `examReady` ולא רק `onExam`: MainApp מעביר `onExam` לכל קטגוריה, והשער
+          האמיתי (examable + סף + שעון התרגול) יושב ב-`examReady`. בלעדיו המסך הזה
+          הציע בוחן על קטגוריה שאין לה בוחן, ועקף את שער הזמן — בדיוק הפרצה שנסגרה
+          ב-31.8. מסך ה«break» שלמטה כבר עשה את זה נכון. */}
+      {examReady && onExam ? (
         <button onClick={onExam} className="w-full py-3.5 min-h-[48px] rounded-2xl bg-[#22c08c] text-white text-sm font-black active:scale-[0.99] transition-transform">
           כן — לבוחן {label}
         </button>

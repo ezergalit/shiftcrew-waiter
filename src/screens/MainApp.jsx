@@ -215,7 +215,8 @@ export default function MainApp({ session, onSignOut }) {
   // MainApp מתרנדר כל שנייה, וללא ההשוואה הזו כל טיק היה מפעיל רנדר נוסף.
   const [stage, setStage] = useState({ menu: null, cat: null, idx: null, explain: false });
   const onStage = useCallback((n) => setStage((p) =>
-    (p.menu === n.menu && p.cat === n.cat && p.idx === n.idx && p.warn === n.warn && p.explain === n.explain) ? p : n), []);
+    (p.menu === n.menu && p.cat === n.cat && p.idx === n.idx && p.warn === n.warn
+      && p.end === n.end && p.explain === n.explain) ? p : n), []);
   // מה כבר הוסבר לחבר הזה, ומה מוצג עכשיו. «אחורה» לא מוחק שורה (יותם, 14.9):
   // שורה שהוצגה נשארת «ממתינה» ב-pendingRef עם מונה צעדי «קדימה», וננעלת כנראתה
   // רק ב«הבנתי» או אחרי FORWARD_DISMISS צעדים קדימה. חזרה אחורה ⇒ תופיע שוב.
@@ -900,7 +901,10 @@ export default function MainApp({ session, onSignOut }) {
     ? textFor("cards", { needMin: (() => {
         const key = studyCatRef.current;
         const cat = key ? (path.categories || []).find((x) => x.key === key) : null;
-        if (!cat || !examable(key)) return 0;
+        // 🔴 היה `return 0` — ו-0 פירושו «הבוחן פתוח לכם». כלומר סבב על קטגוריה
+        // שאין עליה בוחן בכלל (סיגרים, אירועים, learn_only), או סבב מעורבב בלי
+        // קטגוריה אחת, הבטיחו בוחן שלא קיים בשום מקום באפליקציה. `false` ⇒ אין שורה.
+        if (!cat || !examable(key)) return false;
         if (!cat.examUnlocked) return null;         // הסף עוד לא הושג — אין מספר להבטיח
         const g = quizGateFor(cat);
         return g.open ? 0 : g.needMin;
@@ -1172,7 +1176,12 @@ export default function MainApp({ session, onSignOut }) {
   // The whole-menu exam is the certificate, so it opens only after every category exam
   // has been passed (user, 2026-08-20). Until then the card stays on screen but states
   // exactly what is left — a locked button with no reason is just a dead end.
-  const catsWithExam = path.categories || [];
+  // 🔴 `.filter(examable)` — בלעדיו השער סופר קטגוריות שהאפליקציה עצמה לא מציעה
+  // עליהן בוחן (סיגרים, מסלולי האירוע, `learn_only_cats`), ולכן `passed` שלהן לעולם
+  // לא נדלק ו**מבחן התפריט המלא לא נפתח אף פעם** — היעד שהאונבורדינג והסיור מציגים
+  // כמטרה. בסלון זה חמש קטגוריות חוסמות. נתפס בסבב הבודקים, 14.9; ה-`?preview=` של
+  // המנהל הסתיר את זה כי הוא מסמן כל קטגוריה כ«עברה».
+  const catsWithExam = (path.categories || []).filter((c) => examable(c.key));
   const examsLeft = catsWithExam.filter((c) => !c.passed);
   const generalUnlocked = catsWithExam.length > 0 && examsLeft.length === 0;
   // ⚠️ Locked ⇒ renders NOTHING (user, 2026-08-20). A "you can't do this yet" banner at
