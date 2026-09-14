@@ -54,7 +54,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
     const justUnderstood = isUnderstood(nextFives) && !isUnderstood(prev.consecutiveFives);
     const nx = pickNext(items, progRef.current, it.id);
     setToast(
-      justUnderstood ? { cls: "bg-[#15302b] text-[#22c08c]", txt: `✓ הכרת את ${dishLabel(it)}! מנה חדשה נכנסת לסבב` }
+      justUnderstood ? { cls: "bg-[#15302b] text-[#22c08c]", txt: `✓ ${dishLabel(it)} מוכרת לכם! ממשיכים למנה הבאה` }
         : v <= 2 ? { cls: "bg-[#33290f] text-[#f3a712]", txt: "נחזור על המנה הזו שוב בקרוב" }
         : null
     );
@@ -89,7 +89,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
         <GraduationCap size={38} className="text-[#22c08c]" />
       </div>
       <p className="text-xl font-black">סיימת ללמוד {label}! 🎉</p>
-      <p className="text-sm text-[#8a8aa0] leading-relaxed">הכרת את כל המנות — שני 5 ברצף על כל אחת. רוצה לגשת לבוחן?</p>
+      <p className="text-sm text-[#8a8aa0] leading-relaxed">סימנתם ״ידעתי מצוין״ פעמיים על כל מנה כאן. רוצים לבדוק את עצמכם?</p>
       {/* 🔴 `examReady` ולא רק `onExam`: MainApp מעביר `onExam` לכל קטגוריה, והשער
           האמיתי (examable + סף + שעון התרגול) יושב ב-`examReady`. בלעדיו המסך הזה
           הציע בוחן על קטגוריה שאין לה בוחן, ועקף את שער הזמן — בדיוק הפרצה שנסגרה
@@ -230,7 +230,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
               </>}
               <div className="pt-1">
                 <p className="text-xs font-bold text-[#8a8aa0] mb-1.5">כמה טוב ידעת?</p>
-                <p className="text-[11px] text-[#5a5a6e] mb-1.5">הדירוג העצמי קובע מה חוזרים עליו — נקודות נצברות רק בבחנים ובמבחן</p>
+                <p className="text-[11px] text-[#5a5a6e] mb-1.5">מה שתסמנו כאן קובע על מה נחזור שוב</p>
                 <div className="grid grid-cols-5 gap-1.5" data-tour="flashcard-rate">
                   {[1, 2, 3, 4, 5].map(v => (
                     <button key={v} onClick={() => rate(v)} className={`py-3 min-h-[44px] rounded-lg font-black text-base ${RATING_STYLE[v]}`}>{v}</button>
@@ -249,7 +249,7 @@ export default function ProgressiveFlashcards({ items, label, firstId, initialPr
         <p className="flex items-center gap-1.5 text-[10.5px] text-[#8a8aa0]">
           <span className={`w-2 h-2 rounded-full inline-block ${fives >= 1 ? "bg-[#22c08c]" : "bg-[#22252b]"}`} />
           <span className={`w-2 h-2 rounded-full inline-block ${fives >= 2 ? "bg-[#22c08c]" : "bg-[#22252b]"}`} />
-          שני 5 ברצף = המנה מוכרת לך והיא פורשת מהסבב
+          כל ״ידעתי מצוין״ מדליק נקודה — שתי נקודות והמנה מוכרת לכם
         </p>
       </div>
       {/* ⚠️ שורת ההסבר בזרימה הרגילה, כאח אחרון של השורש — לא `fixed`. */}

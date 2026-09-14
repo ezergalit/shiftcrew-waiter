@@ -12,7 +12,7 @@ export default function ExitExam({ onDone }) {
   }, [armed]);
   return armed ? (
     <button onClick={onDone} className="text-[11px] font-black text-[#e0315a] min-h-[44px]">
-      ליציאה בלי לשמור ←
+      לצאת — בפעם הבאה מתחילים מהתחלה ←
     </button>
   ) : (
     <button onClick={() => setArmed(true)} className="text-xs text-[#8a8aa0] min-h-[44px]">← יציאה</button>

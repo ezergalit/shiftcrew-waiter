@@ -53,9 +53,9 @@ export default function WelcomeTutorial({ session, onDone }) {
       body: (
         <div className="space-y-2.5">
           {[
-            ["📖", "קוראים את התפריט", "כל מנה עם תמונה, תיאור, וצבעי האזהרה — מה שאסור לפספס לפני שמגישים."],
-            ["🎴", "מתרגלים בכרטיסיות", "נזכרים מה יש במנה, הופכים ובודקים. שני 5 ברצף — והמנה בכיס."],
-            ["🎓", "נבחנים", "בוחן קצר לכל קטגוריה — עונים בכתיבה, כמו לאורח אמיתי."],
+            ["📖", "קוראים את התפריט", "כל מנה עם תמונה, תיאור ומרכיבים. מנה עם אלרגיה מסומנת באדום — זה מה שאסור לפספס."],
+            ["🎴", "מתרגלים בכרטיסיות", "נזכרים מה יש במנה, הופכים את הכרטיס ובודקים. מנה שכבר יודעים חוזרת פחות."],
+            ["🎓", "נבחנים", "בוחן קצר על כל חלק בתפריט — עונים בכתיבה, כמו ללקוח אמיתי."],
           ].map(([e, t, d]) => (
             <div key={t} className="flex gap-3 items-start bg-[#16181c] border border-[#22252b] rounded-2xl p-3.5">
               <span className="text-xl leading-none pt-0.5">{e}</span>
@@ -75,16 +75,16 @@ export default function WelcomeTutorial({ session, onDone }) {
         <div className="space-y-3">
           <p className="text-[15px] text-[#d5d8e0] leading-relaxed">
             התרגול כאן הוא לא המטרה — הוא האימון. המטרה היא לדעת את התפריט
-            באמת: מרכיבים, אלרגיות, ומה עונים לאורח ששואל.
+            באמת: מרכיבים, אלרגיות, ומה עונים ללקוח ששואל.
           </p>
           <div className="rounded-2xl p-3.5 space-y-1.5 border border-[rgba(34,192,140,0.25)]"
             style={{ background: "linear-gradient(150deg,rgba(34,192,140,0.10),rgba(15,92,70,0.14))" }}>
-            <p className="text-[13px] text-[#eef0f6] font-bold">🎓 כל קטגוריה מסתיימת בבוחן קצר</p>
+            <p className="text-[13px] text-[#eef0f6] font-bold">🎓 על רוב חלקי התפריט יש בוחן קצר</p>
             <p className="text-[13px] text-[#eef0f6] font-bold">🏆 ובסוף — מבחן התפריט המלא, על הכול</p>
             <p className="text-[11px] text-[#8a8aa0]">המנהל/ת רואה את הציונים. את המבחן עצמו עושים במסעדה.</p>
           </div>
           <p className="text-sm text-[#d5d8e0] text-center pt-1 font-bold">
-            {trainee || tasksOff ? "עכשיו נעשה סיבוב קצר באפליקציה — מתחילים מהתפריט!" : "עכשיו נעשה סיבוב קצר באפליקציה — בהצלחה!"}
+            {trainee || tasksOff ? "מתחילים מהתפריט. בכל מסך תופיע שורה קצרה שמסבירה מה אפשר לעשות בו." : "בכל מסך תופיע שורה קצרה שמסבירה מה אפשר לעשות בו. בהצלחה!"}
           </p>
         </div>
       ),

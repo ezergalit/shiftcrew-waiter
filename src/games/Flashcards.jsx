@@ -20,21 +20,21 @@ export default function Flashcards({ items, session, quick, onRate, onDone, slim
   if (i >= items.length) return (
     <div className="h-screen flex flex-col items-center justify-center px-8 text-center gap-3 bg-[#0c0d10] text-[#eef0f6]" dir="rtl">
       <Trophy size={40} className="text-[#f3c14b]" />
-      <p className="font-black text-lg">סיימת את הסבב!</p>
+      <p className="font-black text-lg">עברתם על כל הכרטיסיות!</p>
       {/* The session is a slice, so say what is left — otherwise "done" reads as "done
           with the whole category", which it usually is not. */}
       {session?.retiredCount > 0 && (
         <p className="text-xs text-[#22c08c] font-bold">
-          {countLabel([...Array(session.retiredCount)], "מנה שכבר בשליטה מלאה", "מנות שכבר בשליטה מלאה")} — דילגנו עליהן
+          {countLabel([...Array(session.retiredCount)], "מנה שאתם כבר מכירים", "מנות שאתם כבר מכירים")} — דילגנו עליהן
         </p>
       )}
       {session?.poolCount > items.length && (
         <p className="text-xs text-[#8a8aa0]">
-          נשארו עוד {nLabel(session.poolCount - new Set(items.map((x) => x.id)).size, "מנה", "מנות")} בקטגוריה — סבב נוסף?
+          יש עוד {nLabel(session.poolCount - new Set(items.map((x) => x.id)).size, "מנה", "מנות")} ללמוד בפעם הבאה
         </p>
       )}
       {session?.allRetired && (
-        <p className="text-xs text-[#8a8aa0]">שולטים בכל הקטגוריה — זה היה רענון</p>
+        <p className="text-xs text-[#8a8aa0]">אתם מכירים כאן את כל המנות — זו הייתה חזרה</p>
       )}
       <button onClick={onDone} className="px-4 py-3 rounded-lg bg-[#6d5efc] text-white font-bold text-sm mt-1 min-h-[44px]">חזור</button>
     </div>
@@ -140,7 +140,7 @@ export default function Flashcards({ items, session, quick, onRate, onDone, slim
                 <p className="text-xs font-bold text-[#8a8aa0] mb-1.5">כמה טוב ידעת?</p>
                 {/* Says plainly that this is practice, not scoring — otherwise a waiter
                     rates 5s expecting points and quietly gets none. */}
-                <p className="text-[11px] text-[#5a5a6e] mb-1.5">הדירוג העצמי קובע מה חוזרים עליו — נקודות נצברות רק בבחנים ובמבחן</p>
+                <p className="text-[11px] text-[#5a5a6e] mb-1.5">מה שתסמנו כאן קובע על מה נחזור שוב</p>
                 <div className="grid grid-cols-5 gap-1.5">
                   {[1, 2, 3, 4, 5].map(v => (
                     <button key={v} onClick={() => rate(v)} className={`py-3 min-h-[44px] rounded-lg font-black text-base ${RATING_STYLE[v]}`}>{v}</button>

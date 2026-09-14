@@ -95,7 +95,7 @@ export default function CategoryExam({ items, categoryLabel, onAnswer, onDone, o
   if (deck.length < 2)
     return (
       <div className="h-screen flex items-center justify-center bg-[#0c0d10] text-[#eef0f6] px-8 text-center" dir="rtl">
-        <p className="text-sm">צריך לפחות 2 מנות עם מרכיבים בקטגוריה הזו כדי להיבחן</p>
+        <p className="text-sm">חסרים פרטים על המנות כאן, ולכן עוד אין עליהן בוחן. אפשר לעבור עליהן בתפריט</p>
       </div>
     );
 

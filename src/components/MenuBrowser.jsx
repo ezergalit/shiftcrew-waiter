@@ -347,7 +347,7 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
                   <>
                     {quizReady && (
                       <Choice n="★" primary onClick={() => { const c = cat; setIdx(null); setCat(null); onExam(c); }}>
-                        עברת פעמיים — מוכנים? לבוחן {shortCat(cat)}
+                        סיימתם פעמיים — מוכנים לבוחן {shortCat(cat)}
                       </Choice>
                     )}
 

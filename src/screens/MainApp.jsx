@@ -64,6 +64,8 @@ const MODE_LABELS = {
   quick: "5 דקות לפני משמרת",
   exam: "בוחן קטגוריה",
   progressive: "תרגול לפי התפריט",
+  groupcards: "כרטיסיות",
+  general_exam: "מבחן התפריט",
 };
 const DAILY_BONUS = 50;
 
@@ -1212,7 +1214,7 @@ export default function MainApp({ session, onSignOut }) {
     const recGate = rec.examUnlocked ? quizGateFor(rec) : { open: true };
     // A category with no exam gets a plain practice line — never an exam promise.
     if (!examable(rec.key)) {
-      return heroCard(rec, left > 0 ? `נשארו ${left} ${left === 1 ? "מנה" : "מנות"} לשליטה` : "כל המנות בשליטה — חזרה קצרה תמיד עוזרת");
+      return heroCard(rec, left > 0 ? `נשארו ${left} ${left === 1 ? "מנה" : "מנות"} להכיר` : "אתם מכירים כאן את כל המנות — חזרה קצרה תמיד עוזרת");
     }
     const line = rec.examUnlocked
       // The hero must not promise a quiz the gate below will refuse — when the
@@ -1220,8 +1222,8 @@ export default function MainApp({ session, onSignOut }) {
       ? (recGate.open
           ? "יש לך מספיק ידע — אפשר לגשת לבוחן"
           : recGate.reason === "cooldown"
-            ? `הבוחן לא עבר — יש לתרגל מנות עוד ${nLabel(recGate.needMin, "דקה", "דקות")} כדי לגשת שוב`
-            : `יש לתרגל מנות עוד ${nLabel(recGate.needMin, "דקה", "דקות")} כדי לפתוח את הבוחן`)
+            ? `לא עברתם — עוד ${nLabel(recGate.needMin, "דקה", "דקות")} של תרגול ואפשר לגשת שוב`
+            : `עוד ${nLabel(recGate.needMin, "דקה", "דקות")} של תרגול והבוחן ייפתח`)
       : left > 0
         ? `נשארו ${left} ${left === 1 ? "מנה" : "מנות"} ואפשר לגשת לבוחן`
         : "עוד קצת תרגול ואפשר לגשת לבוחן";
@@ -1255,7 +1257,7 @@ export default function MainApp({ session, onSignOut }) {
       <span className="text-lg flex-shrink-0" aria-hidden>🥤</span>
       <span className="flex-1 min-w-0">
         <span className="block text-sm font-black text-[#eef0f6]">שתייה קלה — בוחן קצר</span>
-        <span className="block text-[11px] text-[#8a8aa0] font-bold">מה יש אצלנו להציע? בלי תרגול — רק לדעת מה מגישים</span>
+        <span className="block text-[11px] text-[#8a8aa0] font-bold">כמה שאלות על מה שמגישים אצלנו</span>
       </span>
     </button>
   ) : null;
@@ -1380,7 +1382,7 @@ export default function MainApp({ session, onSignOut }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-black text-[#eef0f6]">להמשיך מאיפה שהפסקתם?</p>
                   <p className="text-[11px] font-bold text-[#8a8aa0]">
-                    {MODE_LABELS[resumeOffer.mode] || "סבב לימוד"}
+                    {MODE_LABELS[resumeOffer.mode] || "תרגול"}
                     {resumeOffer.categoryKey ? ` · ${shortCat(resumeOffer.categoryKey)}` : ""}
                   </p>
                 </div>
@@ -1475,7 +1477,7 @@ export default function MainApp({ session, onSignOut }) {
                 </button>
                 <div className="min-w-0">
                   <p className="text-sm font-black text-[#eef0f6]">לתרגול {shortCat(catView)}:</p>
-                  <p className="text-[11px] text-[#8a8aa0]">הקשה על מנה = לימוד ממוקד, או להתחיל תרגול מלא</p>
+                  <p className="text-[11px] text-[#8a8aa0]">הקשה על מנה מתחילה את התרגול ממנה</p>
                 </div>
               </div>
               {wineScopes.length > 0 && (
@@ -1522,8 +1524,8 @@ export default function MainApp({ session, onSignOut }) {
                     className="w-full py-3 min-h-[48px] rounded-xl font-bold text-[12.5px] leading-snug bg-[#15302b]/60 border border-[#22c08c]/30 text-[#9adbc4] active:scale-[0.99] transition-transform px-3"
                   >
                     {gate.reason === "cooldown"
-                      ? `הבוחן לא עבר הפעם — יש לתרגל מנות עוד ${nLabel(gate.needMin, "דקה", "דקות")} כדי לגשת שוב`
-                      : `יש לתרגל מנות עוד ${nLabel(gate.needMin, "דקה", "דקות")} כדי לפתוח את הבוחן`}
+                      ? `לא עברתם הפעם — עוד ${nLabel(gate.needMin, "דקה", "דקות")} של תרגול ואפשר לגשת שוב`
+                      : `עוד ${nLabel(gate.needMin, "דקה", "דקות")} של תרגול והבוחן ייפתח`}
                   </button>
                 );
                 return (
@@ -1677,7 +1679,7 @@ export default function MainApp({ session, onSignOut }) {
                       </h3>
                       <p>
                         {nLabel(cat.items.length, "מנה", "מנות")}
-                        {(() => { const m = cat.items.filter((it) => (fivesById?.[it.id] || 0) >= 2).length; return m > 0 ? ` · ${m} בשליטה` : ""; })()}
+                        {(() => { const m = cat.items.filter((it) => (fivesById?.[it.id] || 0) >= 2).length; return m > 0 ? ` · ${m} שאתם כבר מכירים` : ""; })()}
                       </p>
                       {hasExam && (() => {
                         // ⚠️ The chip must agree with the exam row below it: "הבוחן זמין"
@@ -1688,7 +1690,7 @@ export default function MainApp({ session, onSignOut }) {
                           <span className={`chip mt-2 ${gateOpen ? "" : "opacity-60"}`}
                                 style={gateOpen ? { background: "rgba(34,192,140,.12)", borderColor: "rgba(34,192,140,.35)", color: "#22C08C" } : undefined}>
                             {cat.passed ? "עברת את הבוחן ✓"
-                              : !examReady ? `בוחן ב-${examConfig?.pass_threshold ?? 50}%`
+                              : !examReady ? "עוד תרגול והבוחן ייפתח"
                               : gateOpen ? "הבוחן זמין"
                               : `לבוחן: עוד ${nLabel(quizGateFor(cat).needMin, "דקה", "דקות")} תרגול`}
                           </span>
@@ -1719,8 +1721,8 @@ export default function MainApp({ session, onSignOut }) {
                         <div className="mt-2 rounded-xl bg-[#15302b]/60 border border-[#22c08c]/30 p-2.5 space-y-2">
                           <p className="text-[11px] font-bold text-[#9adbc4] leading-snug">
                             {gate.reason === "cooldown"
-                              ? `הבוחן לא עבר הפעם — יש לתרגל מנות עוד ${nLabel(gate.needMin, "דקה", "דקות")} כדי לגשת שוב`
-                              : `יש לתרגל מנות עוד ${nLabel(gate.needMin, "דקה", "דקות")} כדי לפתוח את הבוחן`}
+                              ? `לא עברתם הפעם — עוד ${nLabel(gate.needMin, "דקה", "דקות")} של תרגול ואפשר לגשת שוב`
+                              : `עוד ${nLabel(gate.needMin, "דקה", "דקות")} של תרגול והבוחן ייפתח`}
                           </p>
                           <button
                             onClick={() => startProgressive(cat.key)}

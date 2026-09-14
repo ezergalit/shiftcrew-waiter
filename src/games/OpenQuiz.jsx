@@ -70,9 +70,9 @@ function GradeDetail({ g, unit = "המלצות", nameToks = [] }) {
     d.status === "ok" ? `✓ נספר${d.credited?.length ? " — " + d.credited.join(", ") : ""}${d.leftover ? " · ⚠️ יש בו גם מילה שלא במקומה" : ""}`
     : d.contradicts ? "✗ סותר את התשובה (ההפך מהאמת)"
     : d.status === "free" && isName(d) ? "◌ זה שם המנה — השאלה על מה שיש בתוכה"
-    : d.status === "free" ? "◌ תיאור/הסבר — לא נספר ולא הוריד"
-    : d.status === "wrong" ? "✗ לא עונה לבקשה — מוריד את הציון"
-    : "❓ לא מזוהה — נשלח לשופט";
+    : d.status === "free" ? "◌ לא נספר — והציון לא נפגע"
+    : d.status === "wrong" ? "✗ לא מתאים למה שביקשו — מוריד את הציון"
+    : "❓ לא מצאנו את זה בתפריט — לא נספר לזכותכם";
   const cls = (d) => d.status === "ok" ? "text-[#22c08c]" : d.status === "free" ? "text-[#8a8aa0]"
     : d.status === "unknown" ? "text-[#9b7bff]" : "text-[#f3a712]";
   return (
@@ -85,7 +85,7 @@ function GradeDetail({ g, unit = "המלצות", nameToks = [] }) {
         </p>
       ))}
       {g.missing > 0 && (
-        <p className="text-[11.5px] font-black text-[#f3c14b]">חסרו עוד {g.missing} {unit}</p>
+        <p className="text-[11.5px] font-black text-[#f3c14b]">חסרו עוד {g.missing} {unit} כדי לקבל את מלוא הניקוד</p>
       )}
     </div>
   );
@@ -371,8 +371,8 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       <div className="p-6 text-center space-y-3">
         <p className="text-sm font-black text-[#eef0f6]">אין מספיק מנות לבוחן כאן</p>
         <p className="text-[12px] text-[#8a8aa0] leading-relaxed">
-          בוחן בכתיבה נבנה רק ממנות שיש בהן מספיק מרכיבים לשאול עליהם.
-          <br />נסו קטגוריה אחרת, או חזרו אחרי שנשלים את פרטי המנות.
+          חסרים פרטים על המנות כאן, ולכן עוד אין עליהן בוחן.
+          <br />אפשר לעבור עליהן בתפריט, או לתרגל חלק אחר.
         </p>
         <button onClick={onDone} className="px-5 py-3 rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm">חזרה</button>
       </div>
@@ -600,8 +600,8 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4 space-y-2.5 text-[13px] text-[#c4c4d4] leading-relaxed">
         <p>📍 נדרש לבצע את המבחן <b className="text-[#eef0f6]">במסעדה</b>, ולהודיע למנהל שאתה מתחיל אותו.</p>
         <p>📨 כל פעולה שתבצע במבחן נשלחת למנהל.</p>
-        <p>⏱️ יש לך <b className="text-[#eef0f6]">{fmt(total)} דקות</b> ל-{deck.length} שאלות — בערך <b className="text-[#eef0f6]">{fmt(perQ)} לשאלה</b>. אם תיקח יותר על שאלה אחת, יישאר פחות לאחרות (או יותר, תלוי בעומק התשובה).</p>
-        <p>📖 בין השאלות יש <b className="text-[#eef0f6]">{REVIEW_S} שניות</b> לקרוא את המשוב — הזמן הזה לא נספר.</p>
+        <p>⏱️ יש לך <b className="text-[#eef0f6]">{fmt(total)} דקות</b> ל-{deck.length} שאלות — בערך <b className="text-[#eef0f6]">{fmt(perQ)} לשאלה</b>. שאלה שלוקחת יותר זמן משאירה פחות לשאר.</p>
+        <p>📖 אחרי כל שאלה יש <b className="text-[#eef0f6]">{REVIEW_S} שניות</b> לקרוא מה יצא — הזמן הזה לא נלקח מהמבחן.</p>
         <p>🚩 מצאת טעות באפליקציה? יש כפתור דיווח עם הסבר. הדיווח לא לוקח מזמן המבחן, והשאלה לא נספרת.</p>
         <p>📵 <b className="text-[#eef0f6]">אסור לצאת מהאפליקציה באמצע.</b> יציאה שלישית מדווחת למנהל.</p>
         <p>🪑 במבחן {deck.length} שאלות — תצטרך להיות פנוי כ-<b className="text-[#eef0f6]">{Math.ceil((total + deck.length * REVIEW_S) / 60)} דקות</b> ברצף.</p>
@@ -661,7 +661,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
 
       <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
         <p className="text-[11px] font-black text-[#22c08c]">
-          {cur.set || cur.rec ? "המלצה ללקוח" : cur.simple ? "מה חשוב לדעת על המנה" : cur.it?.drink ? "כתיבה מהזיכרון" : "תמליץ ותאר"}
+          {cur.set || cur.rec ? "המלצה ללקוח" : cur.simple ? "מה חשוב לדעת על המנה" : cur.it?.drink ? "כתיבה מהזיכרון" : "המלצה ותיאור"}
           {exam && cur.cat ? ` · ${shortCat(cur.cat)}` : exam && cur.it?.category ? ` · ${shortCat(cur.it.category)}` : ""}
         </p>
         <p className="text-[17px] font-black text-[#eef0f6] mt-1 leading-snug">{cur.set ? cur.set.ask : cur.rec ? cur.rec.ask : cur.dish}</p>
@@ -805,7 +805,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
                 {result.set.r.lvl === 2 ? <Check size={15} className="text-[#22c08c]" /> : <XIcon size={15} className="text-[#f3a712]" />}
                 <p className="text-[12px] font-black text-[#eef0f6]">
                   {result.set.r.lvl === 2 ? "נכון — בדיוק" : result.set.r.lvl === 1 ? "חלקי" : "לא נכון"}
-                  {result.set.r.missed ? ` · פספסת ${result.set.r.missed}` : ""}{result.set.r.wrong ? ` · ${result.set.r.wrong} לא במקומן` : ""}
+                  {result.set.r.missed ? ` · פספסת ${result.set.r.missed}` : ""}{result.set.r.wrong ? ` · ${result.set.r.wrong} לא נחשבו` : ""}
                 </p>
               </div>
               <div className="space-y-1">
@@ -819,7 +819,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
                       <span className="text-[#eef0f6]">«{typed}»</span>{" "}
                       {ok ? <span className="text-[#22c08c]">✓ {r}{result.set.q.why?.[r] ? ` — ${result.set.q.why[r]}` : ""}</span>
                         : r ? <span className="text-[#e0315a]">✗ {r} — {result.set.q.why?.[r] || "לא עונה לבקשה"}</span>
-                        : <span className="text-[#f3a712]">❓ לא זוהתה מנה כזו בקטגוריה</span>}
+                        : <span className="text-[#f3a712]">❓ לא זיהינו לאיזו מנה התכוונתם — כתבו את השם כמו בתפריט</span>}
                     </p>
                   );
                 })}
@@ -835,7 +835,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               <div className="flex items-center gap-2">
                 {p.g.lvl === 2 ? <Check size={15} className="text-[#22c08c]" /> : <XIcon size={15} className={p.leaf?.safety ? "text-[#e0315a]" : "text-[#f3a712]"} />}
                 <p className="text-[12px] font-black text-[#eef0f6]">
-                  {p.sq ? p.sq.ask : p.key === "desc" ? "התיאור" : p.key === "rec" ? "ההמלצה" : p.key === "flav" ? "תיאור הטעם" : p.key === "ings" ? ingLabel(cur.it) : "אלרגיות"} — {p.leaf?.safety ? "חסרה אזהרת בטיחות" : p.g.lvl === 2 ? "נכון" : p.g.lvl === 1 ? "חלקי" : "לא נכון"}
+                  {p.sq ? p.sq.ask : p.key === "desc" ? "התיאור" : p.key === "rec" ? "ההמלצה" : p.key === "flav" ? "תיאור הטעם" : p.key === "ings" ? ingLabel(cur.it) : "אלרגיות"} — {p.leaf?.safety ? "חסר משהו שחובה להגיד ללקוח" : p.g.lvl === 2 ? "נכון" : p.g.lvl === 1 ? "חלקי" : "לא נכון"}
                 </p>
               </div>
               {p.sq && (
@@ -864,7 +864,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
                 <div className="space-y-1">
                   {p.leaf.rows.filter((r) => r.status === "wrong").map((r) => (
                     <p key={r.id} className="text-[11.5px] font-bold leading-snug text-[#e0315a]">
-                      ✗ {r.crit ? "שללת אזהרה שקיימת במנה" : `מה שכתבת על «${r.canonical[0]}» סותר את הכרטיס`}
+                      ✗ {r.crit ? "כתבתם שאין את זה במנה — ויש, וחובה להגיד" : `מה שכתבתם על «${r.canonical[0]}» לא נכון למנה הזו`}
                     </p>
                   ))}
                   {p.leaf.foreign.map((f, k) => (
@@ -880,8 +880,8 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
                   {p.leaf.rows.filter((r) => r.status !== "ok").map((r) => (
                     <p key={r.id} className="text-[11.5px] font-bold leading-snug">
                       <span className="text-[#eef0f6]">«{r.canonical[0]}»</span>{rowTag(r) && <span className="text-[#8a8aa0]"> ({rowTag(r)})</span>}{" "}
-                      {r.status === "ok" ? <span className="text-[#22c08c]">✓ הוזכר{r.byJudge ? " (השופט זיהה את הניסוח)" : ""}</span>
-                        : r.status === "wrong" ? <span className="text-[#e0315a]">✗ {r.crit ? "אזהרה שנשללה" : "סותר את הכרטיס"}</span>
+                      {r.status === "ok" ? <span className="text-[#22c08c]">✓ הוזכר{r.byJudge ? " (בניסוח אחר)" : ""}</span>
+                        : r.status === "wrong" ? <span className="text-[#e0315a]">✗ {r.crit ? "כתבתם שאין — וזה כן במנה" : "לא נכון למנה הזו"}</span>
                         : r.crit ? <span className="text-[#e0315a]">⚠️ חובה לציין — לא נאמר</span>
                         : r.kind === "warn" ? <span className="text-[#f3a712]">◌ כדאי להזהיר — לא נאמר</span>
                         : <span className="text-[#8a8aa0]">◌ לא הוזכר</span>}
@@ -951,7 +951,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
             disabled={!!stage2?.judging}
             className="w-full py-3 min-h-[44px] rounded-2xl bg-[#22c08c] text-[#06231a] font-black text-sm"
           >
-            {i + 1 >= deck.length ? "לסיכום" : exam ? `המנה הבאה (${reviewLeft})` : "המנה הבאה"}
+            {i + 1 >= deck.length ? "לסיכום" : exam ? `לשאלה הבאה (${reviewLeft})` : "לשאלה הבאה"}
           </button>
         </div>
       )}

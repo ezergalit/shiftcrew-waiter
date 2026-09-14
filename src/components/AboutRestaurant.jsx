@@ -134,7 +134,7 @@ export function AboutScreen({ session, onClose, coachSlot = null }) {
         ))}
 
         {!session?.restaurantDescription && !hasGuide && (
-          <p className="text-sm text-[#8a8aa0] text-center py-8">אין עדיין פרטים — המנהל/ת יכול/ה להוסיף אותם באפליקציית הניהול.</p>
+          <p className="text-sm text-[#8a8aa0] text-center py-8">כל המנות של המסעדה נמצאות בתפריט.</p>
         )}
       </div>
       {/* ⚠️ המסך הזה הוא `fixed inset-0 z-[55]`, ולכן פס ההנחיה שיושב מעל הסרגל נשאר

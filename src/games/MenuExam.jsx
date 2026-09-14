@@ -75,7 +75,7 @@ export default function MenuExam({ items, deckSize = 40, passMark = 70, category
         <div className="space-y-3">
           <p className="text-sm font-black">אין עדיין מספיק מידע בתפריט למבחן מלא</p>
           <p className="text-[12px] text-[#8a8aa0] leading-relaxed">
-            השאלות נבנות מהמרכיבים, האלרגיות והדגלים של המנות. ככל שהתפריט מפורט יותר —
+            השאלות נבנות מהמרכיבים, מהאלרגיות ומהאזהרות של המנות. ככל שהתפריט מפורט יותר —
             המבחן שלם יותר.
           </p>
           <button onClick={onDone} className="px-5 py-3 min-h-[44px] rounded-2xl bg-[#6d5efc] text-white font-black text-sm">חזרה</button>
@@ -98,7 +98,7 @@ export default function MenuExam({ items, deckSize = 40, passMark = 70, category
         <p className="text-sm text-[#c4c4d4] max-w-xs leading-relaxed">
           {passed
             ? "עברת! אפשר לסמוך עליך בהמלצה — גם כשלאורח יש הגבלה."
-            : `צריך ${passMark}% כדי לעבור. עוד סבב על התפריט ואפשר לגשת שוב — אין הגבלה על מספר הניסיונות.`}
+            : `צריך ${passMark}% כדי לעבור. עוברים שוב על התפריט וניגשים שוב — בכל פעם שרוצים.`}
         </p>
         <button onClick={onDone} className="px-5 py-3 min-h-[44px] rounded-2xl bg-[#6d5efc] text-white font-black text-sm">סיום</button>
       </div>
