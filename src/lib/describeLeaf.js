@@ -74,7 +74,16 @@ const CRIT_ALT = {
 // סתירה (הבוט הדברן, 6.9: «החציל נצלה על פחמים, לא מוקפץ» ⇒ היה מלא). נספר רק כשלמנה יש
 // אופן הכנה מוצהר ואחר, והמילה הסותרת אינה מוכחשת («לא מטוגן» אינה טענה שהמנה מטוגנת).
 const EXCLUSIVE_PREP = ["מטוגן", "אפוי", "גריל", "מאודה", "מבושל", "מוקפץ", "צרוב", "טמפורה", "נא"];
-const PREP_FORMS = Object.fromEntries([...PREP.map(([k, forms, alts]) => [k, [k, ...forms, ...alts]]), ...FORM.map(([k, forms, , alts]) => [k, [k, ...forms, ...alts]]), ["נא", ["נא", "נאה", "נאים", "לא מבושל", "חי", "חיים", "raw"]]]);
+// ⚠️ **בלי ה-alts.** נרדפת-לתשובה-בלבד מזכה מלצר שניסח אחרת — היא לעולם לא ראיה, וודאי
+// שלא ראיה להאשמה. כשהיא נספרה כאן, הכרטיסים האלה סתרו את עצמם: «טאטאקי היא שיטת **בישול**»
+// ⇒ מבושל · «ירקות **ווק**» בתוספות ⇒ מוקפץ · «אורז **קריספי**» ⇒ טמפורה. אותו כלל שבו
+// נבנית שורה (`exactRuns` על המפתח ונטיותיו) חל גם על סתירה.
+const PREP_FORMS = Object.fromEntries([...PREP.map(([k, forms]) => [k, [k, ...forms]]), ...FORM.map(([k, forms]) => [k, [k, ...forms]]), ["נא", ["נא", "נאה", "נאים", "לא מבושל", "חי", "חיים", "raw"]]]);
+// 🔴 `exactRuns` ולא `allRuns` — אותה קפדנות שבה נבנית שורה. ההתאמה העמומה הדביקה
+// «מוגשים»⇄«מטוגנים», «צלויים»⇄«אפויים», «פרוסות»⇄«צרובות», «מעושנים»⇄«מבושלים»,
+// ולכן 37 מנות בשני התפריטים החיים «סתרו» את הכרטיס של עצמן: כל סתירה נספרת כטענה
+// זרה, יורדת מהכיסוי **וחוסמת את הציון על «חלקי»** — מלצר שתיאר מנה צלויה כצלויה
+// קיבל 0. סתירה היא האשמה, ולכן היא דורשת את המילה עצמה או נטייה שלה.
 export function prepContradictions(rows, text) {
   const at = enToHe(toks(String(text || "")));
   const neg = negIndex(at);
@@ -88,7 +97,7 @@ export function prepContradictions(rows, text) {
     if (isStated(k)) continue;
     for (const f of PREP_FORMS[k] || [k]) {
       const pt = toks(f); if (!pt.length) continue;
-      const hit = allRuns(pt, at).find((i) => !pt.some((_, j) => neg[i + j]));
+      const hit = exactRuns(pt, at).find((i) => !pt.some((_, j) => neg[i + j]));
       if (hit != null) { out.push(k); break; }
     }
   }

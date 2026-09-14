@@ -207,7 +207,13 @@ export default function MenuBrowser({ cards, onPractice, topSlot = null, bottomS
 
   // Categories of the open menu, in menu order — this is what makes "the next category"
   // a real thing and lets the reader walk the whole menu without returning to a list.
-  const catList = [...new Set((cards || []).filter(inMenu)
+  // ⚠️ תיבת ההדרכות היא יעד ולא `menu_group`, ולכן `inMenu` מחזיר בה **true לכל
+  // המסעדה** — וזה נכון למנות (הן מסוננות לפי `category`), אבל הפך את רשימת
+  // הקטגוריות לרשימה של כל התפריטים: «סיימתי» בהדרכת שירות הציע «להמשיך ל-Greek
+  // Oven Breads», והמלצר נחת בקטגוריית אוכל כש-`menu` עדיין SERVICE — פירור לחם
+  // «הדרכות שירות» מעל לחמים, וחזרה שנוחתת בתיבת ההדרכות. השרשור בין תיבות
+  // (`nextBoxCat`) הוא המסלול היחיד שעובר תפריט, והוא מעדכן גם את `menu`.
+  const catList = [...new Set((cards || []).filter((c) => (menu === SERVICE ? serviceCats.includes(c.category) : inMenu(c)))
     .slice()
     .sort((a, b) => (a.menuPosition ?? 0) - (b.menuPosition ?? 0))
     .map((c) => c.category).filter(Boolean))];

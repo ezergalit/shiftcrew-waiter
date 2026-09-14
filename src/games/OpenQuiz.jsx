@@ -659,7 +659,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
         <p className="text-[17px] font-black text-[#eef0f6] mt-1 leading-snug">{cur.set ? cur.set.ask : cur.rec ? cur.rec.ask : cur.dish}</p>
         {!cur.rec && !cur.set && !cur.simple && (
           <p className="text-[12px] text-[#8a8aa0] mt-1">
-            {openDesc ? `תאר ללקוח את המנה ״${cur.dish}״ — מה היא, איך מכינים ואיך מגישים. אחר כך: המרכיבים${beyond} והאלרגיות, בנפרד.`
+            {openDesc ? `תאר ללקוח את המנה ״${cur.dish}״ — מה היא, מה יש בה ואיך מכינים. אחר כך תסמנו את המרכיבים${beyond} והאלרגיות בנפרד.`
               : cur.describe && cur.flavor ? "מה יש בקוקטייל, ואיך הוא בטעם?"
               : cur.describe && qs.dressing ? `איך מטובלת המנה ״${cur.dish}״? ציין את כל מה שמתבלים ומגישים איתה${askAll ? ", ואילו אלרגיות יש בה" : ""}.`
               // צ'יפים בלבד — בלי טקסט פתוח — לא «תאר את המנה» (יותם, 6.9: «אם יש טקסט פתוח שיהיה כתוב
@@ -704,7 +704,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
           ))}
           {openDesc && (
             <div className="space-y-1.5">
-              <p className="text-[11px] font-black text-[#8a8aa0]">תאר את המנה ללקוח — מה היא ואיך מכינים (בלי לפרט מרכיבים כאן)</p>
+              <p className="text-[11px] font-black text-[#8a8aa0]">תאר את המנה ללקוח — מה היא, מה יש בה ואיך מכינים</p>
               <textarea
                 value={descText}
                 onChange={(e) => setDescText(e.target.value.slice(0, 1200))}

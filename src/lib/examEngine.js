@@ -336,6 +336,10 @@ const freeWord = (w, q) => [...(q.free || []), ...BASE_FREE].some((f) => wMatch(
 // בסטודיו תשאיר את זה קשה». 5 מרכיבים ⇒ relaxed 3 · normal 4 · strict 4.
 export const ING_RATIO = { relaxed: 0.6, normal: 0.7, strict: 0.8 };
 
+// סוגי המשקאות שמהם נבנה שם קטגוריה. קטגוריה שנושאת שניים ומעלה היא **ממוזגת**
+// (איחוד הקטגוריות הקטנות של הבר, יותם 31.8), ואז שם הסוג אינו נכון לכל פריט בה.
+const DRINK_KINDS_RE = [/וודקה/, /וויסקי|ויסקי/, /טקילה/, /ג['׳]ין/, /ערק/, /אוזו/, /קוניאק|ברנדי/, /ליקר/, /רום/, /אפריטיף|ורמוט/, /ביר(ה|ות)/, /סאקה/];
+
 export function generate(menu, { level = "normal" } = {}) {
   const ingRatio = ING_RATIO[level] ?? ING_RATIO.normal;
   const out = [];
@@ -698,6 +702,12 @@ export function generate(menu, { level = "normal" } = {}) {
     for (const [cat, drinks] of byCat) {
       if (drinks.length < 2) continue;
       const kind = drinks[0].drink;
+      // 🔴 `kind` נגזר משם הקטגוריה, ולכן בקטגוריה **ממוזגת** («וודקה וג'ין»,
+      // «ליקרים, רום וקוניאק», «ערק ואוזו» — האיחוד של יותם, 31.8) הוא שם אחד
+      // לכמה משקאות שונים. הצמדתו לפרט של משקה אחר ייצרה «אורח אוהב וודקה
+      // ים-תיכוני» (ים-תיכוני הוא של ג'ין מארה), «קוניאק רום לבן», ו«ערק או
+      // אוזו אוזו יווני». השער היה קיים לשאלה האחות ומעולם לא הוחל כאן.
+      const mixedCat = DRINK_KINDS_RE.filter((r) => r.test(cat)).length >= 2;
       const traits = new Map();
       for (const d of drinks) for (const t of d.ingredients || []) {
         if (!traits.has(t)) traits.set(t, new Set());
@@ -822,8 +832,7 @@ export function generate(menu, { level = "normal" } = {}) {
         // קטגוריה ממוזגת («וודקה וג'ין», «ליקרים, רום וקוניאק» — האיחוד של
         // יותם, 31.8: קטן מ-5 מתאחד עם קרובים) נשאלת בשם המלא — «איזו וודקה
         // יש» שמונה בתוכה ג'ין הייתה שאלה שקרית.
-        const KINDS_RE = [/וודקה/, /וויסקי|ויסקי/, /טקילה/, /ג['׳]ין/, /ערק|אוזו/, /קוניאק|ברנדי/, /ליקר/, /רום/, /אפריטיף|ורמוט/, /ביר(ה|ות)/, /סאקה/];
-        const mixed = KINDS_RE.filter((r) => r.test(cat)).length >= 2;
+        const mixed = mixedCat;
         const fem = /^(וודקה|טקילה|בירה|סמבוקה)/.test(kind) ? "איזו" : "איזה";
         out.push({
           sit: "drinkrec", dish: `${cat} · מה יש`, cat, k: "recall", secs: 60,
@@ -909,6 +918,8 @@ export function generate(menu, { level = "normal" } = {}) {
           : /^(בירת|שיכר)/.test(trait) ? null
           // «וודקה פולנית» כבר אומר וודקה — בלי זה יוצא «וודקה וודקה פולנית».
           : trait.includes(kindWord) ? trait
+          // קטגוריה ממוזגת ⇒ בלי שם סוג: הפרט שייך לאחד המשקאות שבה, לא לכולם.
+          : mixedCat ? null
           : `${kind} ${trait}`;
         out.push({
           sit: "drinkrec", dish: `${cat} · ${trait}`, cat, k: "recall", secs: 45,

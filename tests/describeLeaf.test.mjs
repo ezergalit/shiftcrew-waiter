@@ -1,5 +1,5 @@
 // ══ עלה התיאור — «תאר את המנה ללקוח» (יותם, 6.9) ══   node tests/describeLeaf.test.mjs
-import { buildRows, markRows, scoreRows, gradeDescription } from "../src/lib/describeLeaf.js";
+import { buildRows, markRows, scoreRows, gradeDescription, prepContradictions } from "../src/lib/describeLeaf.js";
 let fail = 0;
 const ok = (c, m) => { if (!c) { fail++; console.log("🔴", m); } };
 const shrimp = { name: "שרימפס טמפורה טוגראשי", desc: "שרימפס בציפוי טמפורה פריך עם איולי חריף", ingredients: ["שרימפס", "טמפורה", "איולי"], pregnancy: [] };
@@ -52,5 +52,18 @@ const dr = buildRows(nems2, null, { mode: "desc" });
 ok(!dr.some((r) => r.kind === "ing") && dr.some((r) => r.id === "form:ספרינג רול") && dr.some((r) => r.id === "desc:מטוגן") && dr.some((r) => r.id === "form:שרינג") && dr.some((r) => r.id === "form:אכילה עם הידיים"), `desc-mode: ספרינג רול · מטוגן · שרינג · בידיים, בלי מרכיבים (${dr.map((r) => r.id).join(", ")})`);
 ok(scoreRows(markRows(dr, "ספרינג רולים ויאטנמיים מטוגנים, מנה לשיתוף שאוכלים בידיים עם חסה")).lvl === 2, "תיאור מצוין בלי אף מרכיב ⇒ מלא (המרכיבים נבחנים בנפרד)");
 ok(scoreRows(markRows(dr, "פרגית, אטריות זכוכית, ירקות, ליים")).lvl === 0, "רשימת מרכיבים בלבד אינה תיאור ⇒ 0 בחלק התיאור");
+// ── סתירת אופן הכנה: האשמה דורשת את המילה עצמה (סבב הבודקים, 14.9) ─────────────
+// ההתאמה העמומה הדביקה «מוגשים»⇄«מטוגנים» ו«צלויים»⇄«אפויים», ונרדפת-לתשובה-בלבד
+// («שיטת בישול», «ירקות ווק», «קריספי») נספרה כראיה — 37 מנות בשני התפריטים החיים
+// סתרו את הכרטיס של עצמן, וכל סתירה חוסמת את הציון על «חלקי».
+const grilled = { name: "פלפל שושקה", desc: "פלפל צלוי על פחמים עם גבינת פטה", ingredients: ["פלפל", "גבינת פטה"], pregnancy: [] };
+const grRows = buildRows(grilled, null, { mode: "desc" });
+ok(prepContradictions(grRows, "פלפל צלוי על הפחמים, מוגש חם עם פטה ושמן זית").length === 0, "«מוגש» אינו «מטוגן» · «צלוי» אינו «אפוי» — תיאור נכון בלי סתירה");
+ok(prepContradictions(grRows, "הפלפל מטוגן במחבת").includes("מטוגן"), "אופן הכנה הפוך שנאמר במילים ⇒ סתירה");
+const tataki = { name: "אינדו סינטה", desc: "טאטאקי סינטה פרוס. טאטאקי היא שיטת בישול שבה צורבים את החלק החיצוני", ingredients: ["סינטה"], pregnancy: ["בשר נא"] };
+ok(prepContradictions(buildRows(tataki, null, { mode: "desc" }), tataki.desc).length === 0, "«שיטת בישול» בכרטיס אינה טענה שהמנה מבושלת");
+const wok = { name: "שניצל בפנקו", desc: "חזה עוף בציפוי פריך. תוספות לבחירה: ירקות ווק / צ'יפס", ingredients: ["חזה עוף"], pregnancy: [] };
+ok(prepContradictions(buildRows(wok, null, { mode: "desc" }), wok.desc).length === 0, "«ירקות ווק» בתוספות אינו טענה שהמנה מוקפצת");
+
 console.log(fail ? `\n🔴 ${fail} כשלים` : "describeLeaf.test: כל הבדיקות עברו");
 process.exit(fail ? 1 : 0);
