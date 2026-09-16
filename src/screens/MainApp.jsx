@@ -959,7 +959,7 @@ export default function MainApp({ session, onSignOut }) {
     // התפריט הוא מגיע מ-`stage`, ובטאב התרגול מ-groupView/catView.
     : coachScreen
       ? textFor(coachScreen, tab === "learn"
-          ? { menu: groupView, cat: catView, items: (cards || []).filter((c) => c.category === catView), hasGuide }
+          ? { menu: groupView, cat: catView, items: (cards || []).filter((c) => c.category === catView), hasGuide, examReady: readyForExam }
           : { menu: stage?.menu, cat: stage?.cat, items: (cards || []).filter((c) => c.category === stage?.cat), hasGuide })
       : null;
   // השוואה לפי ערך: בלעדיה אובייקט חדש בכל רנדר היה מפיל לולאה אינסופית.
