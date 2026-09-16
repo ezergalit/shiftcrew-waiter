@@ -9,6 +9,7 @@ import { buildVocab, vocabFromList } from "../lib/examSuggest";
 import { loadLearnedAlts, withLearnedAlts, judgeAnswer, saveLearnedAlts, judgeLeaf } from "../lib/examJudge";
 import { gradeDescription, descAskable } from "../lib/describeLeaf";
 import { isSimple, simpleQuestions, gradeSimple } from "../lib/simpleDish";
+import { houseFor, gradeHouse } from "../lib/houseQuestions";
 import { questionStyle } from "../lib/quizBank";
 import { supabase } from "../lib/supabase";
 const db = supabase.schema("menu_app");
@@ -42,6 +43,10 @@ const saveSeen = (restaurantId, cat, list) => { try { localStorage.setItem(seenK
 // truth+3 wrong→partial, 25-ingredient shotgun→partial, blank→zero.
 
 const LVL_SCORE = [0, 50, 100];
+// שאלות על המסעדה (features.house_questions, יותם 16.9: «יותר על המסעדה עצמה מאשר על
+// המנות»): במבחן המלא הן רוב השאלות, ובבוחן קטגוריה — עד 3, ומנות לא יותר מהן.
+const HOUSE_EXAM_SHARE = 0.6;
+const HOUSE_QUIZ_MAX = 3;
 
 // «תסביר לי מה חלקי בדיוק» (user, 1.9) — the engine returns a per-chip detail;
 // this renders it: what counted, what didn't and why, and how much is missing.
@@ -101,7 +106,7 @@ const weightedAvg = (scores) => {
   return wsum ? Math.round(scores.reduce((a, s) => a + s.v * s.w, 0) / wsum) : 0;
 };
 
-export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId, teamMemberId = null, onAnswer, onDone, onFinish, exam = null, quizOff = [], examEasy = false, examLevel = "normal", preview = false }) {
+export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId, teamMemberId = null, onAnswer, onDone, onFinish, exam = null, quizOff = [], examEasy = false, examLevel = "normal", preview = false, houseQuestions = [] }) {
   const easy = examEasy || examLevel === "relaxed";
   const strict = examLevel === "strict";
   const passMark = PASS_MARK[examLevel] || 70;
@@ -169,6 +174,31 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       } catch { /* private mode */ }
       return recs;
     };
+    // שאלות על המסעדה — אותו מחזור «מה כבר נשאל» פר-מכשיר, פר-היקף (קטגוריה / מבחן)
+    const pickHouse = (list, limit, scope) => {
+      if (!list.length || limit <= 0) return [];
+      const key = `menu-app-houseasked:${restaurantId || "r"}:${scope}`;
+      const idOf = (q) => q.id || q.ask;
+      let seen = [];
+      try { seen = JSON.parse(localStorage.getItem(key)) || []; } catch { /* fresh */ }
+      const fresh = shuffle(list.filter((q) => !seen.includes(idOf(q))));
+      const used = shuffle(list.filter((q) => seen.includes(idOf(q))));
+      const picked = [...fresh, ...used].slice(0, limit);
+      try {
+        const asked = picked.map(idOf);
+        localStorage.setItem(key, JSON.stringify(fresh.length >= picked.length ? [...seen, ...asked] : asked));
+      } catch { /* private mode */ }
+      return picked.map((q) => ({ house: q, cat: q.cat || null, dish: q.ask.slice(0, 120) }));
+    };
+    // מסעדה ומנות לסירוגין, לא בלוק של שאלות מסעדה ואחריו בלוק מנות
+    const alternate = (a, b) => {
+      const mixed = [];
+      for (let k = 0; k < Math.max(a.length, b.length); k++) {
+        if (a[k]) mixed.push(a[k]);
+        if (b[k]) mixed.push(b[k]);
+      }
+      return mixed;
+    };
 
     // ── משקאות (לא במבחן המלא): ההרכב של 31.8 ללא שינוי ──
     if (drinkCat) {
@@ -181,7 +211,9 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     // ── מנות: קטגוריה אחת (בוחן) או כל הקטגוריות במכסה (מבחן) ──
     const cats = exam ? [...new Set(food.filter((i) => !i.drink).map((i) => i.category))] : [food[0]?.category].filter(Boolean);
     const askable = new Map(cats.map((c) => [c, food.filter((i) => i.category === c).map(dishCard).filter(Boolean)]));
-    const plan = exam ? examPlan(Object.fromEntries([...askable].map(([c, l]) => [c, l.length])), exam.total || 40) : null;
+    const examTotal = exam ? (exam.total || 40) : 0;
+    const houseExam = exam ? pickHouse(houseFor(houseQuestions), Math.ceil(examTotal * HOUSE_EXAM_SHARE), "exam") : [];
+    const plan = exam ? examPlan(Object.fromEntries([...askable].map(([c, l]) => [c, l.length])), Math.max(0, examTotal - houseExam.length)) : null;
     const out = [];
     for (const cat of cats) {
       const cards = askable.get(cat) || [];
@@ -211,7 +243,10 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
       const recs = pickRecs(catName, 6).filter((r) => !out.some((c) => c.rec?.dish === r.rec.dish));
       out.push(...recs);
     }
-    return out;
+    if (exam) return alternate(houseExam, out);
+    // בוחן קטגוריה: שאלות המסעדה של הקטגוריה, ומנות לא יותר מהן
+    const houseQuiz = pickHouse(houseFor(houseQuestions, { cat: cats[0] }), HOUSE_QUIZ_MAX, cats[0]);
+    return houseQuiz.length ? alternate(houseQuiz, out.slice(0, houseQuiz.length)) : out;
   });
 
   // Phrasings previous waiters have had accepted. Loaded once and folded into the
@@ -233,6 +268,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   const [setSel, setSetSel] = useState([]);   // שאלת-סט: שמות המנות שנכתבו
   const [descText, setDescText] = useState(""); // מבחן: «תאר את המנה ללקוח» — פסקה חופשית
   const [simpleAns, setSimpleAns] = useState([]); // מנה פשוטה: תשובה קצרה לכל שאלה
+  const [houseText, setHouseText] = useState(""); // שאלה על המסעדה: תשובה חופשית אחת
   const [result, setResult] = useState(null);
   // שלב 2 (יותם, 1.9): בחרת משקה בשאלת המלצה ⇒ «עכשיו תאר אותו לאורח» — טקסט
   // חופשי, נבדק במצב-משפט ואם צריך עולה לשופט. {dish, q, text, res, judging}
@@ -350,7 +386,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     if (!exam || !teamMemberId || !restaurantId) return;
     const c = deck[i];
     db.from("exam_answers").insert({ restaurant_id: restaurantId, team_member_id: teamMemberId, sitting_id: sittingId, category: c?.cat || c?.it?.category || null,
-      dish: c?.dish || c?.set?.ask?.slice(0, 120) || c?.rec?.ask?.slice(0, 120) || null, question: c?.set ? "set" : c?.rec ? "rec" : c?.simple ? "simple" : "dish",
+      dish: c?.dish || c?.set?.ask?.slice(0, 120) || c?.rec?.ask?.slice(0, 120) || null, question: c?.set ? "set" : c?.rec ? "rec" : c?.house ? "house" : c?.simple ? "simple" : "dish",
       answer, lvl }).then(({ error }) => { if (error) console.error("exam_answers:", error.message); });
   };
   // דיווח על טעות באפליקציה (יותם, 6.9): השאלה נשלחת לבדיקה ולא נספרת — לא לטובה ולא לרעה.
@@ -364,7 +400,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
     const c = deck[i];
     const { error } = await db.from("exam_reports").insert({
       restaurant_id: restaurantId, team_member_id: teamMemberId, sitting_id: sittingId, dish: c?.dish || null,
-      question: c?.set?.ask || c?.rec?.ask || (c?.simple ? c.simple.map((q) => q.ask).join(" | ") : `describe:${c?.dish}`),
+      question: c?.set?.ask || c?.rec?.ask || c?.house?.ask || (c?.simple ? c.simple.map((q) => q.ask).join(" | ") : `describe:${c?.dish}`),
       answer: !result ? { unanswered: true } : result.set ? { typed: result.set.sel } : { parts: (result.parts || []).map((p) => ({ key: p.key, answer: p.answer ?? p.text ?? null })) },
       verdict: !result ? { unanswered: true } : result.set ? { lvl: result.set.r.lvl } : { parts: (result.parts || []).map((p) => ({ key: p.key, lvl: p.g?.lvl, rows: p.leaf?.rows?.map((r) => [r.canonical[0], r.status]) })) },
       explanation: text.slice(0, 500),
@@ -406,7 +442,9 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
   // הגשה/בטיחות, עם השופט) **וגם** מרכיבים בצ'יפים **וגם** אלרגיות — שלושה פסקים נפרדים. תיאור
   // חופשי מוצג רק כשלכרטיס יש מה לבחון בו (שורות תיאור/בטיחות); אחרת צ'יפים בלבד.
   // שאלת תיאור רק כשיש מה לתאר (צורה/הכנה/עיקר במשקל ≥2, או בטיחות) — «מוגש לצד» לבדו אינו שאלה
-  const openDesc = !!(exam && cur?.describe && !cur.it?.drink && descAskable(cur.it));
+  // `exam_easy` (GDB, יותם 16.9: «תעשה את הכל קל יותר») ⇒ בלי פסקת תיאור חופשית: כרטיס מנה
+  // במבחן נשאר מרכיבים ואלרגיות בצ'יפים, כמו בבוחן.
+  const openDesc = !!(exam && !examEasy && cur?.describe && !cur.it?.drink && descAskable(cur.it));
   // «אנשובי במלח»: השם הוא המרכיב — השאלה אומרת את זה («מעבר לאנשובי שבשם») כדי שהמלצר
   // ידע על מה עונים, ולא יקבל «לא הצלחת» על שכתב את שם המנה (יותם, 6.9)
   // ו«איך מטובלת המנה?» כשמה שנשאר מעבר לשם הוא תיבול/רוטב/קישוט («אנשובי במלח»: שמן זית, בצל,
@@ -448,6 +486,15 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
         const q2 = picked ? describeQuestionFor(picked) : null;
         if (q2) setStage2({ dish: picked, q: withLearnedAlts(q2, alts), text: "", res: null, judging: false });
       }
+      return;
+    }
+    if (cur.house) {
+      const g = gradeHouse(cur.house, houseText);
+      const v = LVL_SCORE[g.lvl];
+      setResult({ parts: [{ key: "house", hq: cur.house, text: houseText, g }], avg: v });
+      // `simple` — הצורה שמסך בדיקת המבחנים של המנהל כבר יודע להציג
+      logAnswer({ simple: [houseText] }, g.lvl);
+      setScores((s) => [...s, { v, w: 1 }]);
       return;
     }
     if (cur.simple) {
@@ -561,7 +608,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
 
   const next = () => {
     setReviewLeft(REVIEW_S); setReporting(null); setToast(""); setElapsedQ(0); setQStartedAt(Date.now());
-    setResult(null); setIngs([]); setAlls([]); setRecAns([]); setFlavs([]); setSetSel([]); setDescText(""); setSimpleAns([]); setStage2(null);
+    setResult(null); setIngs([]); setAlls([]); setRecAns([]); setFlavs([]); setSetSel([]); setDescText(""); setSimpleAns([]); setHouseText(""); setStage2(null);
     if (i + 1 >= deck.length) setFinished(true); else setI(i + 1);
   };
 
@@ -680,11 +727,11 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
 
       <div className="bg-[#16181c] border border-[#22252b] rounded-2xl p-4">
         <p className="text-[11px] font-black text-[#22c08c]">
-          {cur.set || cur.rec ? "המלצה ללקוח" : cur.simple ? "מה חשוב לדעת על המנה" : cur.it?.drink ? "כתיבה מהזיכרון" : "המלצה ותיאור"}
+          {cur.house ? "על המסעדה" : cur.set || cur.rec ? "המלצה ללקוח" : cur.simple ? "מה חשוב לדעת על המנה" : cur.it?.drink ? "כתיבה מהזיכרון" : "המלצה ותיאור"}
           {exam && cur.cat ? ` · ${shortCat(cur.cat)}` : exam && cur.it?.category ? ` · ${shortCat(cur.it.category)}` : ""}
         </p>
-        <p className="text-[17px] font-black text-[#eef0f6] mt-1 leading-snug">{cur.set ? cur.set.ask : cur.rec ? cur.rec.ask : cur.dish}</p>
-        {!cur.rec && !cur.set && !cur.simple && (
+        <p className="text-[17px] font-black text-[#eef0f6] mt-1 leading-snug">{cur.set ? cur.set.ask : cur.rec ? cur.rec.ask : cur.house ? cur.house.ask : cur.dish}</p>
+        {!cur.rec && !cur.set && !cur.simple && !cur.house && (
           <p className="text-[12px] text-[#8a8aa0] mt-1">
             {openDesc ? `תאר ללקוח את המנה ״${cur.dish}״ — מה היא, מה יש בה ואיך מכינים. אחר כך תסמנו את המרכיבים${beyond} והאלרגיות בנפרד.`
               : cur.describe && cur.flavor ? "מה יש בקוקטייל, ואיך הוא בטעם?"
@@ -729,6 +776,17 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               />
             </div>
           ))}
+          {cur.house && (
+            <textarea
+              value={houseText}
+              onChange={(e) => setHouseText(e.target.value.slice(0, 600))}
+              maxLength={600}
+              rows={3}
+              dir="rtl"
+              placeholder="כמו שהיית עונה לאורח או למנהל…"
+              className="w-full bg-[#0c0d10] border border-[#22252b] rounded-lg px-3 py-2.5 text-[16px] text-[#eef0f6] placeholder:text-[#5a5a6e] focus:outline-none focus:border-[#22c08c]/60"
+            />
+          )}
           {openDesc && (
             <div className="space-y-1.5">
               <p className="text-[11px] font-black text-[#8a8aa0]">תאר את המנה ללקוח — מה היא, מה יש בה ואיך מכינים</p>
@@ -769,6 +827,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
             const why = judging ? null
               : cur.set && !setSel.length ? "כתבו לפחות מנה אחת ולחצו הוסף"
               : openDesc && !descText.trim() ? "כתבו משהו על המנה — מספיקה מילה אחת"
+              : cur.house && !houseText.trim() ? "כתבו תשובה — מספיקות כמה מילים"
               : cur.simple && cur.simple.some((_, k) => !(simpleAns[k] || "").trim()) ? "ענו על כל השאלות"
               : null;
             return (<>
@@ -797,7 +856,7 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
           <div className="bg-[#16181c] border border-[#f3a712]/40 rounded-2xl p-4 space-y-2.5">
             <p className="text-[14px] font-black text-[#f3a712]">🚩 דיווח על טעות באפליקציה</p>
             <p className="text-[12px] text-[#c4c4d4] leading-relaxed">
-              על השאלה: <b className="text-[#eef0f6]">{cur.dish || cur.set?.ask || cur.rec?.ask}</b>
+              על השאלה: <b className="text-[#eef0f6]">{cur.house?.ask || cur.dish || cur.set?.ask || cur.rec?.ask}</b>
             </p>
             <p className="text-[11.5px] text-[#8a8aa0] leading-relaxed">מה לא נכון כאן? השאלה תישלח לבדיקה ולא תיספר — לא לטובה ולא לרעה. השעון עומד.</p>
             <textarea value={reporting.text} onChange={(e) => setReporting({ text: e.target.value.slice(0, 500) })} maxLength={500} rows={5} dir="rtl" autoFocus
@@ -854,9 +913,22 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               <div className="flex items-center gap-2">
                 {p.g.lvl === 2 ? <Check size={15} className="text-[#22c08c]" /> : <XIcon size={15} className={p.leaf?.safety ? "text-[#e0315a]" : "text-[#f3a712]"} />}
                 <p className="text-[12px] font-black text-[#eef0f6]">
-                  {p.sq ? p.sq.ask : p.key === "desc" ? "התיאור" : p.key === "rec" ? "ההמלצה" : p.key === "flav" ? "תיאור הטעם" : p.key === "ings" ? ingLabel(cur.it) : "אלרגיות"} — {p.leaf?.safety ? "חסר משהו שחובה להגיד ללקוח" : p.g.lvl === 2 ? "נכון" : p.g.lvl === 1 ? "חלקי" : "לא נכון"}
+                  {p.sq ? p.sq.ask : p.hq ? "התשובה שלך" : p.key === "desc" ? "התיאור" : p.key === "rec" ? "ההמלצה" : p.key === "flav" ? "תיאור הטעם" : p.key === "ings" ? ingLabel(cur.it) : "אלרגיות"} — {p.leaf?.safety ? "חסר משהו שחובה להגיד ללקוח" : p.g.lvl === 2 ? "נכון" : p.g.lvl === 1 ? "חלקי" : "לא נכון"}
                 </p>
               </div>
+              {p.hq && (
+                <div className="space-y-1">
+                  {p.hq.points.map((pt, k) => (
+                    <p key={k} className={`text-[11.5px] font-bold ${p.g.hits[k] ? "text-[#22c08c]" : "text-[#8a8aa0]"}`}>
+                      {p.g.hits[k] ? "✓" : "◌"} {pt.t}
+                    </p>
+                  ))}
+                  {p.g.wrong.map((w) => (
+                    <p key={w} className="text-[11.5px] font-bold text-[#e0315a]">✗ «{w}» — לא נכון כאן</p>
+                  ))}
+                  {p.hq.answer && <p className="text-[12px] text-[#8a8aa0] leading-relaxed">התשובה: {p.hq.answer}</p>}
+                </div>
+              )}
               {p.sq && (
                 <div className="space-y-1">
                   {p.sq.kind === "order" && p.sq.atoms.map((a, k) => (
@@ -923,10 +995,10 @@ export default function OpenQuiz({ items, allItems, categoryLabel, restaurantId,
               {!p.leaf && !p.sq && p.key === "ings" && p.g.lvl === 0 && p.g.detail?.length > 0 && p.g.detail.every((d) => d.status === "free") && (
                 <p className="text-[12px] font-black text-[#f3c14b]">כתבת את שם המנה — השאלה היא מה יש בתוכה{nameIng ? ` מעבר ל${nameIng}` : ""}. הנה:</p>
               )}
-              {!p.leaf && !p.sq && <GradeDetail g={p.g} unit={p.key === "rec" ? "המלצות" : "פרטים"} nameToks={p.key === "ings" ? toks(cur.dish || "") : []} />}
+              {!p.leaf && !p.sq && !p.hq && <GradeDetail g={p.g} unit={p.key === "rec" ? "המלצות" : "פרטים"} nameToks={p.key === "ings" ? toks(cur.dish || "") : []} />}
               {/* The answer, always — a quiz that says "wrong" without saying what the
                   right answer was teaches nothing. */}
-              {!p.leaf && !p.sq && !(exam && !preview && p.key === "ings") && (
+              {!p.leaf && !p.sq && !p.hq && !(exam && !preview && p.key === "ings") && (
                 <p className="text-[12px] text-[#8a8aa0] leading-relaxed">
                   {p.q.targets.map((t) => t.t).join(" · ")}
                 </p>

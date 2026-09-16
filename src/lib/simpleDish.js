@@ -18,7 +18,7 @@ import { askableIngredients } from "./questionEngine.js";
 const stem = (w) => norm(w).replace(/(יות|ות|ימ|ינ|ה|ת)$/, "");
 const lev1 = (a, b) => { if (Math.abs(a.length - b.length) > 1) return false; let i = 0, j = 0, d = 0; while (i < a.length && j < b.length) { if (a[i] === b[j]) { i++; j++; continue; } if (++d > 1) return false; if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; } } return d + (a.length - i) + (b.length - j) <= 1; };
 const bare = (w) => norm(w).replace(/^[והבלמכש](?=[א-ת]{3,})/, "");
-const same = (a, b) => {
+export const same = (a, b) => {
   for (const x of [norm(a), bare(a)]) for (const y of [norm(b), bare(b)]) {
     if (x === y) return true;
     if (x.length >= 4 && y.length >= 4 && (x.startsWith(y) || y.startsWith(x))) return true;
