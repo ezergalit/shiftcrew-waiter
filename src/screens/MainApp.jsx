@@ -27,6 +27,7 @@ import { buildStudySession, nextConsecutiveFives, isRetired, QUICK_SESSION_SIZE 
 import { MOCK_CARDS, MOCK_BRIEF, MOCK_LEADERBOARD } from "../lib/mockMenu";
 import { pickDistractors, buildWeightedDeck, availableFacets, dishLabel, withDisplayNames } from "../lib/questionEngine";
 import { pathState } from "../lib/learningPath";
+import { houseFor } from "../lib/houseQuestions";
 import { useStudyTime } from "../lib/studyTime";
 import { bumpStudy, noteFail, gateFor } from "../lib/quizGate";
 import { generate, setMenuVocab } from "../lib/examEngine";
@@ -164,8 +165,23 @@ export default function MainApp({ session, onSignOut }) {
   // Raw 1-5 score per dish (id -> score). `mastered` above is still the >=4 threshold set
   // that drives points/daily-challenge/leaderboard; this map is what the *percentages*
   // are built from, so "4 out of 5 on every dish" reads as 80% instead of 100%.
-  const [masteryById, setMasteryById] = useState({});
-  const [fivesById, setFivesById] = useState({});
+  const [masteryReal, setMasteryById] = useState({});
+  const [fivesReal, setFivesById] = useState({});
+  // `features.exam_ready` (יותם, 16.9, GDB): «כל מלצר שנכנס לא צריך לתרגל כרטיסיות בשביל
+  // להיבחן — אוטומטית ב-100% קבוע, אבל אני רואה אם הם טועים או צודקים». כל מה שמוצג
+  // (אחוזים, טבעות, «מכירים») נקרא כ-100%, והמבחן המלא פתוח מהיום הראשון. הדירוגים
+  // האמיתיים ממשיכים להיכתב ל-menu_progress, וכל תשובה במבחן מגיעה לבדיקת המנהל.
+  const readyForExam = session?.features?.exam_ready === true;
+  const readyMastery = useMemo(
+    () => (readyForExam && cards?.length ? Object.fromEntries(cards.map((c) => [c.id, 5])) : null),
+    [readyForExam, cards]
+  );
+  const readyFives = useMemo(
+    () => (readyMastery ? Object.fromEntries(Object.keys(readyMastery).map((id) => [id, 2])) : null),
+    [readyMastery]
+  );
+  const masteryById = readyMastery || masteryReal;
+  const fivesById = readyFives || fivesReal;
   const [verifiedById, setVerifiedById] = useState({});
   const [leaderboard, setLeaderboard] = useState([]);
   // The weekly board is the one people compete on; `leaderboard` stays as the all-time
@@ -200,6 +216,9 @@ export default function MainApp({ session, onSignOut }) {
   // לקטוז»). ברירת המחדל כבר נגזרת מהנתונים (שאלה נבנית רק כשיש בקטגוריה גם כן וגם לא); זה
   // המתג הידני לעקיפה. ערכים: kosher · lactose · celiac · vegan · veggie · raw · no-raw · share · style:חריף
   const quizOff = Array.isArray(session?.features?.quiz_off) ? session.features.quiz_off : [];
+  // שאלות על המסעדה עצמה (features.house_questions) — ר' lib/houseQuestions.js.
+  // ⚠️ ממוזכר: examableCats תלוי בו, ו-MainApp מתרנדר כל שנייה (שעון הלימוד).
+  const houseQuestions = useMemo(() => houseFor(session?.features?.house_questions), [session?.features?.house_questions]);
   // Whether pregnancy is its own warning group or folded into "מוקשים" — per restaurant.
   const mergedWarnings = session?.features?.warnings === "merged";
   // features.metrics === false removes the whole metrics screen for this restaurant
@@ -591,7 +610,7 @@ export default function MainApp({ session, onSignOut }) {
     const crossed = wasMastered !== nowMastered;
     setVerifiedById(prev => ({ ...prev, [id]: nowVerified }));
     setMasteryById(prev => ({ ...prev, [id]: rating }));
-    const nextFives = nextConsecutiveFives(fivesById[id], rating);
+    const nextFives = nextConsecutiveFives(fivesReal[id], rating);
     setFivesById(prev => ({ ...prev, [id]: nextFives }));
 
     let nextMasteredSize = mastered.size;
@@ -862,11 +881,15 @@ export default function MainApp({ session, onSignOut }) {
       if (learnOnly(c)) acc.push(c.category);
       return acc;
     }, []).filter((cat) => (cards || []).filter((c) => c.category === cat).every(learnOnly)));
+    // שתי שאלות מסעדה על הקטגוריה מספיקות לבוחן גם בלי כרטיסי מנה (קינוחים של GDB)
+    const houseCount = new Map();
+    for (const q of houseQuestions) if (q.cat) houseCount.set(q.cat, (houseCount.get(q.cat) || 0) + 1);
     return new Set([
       ...[...perCat].filter(([, d]) => d.size >= 2).map(([c]) => c),
       ...[...recCount].filter(([, n]) => n >= 2).map(([c]) => c),
+      ...[...houseCount].filter(([, n]) => n >= 2).map(([c]) => c),
     ].filter((c) => !learnOnlyCats.has(c)));
-  }, [cards, session?.features?.exam, session?.features?.learn_only_cats]);
+  }, [cards, session?.features?.exam, session?.features?.learn_only_cats, houseQuestions]);
   const examable = (key) => !examableCats || examableCats.has(key);
   // שתייה קלה נשארת מחוץ לתרגול (31.8 בוקר) אבל מקבלת בוחן «מה יש» קצר (יותם,
   // 31.8 ערב: «איזה שתייה מוגזת יש, איזה מיץ יש? ומעט שאלות»). שער הזמן לא חל —
@@ -1051,7 +1074,7 @@ export default function MainApp({ session, onSignOut }) {
     if (openExam) return <OpenQuiz
       items={cards.filter((c) => !c.knowledge && !c.drink && !learnOnly(c))} allItems={cards} quizOff={quizOff} examEasy={session?.features?.exam_easy === true}
       examLevel={session?.features?.exam_level || "normal"}
-      restaurantId={session?.restaurantId} teamMemberId={preview ? null : session?.teamMemberId} preview={preview} categoryLabel="התפריט המלא"
+      restaurantId={session?.restaurantId} teamMemberId={preview ? null : session?.teamMemberId} preview={preview} categoryLabel="התפריט המלא" houseQuestions={houseQuestions}
       exam={{ total: examConfig?.general_exam_questions || 40 }}
       onAnswer={learnItem} onDone={exitMode} onFinish={recordExam}
     />;
@@ -1078,7 +1101,7 @@ export default function MainApp({ session, onSignOut }) {
          foreign word from a menu word, and the autocomplete pool must not narrow to the
          dishes being asked about, or it would print the answer on screen. */
       ? (openExam
-          ? <OpenQuiz items={examItems} allItems={cards} restaurantId={session?.restaurantId} preview={preview} categoryLabel={label} quizOff={quizOff} examLevel={session?.features?.exam_level || "normal"} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />
+          ? <OpenQuiz items={examItems} allItems={cards} restaurantId={session?.restaurantId} preview={preview} categoryLabel={label} quizOff={quizOff} houseQuestions={houseQuestions} examLevel={session?.features?.exam_level || "normal"} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />
           : <CategoryExam items={examItems} categoryLabel={label} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />)
       : <QuizExam items={examItems} facets={gameFacets} categoryLabel={label} onAnswer={learnItem} onDone={exitMode} onFinish={recordExam} />;
   }
@@ -1233,7 +1256,9 @@ export default function MainApp({ session, onSignOut }) {
   // המנהל הסתיר את זה כי הוא מסמן כל קטגוריה כ«עברה».
   const catsWithExam = (path.categories || []).filter((c) => examable(c.key));
   const examsLeft = catsWithExam.filter((c) => !c.passed);
-  const generalUnlocked = catsWithExam.length > 0 && examsLeft.length === 0;
+  // `exam_ready` ⇒ המבחן המלא פתוח מהכניסה הראשונה, בלי לעבור קודם את הבחנים.
+  const generalUnlocked = (readyForExam && (catsWithExam.length > 0 || houseQuestions.length > 0))
+    || (catsWithExam.length > 0 && examsLeft.length === 0);
   // ⚠️ Locked ⇒ renders NOTHING (user, 2026-08-20). A "you can't do this yet" banner at
   // the top of the learning tab is the first thing a new waiter reads, and it frames the
   // screen as blocked. The tour explains the path; this tab just shows what to practise,
@@ -1242,7 +1267,8 @@ export default function MainApp({ session, onSignOut }) {
   // stated as a sentence — how many dishes are left and whether the exam is in reach.
   const learnHero = () => {
     const rec = path.recommended;
-    if (!rec || !aurora) return null;
+    // «המשך תרגול» הוא בדיוק מה ש-exam_ready מוותר עליו — כרטיס המבחן המלא הוא הדבר הבא.
+    if (!rec || !aurora || readyForExam) return null;
     const left = (rec.items || []).filter((it) => (fivesById?.[it.id] || 0) < 2).length;
     const recGate = rec.examUnlocked ? quizGateFor(rec) : { open: true };
     // A category with no exam gets a plain practice line — never an exam promise.
@@ -1308,7 +1334,7 @@ export default function MainApp({ session, onSignOut }) {
         <span className="flex-1">
           <span className="block text-sm font-black">מבחן התפריט המלא</span>
           <span className="block text-[11px] font-bold opacity-90">
-            {examConfig?.general_exam_questions || 40} שאלות על כל התפריט, עם שעון — זו המטרה הסופית
+            {examConfig?.general_exam_questions || 40} שאלות {houseQuestions.length ? "על המסעדה ועל התפריט" : "על כל התפריט"}, עם שעון — זו המטרה הסופית
           </span>
         </span>
       </button>
