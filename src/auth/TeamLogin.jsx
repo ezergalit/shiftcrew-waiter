@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, AlertTriangle, UserCheck } from "lucide-react";
+import { Loader2, AlertTriangle, UserCheck, Users } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { setSessionToken } from "../lib/appSession";
 import "../aurora.css";
@@ -10,14 +10,18 @@ const db = supabase.schema("menu_app");
 // The join screen is the first thing a waiter ever sees, and it was the one screen left
 // outside the aurora look — flat panels that, once theme.css mapped every hex class onto
 // restaurant tokens, lost their backgrounds entirely (user, 16.9: "looking bad"). It now
-// uses the same backdrop and glass card as the menu right behind it.
-// ⚠️ Colours below are rgba()/non-mapped hex on purpose: a new `bg-[#22c08c]/NN`-style class
-// would need tools/gen-theme-css.mjs re-run, and `npm run check` fails until it is.
-// 16px text in every input: below that iOS Safari zooms the page on focus.
-const FIELD = "w-full h-[52px] rounded-2xl px-4 text-[16px] font-semibold text-[#eef0f6] bg-[rgba(238,240,246,0.05)] border border-[rgba(238,240,246,0.10)] placeholder:text-[rgba(238,240,246,0.28)] placeholder:font-normal outline-none transition-[border-color,box-shadow,background-color] duration-200 focus:border-[rgba(34,192,140,0.6)] focus:bg-[rgba(34,192,140,0.05)] focus:shadow-[0_0_0_4px_rgba(34,192,140,0.12)]";
+// uses the same backdrop as the menu right behind it, with the form in one lit card.
+// ⚠️ Colours below are rgba()/gradients/non-mapped hex on purpose: a new `bg-[#22c08c]/NN`-style
+// class would need tools/gen-theme-css.mjs re-run, and `npm run check` fails until it is.
+// 16px+ text in every input: below that iOS Safari zooms the page on focus.
+const FIELD_BASE = "w-full rounded-2xl px-4 text-[#eef0f6] bg-[rgba(12,13,16,0.55)] border border-[rgba(238,240,246,0.10)] placeholder:text-[rgba(238,240,246,0.28)] placeholder:font-normal outline-none transition-[border-color,box-shadow,background-color] duration-200 focus:border-[rgba(34,192,140,0.65)] focus:bg-[rgba(34,192,140,0.06)] focus:shadow-[0_0_0_4px_rgba(34,192,140,0.14)]";
+const FIELD = `${FIELD_BASE} h-[52px] text-[16px] font-semibold`;
+const CODE_FIELD = `${FIELD_BASE} h-[60px] text-[21px] font-bold text-center tracking-[0.32em] placeholder:text-[15px] placeholder:tracking-normal`;
 const LABEL = "block text-[13px] font-medium text-[#8a919e] mb-2 px-1";
-const primaryButton = (ready) => `w-full h-[54px] rounded-2xl text-[16px] font-bold flex items-center justify-center gap-2 transition-[transform,background-color,box-shadow] duration-200 active:scale-[0.98] ${
-  ready ? "bg-[#22c08c] text-[#06231a] shadow-[0_12px_30px_rgba(34,192,140,0.30)]" : "bg-[rgba(238,240,246,0.07)] text-[rgba(238,240,246,0.35)] cursor-not-allowed"
+const primaryButton = (ready) => `w-full h-[56px] rounded-2xl text-[17px] font-bold flex items-center justify-center gap-2 transition-[transform,box-shadow,opacity] duration-200 active:scale-[0.98] ${
+  ready
+    ? "bg-[linear-gradient(180deg,#35d8a2,#1faf80)] text-[#06231a] shadow-[0_14px_32px_rgba(34,192,140,0.34),inset_0_1px_0_rgba(255,255,255,0.28)]"
+    : "bg-[rgba(238,240,246,0.07)] text-[rgba(238,240,246,0.35)] cursor-not-allowed"
 }`;
 
 function AuroraScreen({ children }) {
@@ -26,6 +30,30 @@ function AuroraScreen({ children }) {
       <div className="aurora" aria-hidden><i></i><i></i><i></i><i></i></div>
       <div className="grain" aria-hidden></div>
       {children}
+    </div>
+  );
+}
+
+// The card the form sits in: frosted glass, an emerald hairline along the top edge and a faint
+// emerald glow under it, so the one thing to fill in reads as the lit object on a dark page.
+function FormCard({ icon, title, subtitle, children }) {
+  return (
+    <div className="relative overflow-hidden rounded-[28px] p-[22px] bg-[linear-gradient(160deg,rgba(40,46,54,0.80),rgba(19,22,27,0.66))] border border-[rgba(238,240,246,0.09)] backdrop-blur-xl shadow-[0_24px_60px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(238,240,246,0.07)]">
+      <div aria-hidden className="absolute inset-x-10 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(34,192,140,0.75),transparent)]" />
+      <div aria-hidden className="pointer-events-none absolute -top-20 left-1/2 -translate-x-1/2 w-72 h-40 rounded-full bg-[radial-gradient(closest-side,rgba(34,192,140,0.16),transparent)]" />
+      <div className="relative space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 shrink-0 rounded-2xl grid place-items-center text-[#22c08c] bg-[rgba(34,192,140,0.12)] border border-[rgba(34,192,140,0.28)]">
+            {icon}
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-[18px] font-bold leading-tight">{title}</h2>
+            {subtitle && <p className="text-[13px] text-[#8a919e] mt-0.5 leading-snug">{subtitle}</p>}
+          </div>
+        </div>
+        <div aria-hidden className="h-px bg-[rgba(238,240,246,0.07)]" />
+        {children}
+      </div>
     </div>
   );
 }
@@ -151,27 +179,19 @@ export default function TeamLogin({ onGranted }) {
     return (
       <AuroraScreen>
         <div className="flex-1 flex flex-col justify-center px-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]">
-          <div className="glass">
-            <div className="p-2 text-center space-y-4">
-              <div className="w-14 h-14 rounded-2xl mx-auto grid place-items-center text-[#22c08c] bg-[rgba(34,192,140,0.12)] border border-[rgba(34,192,140,0.30)]">
-                <UserCheck size={26} />
-              </div>
-              <div>
-                <p className="text-[13px] text-[#8a919e] mb-1">מצאנו שם דומה בצוות</p>
-                <p className="text-[20px] font-bold leading-snug">זה השם שלך — {pendingMatch.match.name}?</p>
-              </div>
-              <p className="text-[13px] text-[#8a919e] leading-relaxed">אם כן, נמשיך עם ההתקדמות הקיימת שלך. אם זה מישהו אחר, ניצור פרופיל חדש.</p>
-              <div className="flex flex-col gap-2 pt-1">
-                <button disabled={busy} onClick={() => confirmMatch(true)} className={primaryButton(true)}>
-                  {busy ? <Loader2 size={18} className="animate-spin" /> : "כן, זה אני"}
-                </button>
-                <button disabled={busy} onClick={() => confirmMatch(false)}
-                  className="w-full h-[50px] rounded-2xl text-[15px] font-semibold text-[#eef0f6] bg-[rgba(238,240,246,0.06)] border border-[rgba(238,240,246,0.10)] transition-transform active:scale-[0.98]">
-                  לא, זה שם אחר
-                </button>
-              </div>
+          <FormCard icon={<UserCheck size={20} />} title="מצאנו שם דומה בצוות" subtitle="רק לוודא שזה את/ה">
+            <p className="text-[21px] font-bold leading-snug text-center">זה השם שלך — {pendingMatch.match.name}?</p>
+            <p className="text-[13px] text-[#8a919e] leading-relaxed text-center">אם כן, נמשיך עם ההתקדמות הקיימת שלך. אם זה מישהו אחר, ניצור פרופיל חדש.</p>
+            <div className="flex flex-col gap-2 pt-1">
+              <button disabled={busy} onClick={() => confirmMatch(true)} className={primaryButton(true)}>
+                {busy ? <Loader2 size={18} className="animate-spin" /> : "כן, זה אני"}
+              </button>
+              <button disabled={busy} onClick={() => confirmMatch(false)}
+                className="w-full h-[52px] rounded-2xl text-[15px] font-semibold text-[#eef0f6] bg-[rgba(238,240,246,0.06)] border border-[rgba(238,240,246,0.10)] transition-transform active:scale-[0.98]">
+                לא, זה שם אחר
+              </button>
             </div>
-          </div>
+          </FormCard>
         </div>
       </AuroraScreen>
     );
@@ -181,7 +201,7 @@ export default function TeamLogin({ onGranted }) {
 
   return (
     <AuroraScreen>
-      <form onSubmit={submit} className="flex-1 overflow-y-auto flex flex-col px-6 pt-[calc(env(safe-area-inset-top,0px)+4.5rem)] pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]">
+      <form onSubmit={submit} className="flex-1 overflow-y-auto flex flex-col px-6 pt-[calc(env(safe-area-inset-top,0px)+4rem)] pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]">
         <div className="text-center mb-8">
           <div className="relative w-[76px] h-[76px] mx-auto mb-5">
             <div className="absolute -inset-5 rounded-full bg-[radial-gradient(circle,rgba(34,192,140,0.28),transparent_68%)]" aria-hidden />
@@ -192,55 +212,51 @@ export default function TeamLogin({ onGranted }) {
           <p className="text-[14px] text-[#8a919e] mt-3">צוות · לומדים את התפריט</p>
         </div>
 
-        <div className="glass">
-          <div className="p-1 space-y-4">
-            <h2 className="text-[19px] font-bold">הצטרפות לצוות</h2>
-
-            <div>
-              <label htmlFor="team-code" className={LABEL}>קוד הצוות</label>
-              <input id="team-code" value={teamCode}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  setHebrewTyped(/[\u0590-\u05FF]/.test(raw));
-                  setTeamCode(raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12));
-                }}
-                placeholder="הקוד שקיבלת מהמנהל/ת" dir="ltr" autoComplete="off"
-                inputMode="text" autoCapitalize="characters" autoCorrect="off" spellCheck={false}
-                className={`${FIELD} text-center tracking-[0.2em] placeholder:tracking-normal`} />
-              {hebrewTyped && (
-                <p className="text-[12px] text-[#e8b93e] mt-2 px-1 leading-relaxed">
-                  הקוד באותיות אנגליות ובספרות בלבד — אפשר להחליף שפה במקלדת.
-                </p>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="team-first" className={LABEL}>שם פרטי</label>
-                <input id="team-first" value={firstName} onChange={(e) => setFirstName(e.target.value)}
-                  placeholder="דנה" dir="rtl" autoComplete="given-name"
-                  className={`${FIELD} text-right`} />
-              </div>
-              <div>
-                <label htmlFor="team-last" className={LABEL}>שם משפחה</label>
-                <input id="team-last" value={lastName} onChange={(e) => setLastName(e.target.value)}
-                  placeholder="כהן" dir="rtl" autoComplete="family-name"
-                  className={`${FIELD} text-right`} />
-              </div>
-            </div>
-
-            {err && (
-              <div role="alert" className="flex items-start gap-2 rounded-xl px-3 py-2.5 bg-[rgba(229,72,77,0.10)] border border-[rgba(229,72,77,0.30)] text-[13px] leading-relaxed text-[#f27d8d]">
-                <AlertTriangle size={15} className="shrink-0 mt-0.5" />
-                <span>{err}</span>
-              </div>
+        <FormCard icon={<Users size={20} />} title="הצטרפות לצוות" subtitle="קוד מהמנהל/ת ושם מלא — וזהו">
+          <div>
+            <label htmlFor="team-code" className={LABEL}>קוד הצוות</label>
+            <input id="team-code" value={teamCode}
+              onChange={(e) => {
+                const raw = e.target.value;
+                setHebrewTyped(/[\u0590-\u05FF]/.test(raw));
+                setTeamCode(raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12));
+              }}
+              placeholder="הקוד שקיבלת מהמנהל/ת" dir="ltr" autoComplete="off"
+              inputMode="text" autoCapitalize="characters" autoCorrect="off" spellCheck={false}
+              className={CODE_FIELD} />
+            {hebrewTyped && (
+              <p className="text-[12px] text-[#e8b93e] mt-2 px-1 leading-relaxed">
+                הקוד באותיות אנגליות ובספרות בלבד — אפשר להחליף שפה במקלדת.
+              </p>
             )}
-
-            <button type="submit" disabled={!canSubmit} className={primaryButton(canSubmit)}>
-              {busy ? <><Loader2 size={18} className="animate-spin" /> בודק…</> : "הצטרפות"}
-            </button>
           </div>
-        </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="team-first" className={LABEL}>שם פרטי</label>
+              <input id="team-first" value={firstName} onChange={(e) => setFirstName(e.target.value)}
+                placeholder="דנה" dir="rtl" autoComplete="given-name"
+                className={`${FIELD} text-right`} />
+            </div>
+            <div>
+              <label htmlFor="team-last" className={LABEL}>שם משפחה</label>
+              <input id="team-last" value={lastName} onChange={(e) => setLastName(e.target.value)}
+                placeholder="כהן" dir="rtl" autoComplete="family-name"
+                className={`${FIELD} text-right`} />
+            </div>
+          </div>
+
+          {err && (
+            <div role="alert" className="flex items-start gap-2 rounded-xl px-3 py-2.5 bg-[rgba(229,72,77,0.10)] border border-[rgba(229,72,77,0.30)] text-[13px] leading-relaxed text-[#f27d8d]">
+              <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+              <span>{err}</span>
+            </div>
+          )}
+
+          <button type="submit" disabled={!canSubmit} className={primaryButton(canSubmit)}>
+            {busy ? <><Loader2 size={18} className="animate-spin" /> בודק…</> : "הצטרפות"}
+          </button>
+        </FormCard>
 
         <p className="mt-auto pt-10 text-center text-[12px] leading-relaxed text-[#6b7280]">
           אין קוד? מבקשים אותו מהמנהל/ת במסעדה.
